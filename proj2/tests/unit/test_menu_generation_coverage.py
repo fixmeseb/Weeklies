@@ -1,7 +1,8 @@
 """Tests for menu_generation.py helper functions and edge cases."""
 import pytest
-import os
 import pandas as pd
+import proj2.Flask_app as Flask_app
+import proj2.llm_toolkit as llm_toolkit
 from proj2.menu_generation import (
     get_meal_and_order_time,
     get_weekday_and_increment,
@@ -167,28 +168,33 @@ class TestFilterClosedRestaurants:
 
 
 class TestMenuGeneratorInit:
-    """Tests for MenuGenerator initialization."""
+    """Tests for MenuGenerator initialization.
 
-    @pytest.mark.skipif(
-        os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true",
-        reason="MenuGenerator requires database and model access, skip in CI"
-    )
-    def test_menu_generator_creates(self):
+    These use the session test DB (conftest points Flask_app.db_file at it) and a stub
+    LLM, so they need neither the real CSC510_DB.db nor torch/model downloads.
+    """
+
+    @pytest.fixture
+    def stub_llm(self, monkeypatch):
+        class StubLLM:
+            def __init__(self, tokens=500):
+                self.tokens = tokens
+
+        monkeypatch.setattr(llm_toolkit, "LLM", StubLLM)
+        return StubLLM
+
+    def test_menu_generator_creates(self, stub_llm):
         """Test MenuGenerator can be initialized."""
-        gen = MenuGenerator(tokens=50)
+        gen = MenuGenerator(tokens=50, database_path=Flask_app.db_file)
         assert gen is not None
         assert hasattr(gen, "menu_items")
         assert hasattr(gen, "restaurants")
         assert hasattr(gen, "generator")
 
-    @pytest.mark.skipif(
-        os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true",
-        reason="MenuGenerator requires database and model access, skip in CI"
-    )
-    def test_menu_generator_tokens(self):
-        """Test MenuGenerator stores token count."""
-        gen = MenuGenerator(tokens=100)
-        # The generator is an LLM instance which stores tokens
+    def test_menu_generator_tokens(self, stub_llm):
+        """Test MenuGenerator passes its token count to the LLM it creates."""
+        gen = MenuGenerator(tokens=100, database_path=Flask_app.db_file)
+        assert isinstance(gen.generator, stub_llm)
         assert gen.generator.tokens == 100
 
 
