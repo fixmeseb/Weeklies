@@ -1,20 +1,27 @@
+"""
+Small SQL helpers shared by the app, scripts and tests.
+
+Errors are never swallowed: a failing statement raises ``sqlite3.Error`` so that
+bugs show up as a 500 (or a failing test) instead of as an empty result.
+
+Inside the app, get connections from ``proj2.db.get_db()``. ``create_connection``
+is for scripts and tests that work on a database file directly.
+"""
+
 import sqlite3
 
 
 def create_connection(db_file: str):
     """
-    Create and return a connection to the specified SQLite database.
+    Open a plain connection to ``db_file`` (created if it does not exist).
     Args:
         db_file (str): Path to the SQLite database file.
     Returns:
-        sqlite3.Connection | None: Connection object if successful, None otherwise.
+        sqlite3.Connection
+    Raises:
+        sqlite3.Error: the file cannot be opened.
     """
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-    except sqlite3.Error as e:
-        print(e)
-    return conn
+    return sqlite3.connect(db_file)
 
 
 def close_connection(conn):
@@ -31,51 +38,39 @@ def close_connection(conn):
 
 def execute_query(conn, query: str, params=()):
     """
-    Execute a single SQL query with optional parameters.
+    Execute a single SQL statement with optional parameters.
+
+    Commits immediately, unless the connection is inside ``proj2.db.transaction()``,
+    in which case the transaction commits (or rolls back) as a whole.
     Args:
         conn (sqlite3.Connection): Active database connection.
-        query (str): SQL query string to execute.
+        query (str): SQL statement to execute.
         params (tuple, optional): Parameters to safely substitute into the query.
     Returns:
-        sqlite3.Cursor | None: Cursor object if successful, None if an error occurred.
+        sqlite3.Cursor
+    Raises:
+        sqlite3.Error: the statement failed.
     """
-    try:
-        cur = conn.cursor()
-        cur.execute(query, params)
+    cur = conn.cursor()
+    cur.execute(query, params)
+    if not getattr(conn, "tx_depth", 0):
         conn.commit()
-        return cur
-    except sqlite3.Error as e:
-        print(e)
-        return None
+    return cur
 
 
 def fetch_all(conn, query: str, params=()):
     """
-    Execute a query and return all fetched rows.
-    Args:
-        conn (sqlite3.Connection): Active database connection.
-        query (str): SQL query string to execute.
-        params (tuple, optional): Parameters to safely substitute into the query.
-    Returns:
-        list: A list of result rows (each as a tuple). Empty list if no results or on failure.
+    Execute a query and return all fetched rows (an empty list if there are none).
+    Raises:
+        sqlite3.Error: the query failed.
     """
-    cur = execute_query(conn, query, params)
-    if cur:
-        return cur.fetchall()
-    return []
+    return execute_query(conn, query, params).fetchall()
 
 
 def fetch_one(conn, query: str, params=()):
     """
-    Execute a query and return the first result row.
-    Args:
-        conn (sqlite3.Connection): Active database connection.
-        query (str): SQL query string to execute.
-        params (tuple, optional): Parameters to safely substitute into the query.
-    Returns:
-        tuple | None: The first row as a tuple, or None if no result or on failure.
+    Execute a query and return the first row, or None if there are no rows.
+    Raises:
+        sqlite3.Error: the query failed.
     """
-    cur = execute_query(conn, query, params)
-    if cur:
-        return cur.fetchone()
-    return None
+    return execute_query(conn, query, params).fetchone()

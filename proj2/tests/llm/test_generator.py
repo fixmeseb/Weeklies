@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import proj2.menu_generation as menu_generation
 from proj2.sqlQueries import *
-from proj2.Flask_app import parse_generated_menu
+from proj2.Flask_app import parse_generated_menu, app as flask_app
 
 # Skip all LLM tests on CI (GitHub Actions on Linux)
 # These require a GPU or significant CPU resources and the LLM model to be available
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(
 
 # Initialize generator - will be skipped anyway on CI
 try:
-    generator = menu_generation.MenuGenerator()
+    generator = menu_generation.MenuGenerator(database_path=flask_app.config["DATABASE"])
 except Exception as e:
     # If generator fails to initialize (e.g., on CI), set to None
     # Tests will be skipped anyway due to pytestmark
@@ -27,7 +27,7 @@ except Exception as e:
 @pytest.fixture(scope="module")
 def menu_items_data(seed_minimal_data):
     """Load menu items from the test database."""
-    conn = create_connection(__import__("proj2.Flask_app", fromlist=["db_file"]).db_file)
+    conn = create_connection(flask_app.config["DATABASE"])
     try:
         items = pd.read_sql_query("SELECT * FROM MenuItem WHERE instock == 1", conn)
         return items

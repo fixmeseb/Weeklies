@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import datetime
 import time
@@ -15,9 +14,7 @@ from proj2.meal_budget import (
     week_start,
     weekly_item_totals,
 )
-from proj2.sqlQueries import *
-
-db_file = os.path.join(os.path.dirname(__file__), "CSC510_DB.db")
+from proj2.db import connect
 
 ## LLM error handling
 MAX_LLM_TRIES = 3
@@ -219,16 +216,17 @@ class MenuGenerator:
     MenuGenerator class that uses an LLM to generate menu items based on user preferences and restrictions
     """
 
-    def __init__(self, tokens: int = 500, database_path: str = None):
+    def __init__(self, tokens: int = 500, *, database_path: str):
         """
         Initializes the MenuGenerator with menu items and restaurants from the database and initializes
         the local LLM.
 
         Args:
             tokens (int): The number of tokens to use for the LLM generation
-            database_path (str | None): Use the caller's catalog when supplied.
+            database_path (str): The SQLite database to read the catalog from.
         """
-        conn = create_connection(database_path or db_file)
+        conn = connect(database_path)
+        conn.row_factory = None  # pandas expects plain tuples
         try:
             catalog = pd.read_sql_query("SELECT itm_id, price FROM MenuItem", conn)
             self.item_prices = dict(zip(catalog.itm_id, catalog.price))
@@ -237,7 +235,7 @@ class MenuGenerator:
                 'SELECT rtr_id, hours FROM Restaurant WHERE status=="Open"', conn
             )
         finally:
-            close_connection(conn)
+            conn.close()
 
         self.tokens = tokens
         self._generator = None

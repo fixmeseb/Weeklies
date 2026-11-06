@@ -9,10 +9,10 @@ from proj2.sqlQueries import create_connection, close_connection, execute_query,
 
 class _DbFileProxy(os.PathLike):
     def __fspath__(self):
-        return str(Flask_app.db_file)
+        return str(Flask_app.db_path())
 
     def __str__(self):
-        return str(Flask_app.db_file)
+        return str(Flask_app.db_path())
 
 
 db_file = _DbFileProxy()
@@ -259,7 +259,7 @@ class TestSqlQueries:
 
     def test_fetch_functions_with_valid_database(self, app):
         """Test fetch functions work with valid database."""
-        conn = create_connection(Flask_app.db_file)
+        conn = create_connection(Flask_app.db_path())
         assert conn is not None
         
         try:
@@ -274,7 +274,7 @@ class TestSqlQueries:
 
     def test_execute_query_with_valid_sql(self, app):
         """Test execute_query with valid SQL."""
-        conn = create_connection(Flask_app.db_file)
+        conn = create_connection(Flask_app.db_path())
         assert conn is not None
         
         try:

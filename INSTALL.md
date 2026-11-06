@@ -55,12 +55,33 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | Variable | Purpose | If unset |
 |---|---|---|
 | `WEEKLIES_SECRET_KEY` | Signs session cookies. Never commit a real value. | On first run the app generates a key and saves it to `proj2/instance/secret_key` (git-ignored), then reuses it, so logins survive restarts and auto-reloads. Delete that file to log everyone out. |
+| `WEEKLIES_DATABASE` | Path of the SQLite database. Relative paths are taken from the repo root. | `proj2/CSC510_DB.db` |
 | `FLASK_DEBUG` | `1` enables auto-reload and the interactive debugger for local development. | Debug is off. |
 
 When starting the app directly with `python -m proj2.Flask_app`, debug mode is off unless you pass `--debug`. Never enable it on a server others can reach: the debugger lets anyone who sees an error page run code on the machine.
 
+### Setting up the database
+Run these from the repo root (`.flaskenv` tells `flask` where the app is):
+
+```bash
+flask seed       # create the database with demo data (deletes any existing one)
+# or
+flask init-db    # create an empty database
+```
+
+`flask seed` creates these accounts, all with the password `password123`:
+
+| Account | Email |
+|---|---|
+| Customer | `testuser@example.com`, `seconduser@example.com` |
+| Restaurant owner | `owner@tasteofitaly.com`, `owner@greengarden.com` |
+
+The schema lives in numbered files in `proj2/migrations/`. After pulling changes that add one, run `flask migrate` to bring your database up to date without losing data. Databases made by the old setup scripts have no schema version and are refused: recreate them with `flask seed`.
+
+If the database is missing or empty, the app shows a "Database not initialised" error instead of starting normally.
+
 ### Running the Application
-Once dependencies are installed and the virtual environment is activated, you can run the Flask server:
+Once dependencies are installed and the database is set up, you can run the Flask server from the repo root:
 
 ```bash
 # Start the development server
@@ -68,11 +89,6 @@ flask run
 ```
 
 The application will be available at `http://127.0.0.1:5000`.
-
-> [!NOTE]
-> If you have downloaded the repo locally and you're running into issues with
-> `proj2.` errors when trying to run `Flask_app.py`, simply remove `proj2.`
-> that is in front of any of the imports and try to run the application again.
 
 ---
 
@@ -109,8 +125,15 @@ npx cypress open
 ```
 
 > [!NOTE]
-> Cypress tests expect the Flask server to be running on `http://127.0.0.1:5000`.
-> Start the server in a separate terminal before running Cypress.
+> Cypress uses its own database, `proj2/instance/cypress.db`, and reseeds it before
+> each test, so E2E runs never touch your development data. Start the Flask server
+> on `http://127.0.0.1:5000` against that database, in a separate terminal, before
+> running Cypress:
+>
+> ```bash
+> WEEKLIES_DATABASE=proj2/instance/cypress.db flask run          # Bash/Zsh
+> $env:WEEKLIES_DATABASE="proj2/instance/cypress.db"; flask run  # PowerShell
+> ```
 
 ---
 

@@ -16,6 +16,9 @@ module.exports = defineConfig({
     screenshotOnRunFailure: true,
     setupNodeEvents(on, config) {
       on("task", {
+        // Recreates the E2E database: $WEEKLIES_DATABASE, or proj2/instance/cypress.db.
+        // Start the Flask server with the same WEEKLIES_DATABASE (see INSTALL.md); the
+        // seed script refuses to overwrite the development database.
         seedDatabase() {
           const scriptPath = path.resolve(__dirname, "scripts", "cypress_seed.py");
           try {
