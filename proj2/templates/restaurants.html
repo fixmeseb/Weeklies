@@ -394,6 +394,7 @@
   function showToast(msg){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1200); }
   function toMoney(n){ return Number.parseFloat(n).toFixed(2); }
   function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
+  const ORDER_FEES = {{ order_fees|tojson }};  // from proj2/config.py via inject_order_fees
   function formatAddress(r){ if (!r) return ''; if (r.address_full) return r.address_full; const parts=[r.address,r.city,r.state,r.zip].filter(Boolean); return parts.join(', '); }
   
   // Format hours to readable format like "MTW 11 to 4, Th F 2 to 9 pm"
@@ -591,9 +592,9 @@
   // ---------- Totals / Place order ----------
   function computeGroupTotals(lines, deliveryType='delivery', tipDollar=0) {
     const subtotal = round2(lines.reduce((acc, l) => acc + (Number(l.qty||1) * Number(l.item.unit_price||0)), 0));
-    const tax = round2(subtotal * 0.0725);
-    const delivery_fee = deliveryType === 'delivery' ? 3.99 : 0.00;
-    const service_fee  = 1.49;
+    const tax = round2(subtotal * ORDER_FEES.tax_rate);
+    const delivery_fee = deliveryType === 'delivery' ? ORDER_FEES.delivery_fee : 0.00;
+    const service_fee  = ORDER_FEES.service_fee;
     const tip = round2(Number(tipDollar||0));
     const total = round2(subtotal + tax + delivery_fee + service_fee + tip);
     return { subtotal, tax, delivery_fee, service_fee, tip, total };

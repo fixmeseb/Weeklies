@@ -3,8 +3,13 @@
 
 import sqlite3
 import os
+import sys
 
-db_file = os.path.join('proj2', 'CSC510_DB.db')
+# Repo root on sys.path so this works from any working directory.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from proj2 import config
+
+db_file = config.db_path()  # WEEKLIES_DB_PATH, else proj2/CSC510_DB.db
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS "User" (

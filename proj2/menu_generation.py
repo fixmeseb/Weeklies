@@ -17,7 +17,9 @@ from proj2.meal_budget import (
 )
 from proj2.sqlQueries import *
 
-db_file = os.path.join(os.path.dirname(__file__), "CSC510_DB.db")
+from proj2 import config
+
+db_file = config.db_path()
 
 ## LLM error handling
 MAX_LLM_TRIES = 3

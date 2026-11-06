@@ -14,10 +14,14 @@ This script will:
 import os
 import shutil
 import sqlite3
+import sys
 from datetime import datetime
 
-# Database file
-db_file = os.path.join(os.path.dirname(__file__), 'proj2', 'CSC510_DB.db')
+# Repo root on sys.path so this works from any working directory.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from proj2 import config
+
+db_file = config.db_path()  # WEEKLIES_DB_PATH, else proj2/CSC510_DB.db
 
 # Analytics table schema
 ANALYTICS_SCHEMA = """

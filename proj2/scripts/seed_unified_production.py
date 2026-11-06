@@ -37,11 +37,16 @@ NOTES:
 
 import sqlite3
 import os
+import sys
 from pathlib import Path
 
-# Get database path
-db_dir = Path(__file__).parent.parent
-db_file = db_dir / "CSC510_DB.db"
+# Repo root on sys.path so `proj2` imports when run as `python scripts/<name>.py`.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from proj2 import config
+
+# Get database path (WEEKLIES_DB_PATH, else proj2/CSC510_DB.db); the backup sits beside it
+db_file = Path(config.db_path())
+db_dir = db_file.parent
 backup_file = db_dir / "CSC510_DB.db.backup.20251119_183208"
 
 

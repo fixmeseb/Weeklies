@@ -657,6 +657,7 @@
   const field = id => modal.querySelector('#' + id);
   function dollars(n){ return '$' + (Number(n||0).toFixed(2)); }
   function round2(x){ return Math.round((Number(x)||0)*100)/100; }
+  const ORDER_FEES = {{ order_fees|tojson }};  // from proj2/config.py via inject_order_fees
 
   // Fallback computeTotals if global computeGroupTotals isn't present
   function computeTotals(unitPrice, deliveryType){
@@ -665,9 +666,9 @@
       return window.computeGroupTotals(lines, deliveryType || 'delivery', 0);
     }
     const subtotal = round2(lines.reduce((a,l)=>a + (Number(l.qty||1)*Number(l.item.unit_price||0)), 0));
-    const tax = round2(subtotal * 0.0725);
-    const delivery_fee = (deliveryType==='pickup') ? 0.00 : 3.99;
-    const service_fee  = 1.49;
+    const tax = round2(subtotal * ORDER_FEES.tax_rate);
+    const delivery_fee = (deliveryType==='pickup') ? 0.00 : ORDER_FEES.delivery_fee;
+    const service_fee  = ORDER_FEES.service_fee;
     const tip = 0;
     const total = round2(subtotal + tax + delivery_fee + service_fee + tip);
     return { subtotal, tax, delivery_fee, service_fee, tip, total };

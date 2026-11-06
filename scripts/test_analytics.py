@@ -5,12 +5,13 @@ Test script to verify analytics dashboard data population.
 
 import sys
 import os
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from proj2 import config
 
 from proj2.sqlQueries import create_connection, close_connection, fetch_one, fetch_all, execute_query
 from werkzeug.security import generate_password_hash
 
-db_file = os.path.join('proj2', 'CSC510_DB.db')
+db_file = config.db_path()  # WEEKLIES_DB_PATH, else proj2/CSC510_DB.db
 
 def setup_restaurant_login():
     """Ensure a restaurant exists with known credentials for testing."""
@@ -27,12 +28,13 @@ def setup_restaurant_login():
             rtr_id = rtr[0]
             print(f"Found restaurant: Bida Manda (ID: {rtr_id})")
             
-            # Update password for testing (set to 'password123')
-            hashed = generate_password_hash('password123')
+            # WEEKLIES_SEED_PASSWORD if set, otherwise a random password printed below
+            password = config.seed_password()
+            hashed = generate_password_hash(password)
             execute_query(conn, 
                 "UPDATE Restaurant SET password_HS = ? WHERE rtr_id = ?",
                 (hashed, rtr_id))
-            print(f"Updated password for restaurant login")
+            print(f"Updated restaurant login password to: {password}")
             
             # Record a fresh analytics snapshot
             from proj2.Flask_app import record_analytics_snapshot

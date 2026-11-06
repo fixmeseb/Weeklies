@@ -2,6 +2,7 @@ import os
 import time
 import platform
 import warnings
+from proj2 import config
 
 # Configure PyTorch for Windows stability BEFORE importing torch
 if platform.system() == "Windows":
@@ -49,8 +50,8 @@ class LLM:
     else:
         device = "cpu"
 
-    ## Use the smaller 350M model so local CPU generation does not exhaust RAM.
-    model = "ibm-granite/granite-4.0-h-350M"
+    ## Model id; set WEEKLIES_LLM_MODEL to override (default in proj2/config.py).
+    model = config.llm_model()
 
     def __init__(self, tokens: int = 500):
         """

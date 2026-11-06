@@ -22,9 +22,10 @@ import json
 
 # Database file
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from proj2 import config
 from proj2.sqlQueries import create_connection, close_connection, fetch_all, fetch_one, execute_query
 
-db_file = os.path.join(os.path.dirname(__file__), '..', 'proj2', 'CSC510_DB.db')
+db_file = config.db_path()  # WEEKLIES_DB_PATH, else proj2/CSC510_DB.db
 
 def seed_analytics_data():
     """

@@ -10,7 +10,12 @@ import sqlite3
 from datetime import datetime, date, timedelta
 from werkzeug.security import generate_password_hash
 
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "CSC510_DB.db"))
+# Repo root on sys.path so `proj2` imports when run as `python scripts/<name>.py`.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+from proj2 import config
+
+# Cypress resets this DB (DROP TABLE); point WEEKLIES_DB_PATH at a scratch copy if needed.
+DB_PATH = config.db_path()
 
 SCHEMA_SQL = """
 DROP TABLE IF EXISTS "Analytics";

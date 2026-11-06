@@ -12,12 +12,13 @@ Sets the restaurant credentials to:
 
 import sys
 import os
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from proj2 import config
 
 from proj2.sqlQueries import create_connection, close_connection, execute_query, fetch_one
 from werkzeug.security import generate_password_hash
 
-db_file = os.path.join('proj2', 'CSC510_DB.db')
+db_file = config.db_path()  # WEEKLIES_DB_PATH, else proj2/CSC510_DB.db
 
 def set_restaurant_credentials():
     """Set known restaurant credentials for testing."""
@@ -34,8 +35,8 @@ def set_restaurant_credentials():
             rtr_id = rtr[0]
             print(f"Found restaurant: Bida Manda (ID: {rtr_id})")
             
-            # Set password to 'TestPassword123!'
-            password = 'TestPassword123!'
+            # WEEKLIES_SEED_PASSWORD if set, otherwise a random password printed below
+            password = config.seed_password()
             hashed = generate_password_hash(password)
             execute_query(conn, 
                 "UPDATE Restaurant SET password_HS = ? WHERE rtr_id = ?",

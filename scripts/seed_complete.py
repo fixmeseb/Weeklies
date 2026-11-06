@@ -8,11 +8,12 @@ from datetime import datetime, timedelta
 import json
 import random
 
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from proj2 import config
 from proj2.sqlQueries import create_connection, close_connection, fetch_one, execute_query
 from werkzeug.security import generate_password_hash
 
-db_file = os.path.join('proj2', 'CSC510_DB.db')
+db_file = config.db_path()  # WEEKLIES_DB_PATH, else proj2/CSC510_DB.db
 
 def seed_menu_items():
     """Seed Bida Manda with menu items."""
@@ -81,7 +82,9 @@ def seed_orders_and_analytics():
         # Create a test user if it doesn't exist
         user = fetch_one(conn, "SELECT usr_id FROM User LIMIT 1")
         if not user:
-            hashed_pw = generate_password_hash("password")
+            password = config.seed_password()  # WEEKLIES_SEED_PASSWORD, else random
+            hashed_pw = generate_password_hash(password)
+            print(f"✓ Created test@example.com with password: {password}")
             execute_query(conn, '''
                 INSERT INTO User 
                 (first_name, last_name, email, phone, password_HS, wallet, preferences, allergies, generated_menu)

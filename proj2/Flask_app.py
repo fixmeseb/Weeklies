@@ -11,6 +11,7 @@ from flask import jsonify
 from sqlite3 import IntegrityError
 from datetime import timedelta, date, datetime
 from functools import wraps
+from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
 from proj2.menu_generation import MenuGenerator
 from proj2.meal_budget import (
@@ -101,7 +102,8 @@ SECRET_KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "inst
 app = Flask(__name__)
 app.config["SECRET_KEY"] = load_secret_key(key_file=SECRET_KEY_FILE)
 
-db_file = os.path.join(os.path.dirname(__file__), "CSC510_DB.db")
+# Read once at import; tests monkeypatch this name. Override with WEEKLIES_DB_PATH.
+db_file = config.db_path()
 
 # ---------------------- Helpers ----------------------
 
@@ -118,6 +120,23 @@ def _money(x: float) -> float:
         return round(float(x) + 1e-9, 2)
     except Exception:
         return 0.0
+
+
+def _order_charges(subtotal: float, delivery_type: str, tip: float) -> dict:
+    """
+    Tax, fees and total for an order, from the fee schedule in proj2/config.py.
+    Args:
+        subtotal (float): Sum of line totals in dollars.
+        delivery_type (str): "delivery" or "pickup"; only delivery pays the delivery fee.
+        tip (float): Tip in dollars.
+    Returns:
+        dict: tax, delivery_fee, service_fee and total, each rounded to cents.
+    """
+    tax = _money(subtotal * config.TAX_RATE)
+    delivery_fee = config.DELIVERY_FEE if delivery_type == "delivery" else 0.00
+    service_fee = config.SERVICE_FEE
+    total = _money(subtotal + tax + delivery_fee + service_fee + tip)
+    return {"tax": tax, "delivery_fee": delivery_fee, "service_fee": service_fee, "total": total}
 
 
 def _cents_to_dollars(cents) -> float:
@@ -2029,10 +2048,9 @@ def order():
                 }
             )
 
-        tax = _money(subtotal * 0.0725)
-        delivery_fee = 3.99 if delivery_type == "delivery" else 0.00
-        service_fee = 1.49
-        total = _money(subtotal + tax + delivery_fee + service_fee + tip_dollars)
+        charges = _order_charges(subtotal, delivery_type, tip_dollars)
+        tax, delivery_fee = charges["tax"], charges["delivery_fee"]
+        service_fee, total = charges["service_fee"], charges["total"]
 
         placed_iso = datetime.now().astimezone().isoformat()
 
@@ -2126,10 +2144,9 @@ def order():
     unit_price = _cents_to_dollars(price_cents)
     line_total = _money(unit_price * qty)
 
-    tax = _money(line_total * 0.0725)
-    delivery_fee = 3.99 if delivery_type == "delivery" else 0.00
-    service_fee = 1.49
-    total = _money(line_total + tax + delivery_fee + service_fee + tip_dollars)
+    charges = _order_charges(line_total, delivery_type, tip_dollars)
+    tax, delivery_fee = charges["tax"], charges["delivery_fee"]
+    service_fee, total = charges["service_fee"], charges["total"]
 
     details = {
         "placed_at": datetime.now().astimezone().isoformat(),
@@ -2419,6 +2436,12 @@ def db_view_enabled() -> bool:
 def inject_db_view_enabled():
     """Expose db_view_enabled to templates so the nav only links to /db when it is served."""
     return {"db_view_enabled": db_view_enabled()}
+
+
+@app.context_processor
+def inject_order_fees():
+    """Expose the fee schedule so cart previews compute the same totals the server bills."""
+    return {"order_fees": config.order_fees()}
 
 
 # Database viewer route (uses helpers only)
