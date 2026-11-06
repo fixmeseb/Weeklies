@@ -112,7 +112,7 @@ def test_place_pickup_no_delivery_fee(client, seed_user, seed_restaurant, temp_d
 def test_place_pickup_analytics_fail(client, seed_user, seed_restaurant, monkeypatch):
     """UC12 ext 7a: analytics failure doesn't break pickup order."""
     from proj2 import Flask_app
-    monkeypatch.setattr(Flask_app, "record_analytics_snapshot",
+    monkeypatch.setattr("proj2.food.views.record_analytics_snapshot",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad")), raising=True)
     _login(client, seed_user)
     resp = client.post("/order", json={

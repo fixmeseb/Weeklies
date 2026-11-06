@@ -307,12 +307,12 @@
         <h1>🍽️ {{ restaurant_name }}</h1>
         <p>{{ restaurant_email }}</p>
       </div>
-      <a href="{{ url_for('restaurant_logout') }}" class="logout-btn">Logout</a>
+      <a href="{{ url_for('food.restaurant_logout') }}" class="logout-btn">Logout</a>
     </div>
   </div>
 
   <div class="reviews-container">
-    <a href="{{ url_for('restaurant_dashboard') }}" class="back-link">← Back to Dashboard</a>
+    <a href="{{ url_for('food.restaurant_dashboard') }}" class="back-link">← Back to Dashboard</a>
 
     <!-- Restaurant Header with Rating Summary -->
     <div class="restaurant-header">

@@ -14,7 +14,7 @@ def _login(client, seed_user):
 @pytest.fixture(autouse=True)
 def _stub_pdf(monkeypatch):
     """PDF generation calls reportlab — stub it with fake bytes so tests are fast."""
-    monkeypatch.setattr("proj2.Flask_app.generate_order_receipt_pdf",
+    monkeypatch.setattr("proj2.food.views.generate_order_receipt_pdf",
                         lambda db, oid: b"%PDF-1.4\n%fake\n", raising=True)
 
 

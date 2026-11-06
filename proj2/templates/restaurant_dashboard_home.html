@@ -148,7 +148,7 @@
           <h1>🍽️ {{ restaurant_name }}</h1>
           <p>{{ restaurant_email }}</p>
         </div>
-        <a href="{{ url_for('restaurant_logout') }}" class="logout-btn">Logout</a>
+        <a href="{{ url_for('food.restaurant_logout') }}" class="logout-btn">Logout</a>
       </div>
     </div>
   </div>
@@ -159,7 +159,7 @@
 
     <div class="dashboard-cards">
       <!-- Orders Card -->
-      <a href="{{ url_for('restaurant_orders') }}" class="dashboard-card card-orders">
+      <a href="{{ url_for('food.restaurant_orders') }}" class="dashboard-card card-orders">
         <div class="card-icon">📦</div>
         <h3 class="card-title">Order Management</h3>
         <p class="card-description">
@@ -173,7 +173,7 @@
       </a>
 
       <!-- Analytics Card -->
-      <a href="{{ url_for('restaurant_analytics') }}" class="dashboard-card card-analytics">
+      <a href="{{ url_for('food.restaurant_analytics') }}" class="dashboard-card card-analytics">
         <div class="card-icon">📊</div>
         <h3 class="card-title">Analytics</h3>
         <p class="card-description">
@@ -183,7 +183,7 @@
       </a>
 
       <!-- Reviews Card -->
-      <a href="{{ url_for('restaurant_owner_reviews') }}" class="dashboard-card card-reviews">
+      <a href="{{ url_for('food.restaurant_owner_reviews') }}" class="dashboard-card card-reviews">
         <div class="card-icon">⭐</div>
         <h3 class="card-title">Reviews</h3>
         <p class="card-description">

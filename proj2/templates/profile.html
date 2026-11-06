@@ -10,14 +10,14 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">Order</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">Order</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -53,7 +53,7 @@
       <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border);">
         <h2 style="margin:0; font-size:20px; font-weight:700;">User Profile</h2>
         <div style="display:flex; gap:8px;">
-          <a class="btn btn-outline btn-sm" href="{{ url_for('edit_profile') }}">Edit</a>
+          <a class="btn btn-outline btn-sm" href="{{ url_for('account.edit_profile') }}">Edit</a>
           <button type="button" class="btn btn-primary btn-sm" id="openChangePwBtn">Change Password</button>
         </div>
       </div>
@@ -124,7 +124,7 @@
         <div id="menuError" class="flash danger" role="alert" {% if not generation_error %}hidden{% endif %}>
           {{ generation_error or '' }}
         </div>
-        <form method="POST" action="{{ url_for('generate_menu') }}" class="form-grid">
+        <form method="POST" action="{{ url_for('food.generate_menu') }}" class="form-grid">
           <div class="form-row">
             <label for="start_date">Start date</label>
             <input class="input" type="date" id="start_date" name="start_date" value="{{ (now().date() if false else '') }}" placeholder="YYYY-MM-DD">
@@ -224,7 +224,7 @@
                 </td>
                 <td>
                   <a class="btn btn-outline btn-sm"
-                    href="{{ url_for('order_receipt', ord_id=order.id) }}">
+                    href="{{ url_for('food.order_receipt', ord_id=order.id) }}">
                     PDF
                   </a>
                 </td>
@@ -233,12 +233,12 @@
                   {% if order.status|lower == 'delivered' %}
                     {% if order.has_review %}
                       <a class="btn btn-outline btn-sm"
-                         href="{{ url_for('view_review', ord_id=order.id) }}">
+                         href="{{ url_for('food.view_review', ord_id=order.id) }}">
                         View Review
                       </a>
                     {% else %}
                       <a class="btn btn-primary btn-sm"
-                         href="{{ url_for('review_order', ord_id=order.id) }}">
+                         href="{{ url_for('food.review_order', ord_id=order.id) }}">
                         ⭐ Review
                       </a>
                     {% endif %}
@@ -265,7 +265,7 @@
       <h3 id="pwModalTitle" style="margin:0; font-size:18px;">Change Password</h3>
       <button type="button" class="btn btn-outline btn-sm" id="closePwModalBtn" aria-label="Close">Close</button>
     </div>
-    <form id="pwForm" class="modal-body" novalidate method="POST" action="{{ url_for('change_password') }}">
+    <form id="pwForm" class="modal-body" novalidate method="POST" action="{{ url_for('account.change_password') }}">
       <div class="form-row">
         <label for="pwCurrent">Current password</label>
         <input class="input" id="pwCurrent" name="current_password" type="password" required>

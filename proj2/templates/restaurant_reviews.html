@@ -254,22 +254,22 @@
 <body>
   <header class="site-header">
     <div class="container">
-      <a class="brand" href="{{ url_for('index') }}">
+      <a class="brand" href="{{ url_for('planner.index') }}">
         <span class="logo" aria-hidden="true"></span> Weeklies
       </a>
       <nav>
-        <a href="{{ url_for('index') }}">Home</a>
-        <a href="{{ url_for('profile') }}">Profile</a>
-        <a href="{{ url_for('restaurants') }}">Restaurants</a>
-        <a href="{{ url_for('orders') }}">Order</a>
-        <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+        <a href="{{ url_for('planner.index') }}">Home</a>
+        <a href="{{ url_for('account.profile') }}">Profile</a>
+        <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+        <a href="{{ url_for('food.orders') }}">Order</a>
+        <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
       </nav>
     </div>
   </header>
 
   <main class="main">
     <div class="reviews-container">
-      <a href="{{ url_for('restaurants') }}" class="back-link">← Back to Restaurants</a>
+      <a href="{{ url_for('food.restaurants') }}" class="back-link">← Back to Restaurants</a>
 
       <!-- Restaurant Header with Rating Summary -->
       <div class="restaurant-header">

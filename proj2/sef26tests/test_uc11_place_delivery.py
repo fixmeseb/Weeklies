@@ -138,7 +138,7 @@ def test_place_delivery_analytics_fail(client, seed_user, seed_restaurant, monke
     from proj2 import Flask_app
     def boom(*a, **k):
         raise RuntimeError("analytics down")
-    monkeypatch.setattr(Flask_app, "record_analytics_snapshot", boom, raising=True)
+    monkeypatch.setattr("proj2.food.views.record_analytics_snapshot", boom, raising=True)
     _login(client, seed_user)
     resp = client.post("/order", json={
         "restaurant_id": seed_restaurant["rtr_id"],

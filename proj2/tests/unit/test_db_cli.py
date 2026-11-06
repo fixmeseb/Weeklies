@@ -127,7 +127,19 @@ def test_seed_creates_the_documented_demo_data(tmp_path):
     try:
         counts = {
             t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
-            for t in ["User", "Restaurant", "MenuItem", "Order", "Review", "Analytics"]
+            for t in [
+                "User",
+                "Restaurant",
+                "MenuItem",
+                "Order",
+                "Review",
+                "Analytics",
+                "Project",
+                "Task",
+                "Tag",
+                "TaskTag",
+                "PlanEntry",
+            ]
         }
         assert counts == {
             "User": 2,
@@ -136,6 +148,11 @@ def test_seed_creates_the_documented_demo_data(tmp_path):
             "Order": 4,
             "Review": 1,
             "Analytics": 2,
+            "Project": 2,
+            "Task": 6,
+            "Tag": 3,
+            "TaskTag": 4,
+            "PlanEntry": 3,
         }
         pw = conn.execute(
             'SELECT password_HS FROM "User" WHERE email=?', ("testuser@example.com",)

@@ -305,8 +305,8 @@
           <p>{{ restaurant_email }}</p>
         </div>
         <div class="dashboard-nav">
-          <a href="{{ url_for('restaurant_analytics') }}" class="nav-link">📊 Analytics</a>
-          <a href="{{ url_for('restaurant_logout') }}" class="logout-btn">Logout</a>
+          <a href="{{ url_for('food.restaurant_analytics') }}" class="nav-link">📊 Analytics</a>
+          <a href="{{ url_for('food.restaurant_logout') }}" class="logout-btn">Logout</a>
         </div>
       </div>
     </div>
@@ -380,10 +380,10 @@
         {% endif %}
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_accept_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_accept_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-accept">✓ Accept Order</button>
           </form>
-          <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
+          <form method="POST" action="{{ url_for('food.restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Are you sure you want to reject this order?');">
             <button type="submit" class="btn-action btn-reject">✗ Reject</button>
@@ -430,10 +430,10 @@
         </div>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_prepare_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_prepare_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-preparing">👨‍🍳 Start Preparing</button>
           </form>
-          <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
+          <form method="POST" action="{{ url_for('food.restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Cancel this order?');">
             <button type="submit" class="btn-action btn-reject">Cancel</button>
@@ -473,7 +473,7 @@
         </div>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_ready_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_ready_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-ready">📦 Mark Ready</button>
           </form>
         </div>
@@ -511,7 +511,7 @@
         </div>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_deliver_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_deliver_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-deliver">✓ Mark Delivered</button>
           </form>
         </div>

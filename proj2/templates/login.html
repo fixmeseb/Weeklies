@@ -10,11 +10,11 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}">
+    <a class="brand" href="{{ url_for('planner.index') }}">
       <span class="logo" aria-hidden="true"></span> Weeklies
     </a>
     <nav>
-      <a href="{{ url_for('login') }}">Login</a>
+      <a href="{{ url_for('auth.login') }}">Login</a>
     </nav>
   </div>
 </header>
@@ -29,7 +29,7 @@
       <div class="card compact">
         <div class="card-header" style="font-size: 1.5rem;">Login</div>
         <div class="card-body">
-          <form action="{{ url_for('login') }}" method="post">
+          <form action="{{ url_for('auth.login') }}" method="post">
             <label for="email">Email</label>
             <input class="input" type="email" id="email" name="email" required />
 
@@ -39,11 +39,11 @@
             <br>
 
             <input type="submit" value="Login" class="btn btn-primary btn-block" />
-            <a href="{{ url_for('register') }}" class="btn btn-secondary btn-block">Register</a>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-secondary btn-block">Register</a>
           </form>
           
           <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
-            <a href="{{ url_for('restaurant_login') }}" style="color: var(--muted); font-size: 0.9rem;">
+            <a href="{{ url_for('food.restaurant_login') }}" style="color: var(--muted); font-size: 0.9rem;">
               🍽️ Restaurant Owner? Login here →
             </a>
           </div>

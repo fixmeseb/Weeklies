@@ -159,22 +159,22 @@
 <body>
   <header class="site-header">
     <div class="container">
-      <a class="brand" href="{{ url_for('index') }}">
+      <a class="brand" href="{{ url_for('planner.index') }}">
         <span class="logo" aria-hidden="true"></span> Weeklies
       </a>
       <nav>
-        <a href="{{ url_for('index') }}">Home</a>
-        <a href="{{ url_for('profile') }}">Profile</a>
-        <a href="{{ url_for('restaurants') }}">Restaurants</a>
-        <a href="{{ url_for('orders') }}">Order</a>
-        <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+        <a href="{{ url_for('planner.index') }}">Home</a>
+        <a href="{{ url_for('account.profile') }}">Profile</a>
+        <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+        <a href="{{ url_for('food.orders') }}">Order</a>
+        <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
       </nav>
     </div>
   </header>
 
   <main class="main">
     <div class="review-container">
-      <a href="{{ url_for('profile') }}" class="back-link">← Back to Profile</a>
+      <a href="{{ url_for('account.profile') }}" class="back-link">← Back to Profile</a>
 
       <!-- Review Header -->
       <div class="review-header-section">
@@ -182,7 +182,7 @@
         <div class="review-meta">
           <span>Order #{{ review.ord_id }}</span>
           <span>•</span>
-          <a href="{{ url_for('restaurant_reviews', rtr_id=review.rtr_id) }}">{{ review.restaurant_name }}</a>
+          <a href="{{ url_for('food.restaurant_reviews', rtr_id=review.rtr_id) }}">{{ review.restaurant_name }}</a>
         </div>
       </div>
 
@@ -211,7 +211,7 @@
               Review submitted
             {% endif %}
           </span>
-          <a href="{{ url_for('order_receipt', ord_id=review.ord_id) }}" class="order-link">
+          <a href="{{ url_for('food.order_receipt', ord_id=review.ord_id) }}" class="order-link">
             View Order Receipt →
           </a>
         </div>
@@ -220,7 +220,7 @@
       <!-- Link to all restaurant reviews -->
       <div class="restaurant-link-card">
         <h3>See all reviews for {{ review.restaurant_name }}</h3>
-        <a href="{{ url_for('restaurant_reviews', rtr_id=review.rtr_id, highlight=review.rev_id) }}">
+        <a href="{{ url_for('food.restaurant_reviews', rtr_id=review.rtr_id, highlight=review.rev_id) }}">
           View All Reviews →
         </a>
       </div>

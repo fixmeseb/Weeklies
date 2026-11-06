@@ -83,7 +83,7 @@ def test_table_with_every_column_hidden_renders_empty(
     """If nothing is left to show, the page renders 'No rows.' instead of erroring."""
     review_cols = {"rev_id", "rtr_id", "usr_id", "title", "rating", "description", "ord_id",
                    "created_at"}
-    monkeypatch.setattr(Flask_app, "DB_VIEW_HIDDEN_COLUMNS", frozenset(review_cols))
+    monkeypatch.setattr("proj2.food.views.DB_VIEW_HIDDEN_COLUMNS", frozenset(review_cols))
     html = _get(client, "Review")
     assert _headers(html) == []
     assert "No rows." in html

@@ -9,8 +9,11 @@ All connections made here:
   * return ``sqlite3.Row`` rows, so columns can be read by name (``row["email"]``)
     as well as by position;
   * enforce foreign keys (``PRAGMA foreign_keys = ON``);
-  * never create a database file: a missing or empty database raises
-    ``DatabaseNotInitialisedError`` instead of looking like an empty table.
+  * never create a database file, and check the schema version
+    (``PRAGMA user_version``, set by the migrations): a database that is missing,
+    empty, made by the old scripts, or not yet migrated raises
+    ``DatabaseNotInitialisedError`` with the command that fixes it, instead of
+    failing later as an empty table or "no such table".
 
 The database path comes from ``app.config["DATABASE"]``, which defaults to
 ``$WEEKLIES_DATABASE`` (relative paths are taken from the repo root, so the server and
@@ -27,14 +30,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DATABASE = os.path.join(REPO_ROOT, "proj2", "CSC510_DB.db")
 DATABASE_ENV = "WEEKLIES_DATABASE"
 
-# Tables every route expects. Checked once per database path, on first use.
-REQUIRED_TABLES = frozenset({"User", "Restaurant", "MenuItem", "Order", "Review", "Analytics"})
-
-_NOT_INITIALISED_HINT = "run `flask --app proj2.Flask_app init-db` (and `seed` for demo data)"
+_FLASK = "flask --app proj2.Flask_app"
 
 
 class DatabaseNotInitialisedError(RuntimeError):
-    """The database file is missing or lacks the app's tables."""
+    """The database is missing, empty, or not at the schema version this code needs."""
 
 
 class Connection(sqlite3.Connection):
@@ -45,42 +45,67 @@ class Connection(sqlite3.Connection):
         self.tx_depth = 0
 
 
-_verified_paths = set()
-
-
 def connect(path, *, verify=True):
     """
     Open ``path`` with the app's connection settings.
 
     Args:
         path: SQLite database file. It must already exist.
-        verify: Check that the app's tables exist (skipped by init-db, which creates them).
+        verify: Check the schema version (skipped by the migration code itself).
     Raises:
-        DatabaseNotInitialisedError: the file is missing, or (with verify) lacks tables.
+        DatabaseNotInitialisedError: the file is missing, or (with verify) is not at the
+            latest schema version.
     """
     path = os.fspath(path)
     if not os.path.exists(path):
-        raise DatabaseNotInitialisedError(f"Database not found at {path}: {_NOT_INITIALISED_HINT}.")
+        raise DatabaseNotInitialisedError(
+            f"Database not found at {path}: run `{_FLASK} init-db` (or `seed` for demo data)."
+        )
     conn = sqlite3.connect(path, factory=Connection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    if verify and path not in _verified_paths:
+    if verify:
         try:
-            _check_tables(conn, path)
+            check_schema_version(conn, path)
         except Exception:
             conn.close()
             raise
-        _verified_paths.add(path)
     return conn
 
 
-def _check_tables(conn, path):
-    found = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    missing = sorted(REQUIRED_TABLES - found)
-    if missing:
-        raise DatabaseNotInitialisedError(
-            f"Database at {path} is missing tables {', '.join(missing)}: {_NOT_INITIALISED_HINT}."
+def check_schema_version(conn, path="the database"):
+    """Raise DatabaseNotInitialisedError unless ``conn`` is at the latest migration."""
+    from proj2.db_cli import latest_version  # local import: db_cli is the CLI layer
+
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    latest = latest_version()
+    if version == latest:
+        return
+    if version == 0:
+        has_tables = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchone()
+        if not has_tables:
+            problem = f"is empty: run `{_FLASK} init-db` (or `seed` for demo data)"
+        else:
+            problem = (
+                "was made by the old setup scripts and has no schema version: "
+                f"recreate it with `{_FLASK} seed` (this deletes its data)"
+            )
+    elif version < latest:
+        problem = (
+            f"is at schema version {version}, this code needs {latest}: run `{_FLASK} migrate`"
         )
+    else:
+        problem = (
+            f"is at schema version {version}, newer than this code ({latest}): update the code"
+        )
+    raise DatabaseNotInitialisedError(f"Database at {path} {problem}.")
+
+
+def db_path():
+    """Path of the current app's database, for code that opens its own connection."""
+    return current_app.config["DATABASE"]
 
 
 def get_db():

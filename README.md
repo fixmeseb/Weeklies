@@ -80,11 +80,20 @@ Weeklies delivers **5 completed milestones** for Project 2 and an architectural 
 Weeklies/
 │
 ├── 📁 proj2/                          # Main Flask Application
-│   ├── 🐍 Flask_app.py                # Core Flask app with all routes
+│   ├── 🏭 __init__.py                 # create_app(): config, error pages, blueprints
+│   ├── 🐍 Flask_app.py                # Entry point for `flask run` / `python -m`
+│   ├── 📁 auth/                       # Login, logout, registration
+│   ├── 📁 account/                    # Profile, profile edits, password change
+│   ├── 📁 planner/                    # Calendar home page
+│   ├── 📁 tasks/                      # Task planner data layer (store.py)
+│   ├── 📁 food/                       # Food-delivery routes (removed in the pivot)
+│   ├── 💾 db.py, db_cli.py            # Connections; init-db / migrate / seed commands
+│   ├── 📁 migrations/                 # Numbered schema files (the only schema)
+│   ├── 🌱 seed.py                     # Demo data for `flask seed` and Cypress
 │   ├── 🧠 llm_toolkit.py              # LLM wrapper (GPU-enabled, CUDA/MPS/CPU)
 │   ├── 🥗 menu_generation.py          # AI-powered meal generation
 │   ├── 📄 pdf_receipt.py              # PDF generation service
-│   ├── 💾 sqlQueries.py               # Database helper functions
+│   ├── 💾 sqlQueries.py               # SQL helpers (raise on errors)
 │   │
 │   ├── 📁 templates/                  # HTML Templates
 │   │   ├── index.html                 # Home / calendar view
@@ -108,6 +117,7 @@ Weeklies/
 │   │   ├── llm/                       # LLM-specific tests (skipped in CI)
 │   │   └── smoke/                     # Smoke tests
 │   │
+│   ├── 📁 scripts/cypress_seed.py     # Reseeds Cypress's own database
 │   ├── 📁 cypress/                    # Cypress E2E UI Tests
 │   │   ├── e2e/                       # Test specs by feature area
 │   │   ├── fixtures/                  # Test data (JSON)
@@ -121,7 +131,6 @@ Weeklies/
 │
 ├── 📁 scripts/                        # Utility Scripts
 │   ├── build_docs.py
-│   ├── cypress_seed.py                # Database seeder for Cypress tests
 │   └── ...
 │
 ├── 🎯 Configuration Files

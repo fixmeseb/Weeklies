@@ -316,14 +316,14 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo" aria-hidden="true"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo" aria-hidden="true"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">Order</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">Order</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -491,7 +491,7 @@
       
       const addr = formatAddress(r);
       const formattedHours = r.hours ? formatHours(r.hours) : '';
-      const reviewsUrl = `{{ url_for('restaurant_reviews', rtr_id=0) }}`.replace('/0', `/${r.rtr_id}`);
+      const reviewsUrl = `{{ url_for('food.restaurant_reviews', rtr_id=0) }}`.replace('/0', `/${r.rtr_id}`);
       const infoHtml = `
         <div>
           <h3>${r.name}</h3>
@@ -611,13 +611,13 @@
       meal: 3
     };
     try {
-      const res = await fetch(`{{ url_for('order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const res = await fetch(`{{ url_for('food.order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error('Order failed');
       const data = await res.json();
       showToast('Order placed!');
       const cart = readCart().filter(l => Number(l.restaurant_id) !== Number(rtrId));
       writeCart(cart);
-      window.location.href = "{{ url_for('profile') }}";
+      window.location.href = "{{ url_for('account.profile') }}";
     } catch (e) {
       console.error(e);
       showToast('Could not place order');

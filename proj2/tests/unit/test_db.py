@@ -1,11 +1,12 @@
 """proj2/db.py: request-scoped connections, fail-fast on missing DBs, transactions."""
 
 import os
+import shutil
 import sqlite3
 
 import pytest
 
-from proj2 import Flask_app, db
+from proj2 import db, db_cli
 from proj2.db_cli import init_database
 from proj2.sqlQueries import execute_query, fetch_one
 
@@ -24,11 +25,51 @@ def test_connect_missing_file_raises_and_creates_nothing(tmp_path):
     assert not path.exists()
 
 
-def test_connect_empty_file_names_missing_tables(tmp_path):
+def test_connect_empty_file_says_run_init_db(tmp_path):
     path = tmp_path / "empty.db"
     path.touch()
-    with pytest.raises(db.DatabaseNotInitialisedError, match="missing tables .*User"):
+    with pytest.raises(db.DatabaseNotInitialisedError, match="is empty: run .*init-db"):
         db.connect(path)
+
+
+def test_connect_legacy_unversioned_database_says_reseed(tmp_path):
+    path = tmp_path / "legacy.db"
+    conn = sqlite3.connect(path)
+    conn.execute('CREATE TABLE "User" (usr_id INTEGER PRIMARY KEY)')
+    conn.close()
+    with pytest.raises(db.DatabaseNotInitialisedError, match="old setup scripts.*seed"):
+        db.connect(path)
+
+
+def test_connect_outdated_database_says_migrate(tmp_path):
+    path = str(tmp_path / "old.db")
+    conn = sqlite3.connect(path)
+    db_cli.apply_migrations(conn, _migrations_upto(tmp_path, 1))
+    conn.close()
+    with pytest.raises(db.DatabaseNotInitialisedError, match="version 1, .*needs .*migrate"):
+        db.connect(path)
+    conn = sqlite3.connect(path)
+    db_cli.apply_migrations(conn)  # what `flask migrate` does
+    conn.close()
+    db.connect(path).close()
+
+
+def test_connect_database_newer_than_code_is_refused(fresh_db):
+    conn = sqlite3.connect(fresh_db)
+    conn.execute(f"PRAGMA user_version = {db_cli.latest_version() + 1}")
+    conn.close()
+    with pytest.raises(db.DatabaseNotInitialisedError, match="newer than this code"):
+        db.connect(fresh_db)
+
+
+def _migrations_upto(tmp_path, version):
+    """A copy of the real migrations directory holding only files 1..version."""
+    target = tmp_path / f"migrations_upto_{version}"
+    target.mkdir()
+    for v, path in db_cli.migrations():
+        if v <= version:
+            shutil.copy(path, target)
+    return target
 
 
 def test_connect_rows_by_name_and_foreign_keys_on(fresh_db):
@@ -116,7 +157,7 @@ def test_sql_error_in_route_is_logged_and_returns_500(app, monkeypatch, caplog):
     def broken_fetch(*_args, **_kwargs):
         raise sqlite3.OperationalError("simulated failure")
 
-    monkeypatch.setattr(Flask_app, "fetch_one", broken_fetch)
+    monkeypatch.setattr("proj2.auth.views.fetch_one", broken_fetch)
     monkeypatch.setitem(app.config, "PROPAGATE_EXCEPTIONS", False)
     with app.test_client() as c:
         resp = c.post("/login", data={"email": "a@x.com", "password": "pw"})

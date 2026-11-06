@@ -64,7 +64,7 @@ def test_ready_not_preparing(client, seed_user, seed_restaurant, temp_db_path):
 def test_ready_analytics_fail(client, seed_user, seed_restaurant, temp_db_path, monkeypatch):
     """UC25 ext 5a: analytics failure → status still changes."""
     from proj2 import Flask_app
-    monkeypatch.setattr(Flask_app, "record_analytics_snapshot",
+    monkeypatch.setattr("proj2.food.views.record_analytics_snapshot",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad")), raising=True)
     ord_id = make_order(temp_db_path, seed_user["usr_id"], seed_restaurant["rtr_id"], status="Preparing")
     _login_owner(client, seed_restaurant)

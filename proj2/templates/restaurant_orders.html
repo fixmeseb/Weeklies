@@ -254,7 +254,7 @@
           <h1>🍽️ {{ restaurant_name }}</h1>
           <p>{{ restaurant_email }}</p>
         </div>
-        <a href="{{ url_for('restaurant_logout') }}" class="logout-btn">Logout</a>
+        <a href="{{ url_for('food.restaurant_logout') }}" class="logout-btn">Logout</a>
       </div>
     </div>
   </div>
@@ -262,7 +262,7 @@
   <div class="container">
     <!-- Back to Dashboard -->
     <div style="margin-bottom: 1.5rem;">
-      <a href="{{ url_for('restaurant_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
+      <a href="{{ url_for('food.restaurant_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
         ← Back to Dashboard
       </a>
     </div>
@@ -334,10 +334,10 @@
         {% endif %}
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_accept_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_accept_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-accept">✓ Accept Order</button>
           </form>
-          <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
+          <form method="POST" action="{{ url_for('food.restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Are you sure you want to reject this order?');">
             <button type="submit" class="btn-action btn-reject">✗ Reject</button>
@@ -384,10 +384,10 @@
         </div>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_prepare_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_prepare_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-preparing">👨‍🍳 Start Preparing</button>
           </form>
-          <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
+          <form method="POST" action="{{ url_for('food.restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Cancel this order?');">
             <button type="submit" class="btn-action btn-reject">Cancel</button>
@@ -427,7 +427,7 @@
         </div>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_ready_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_ready_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-ready">📦 Mark Ready</button>
           </form>
         </div>
@@ -465,7 +465,7 @@
         </div>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_deliver_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_deliver_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn-action btn-deliver">✓ Mark Delivered</button>
           </form>
         </div>

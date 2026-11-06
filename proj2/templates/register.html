@@ -10,11 +10,11 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}">
+    <a class="brand" href="{{ url_for('planner.index') }}">
       <span class="logo" aria-hidden="true"></span> Weeklies
     </a>
     <nav>
-      <a href="{{ url_for('login') }}">Login</a>
+      <a href="{{ url_for('auth.login') }}">Login</a>
     </nav>
   </div>
 </header>
@@ -28,7 +28,7 @@
     <div class="card">
       <div class="card-header" style="font-size: 24px; font-weight: bold;">Create your account</div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('register') }}" id="registerForm" novalidate>
+        <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm" novalidate>
           <!-- STEP 1: Basic info -->
           <div class="step">
             <h2 class="section-title" style="margin-top:-20px">Your details</h2>
@@ -103,7 +103,7 @@
 
           <div class="btn-row" style="margin-bottom: -20px">
             <button type="submit" class="btn btn-primary">Create account</button>
-            <a class="btn btn-outline" href="{{ url_for('login') }}">I already have an account</a>
+            <a class="btn btn-outline" href="{{ url_for('auth.login') }}">I already have an account</a>
           </div>
         </form>
       </div>

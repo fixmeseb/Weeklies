@@ -1,6 +1,7 @@
 """
 The one demo/test seed: two customers, two restaurants, seven menu items, four orders,
-a review and two analytics snapshots. Used by `flask seed` and by Cypress
+a review and two analytics snapshots, plus task-planner data for testuser (two projects,
+six tasks, three tags, three plan entries). Used by `flask seed` and by Cypress
 (scripts/cypress_seed.py). Seeding always recreates the database from the migrations.
 
 Accounts (password for all: password123):
@@ -14,7 +15,9 @@ from datetime import date, datetime, timedelta
 
 from werkzeug.security import generate_password_hash
 
+from proj2 import db
 from proj2.db_cli import init_database
+from proj2.tasks import store
 
 
 def seed_database(path):
@@ -27,6 +30,64 @@ def seed_database(path):
             _insert_demo_data(conn.cursor())
     finally:
         conn.close()
+    conn = db.connect(path)
+    try:
+        with db.transaction(conn):
+            _insert_demo_tasks(conn, usr_id=1)  # testuser@example.com
+    finally:
+        conn.close()
+
+
+def _insert_demo_tasks(conn, usr_id):
+    """Tasks go through proj2.tasks.store, so the seed obeys the same rules as the app."""
+    today = date.today()
+    day = lambda n: (today + timedelta(days=n)).isoformat()
+    work = store.create_project(conn, usr_id, "CSC 510")
+    home = store.create_project(conn, usr_id, "Home")
+    report = store.create_task(
+        conn,
+        usr_id,
+        "Write project report",
+        project_id=work,
+        due_date=day(3),
+        est_minutes=120,
+        priority=1,
+        tags=["writing"],
+    )
+    slides = store.create_task(
+        conn,
+        usr_id,
+        "Make demo slides",
+        project_id=work,
+        due_date=day(5),
+        est_minutes=90,
+        tags=["writing", "presentation"],
+    )
+    store.create_task(
+        conn,
+        usr_id,
+        "Review teammate's pull request",
+        project_id=work,
+        due_date=day(1),
+        est_minutes=30,
+        priority=1,
+    )
+    groceries = store.create_task(
+        conn,
+        usr_id,
+        "Buy groceries",
+        project_id=home,
+        est_minutes=45,
+        priority=3,
+        tags=["errand"],
+    )
+    laundry = store.create_task(conn, usr_id, "Laundry", project_id=home, est_minutes=60)
+    store.create_task(conn, usr_id, "Call the dentist", notes="Ask about Friday", priority=2)
+    store.set_status(conn, usr_id, laundry, "done")
+    store.set_status(conn, usr_id, report, "in_progress")
+    store.schedule_task(conn, usr_id, report, day(1), "morning")
+    store.schedule_task(conn, usr_id, slides, day(2), "afternoon")
+    store.schedule_task(conn, usr_id, groceries, day(0), "evening")
 
 
 def _insert_demo_data(cursor):

@@ -10,11 +10,11 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}">
+    <a class="brand" href="{{ url_for('planner.index') }}">
       <span class="logo" aria-hidden="true"></span> Weeklies
     </a>
     <nav>
-      <a href="{{ url_for('login') }}">Customer Login</a>
+      <a href="{{ url_for('auth.login') }}">Customer Login</a>
     </nav>
   </div>
 </header>
@@ -36,7 +36,7 @@
             Login to manage your restaurant orders
           </p>
           
-          <form action="{{ url_for('restaurant_login') }}" method="post">
+          <form action="{{ url_for('food.restaurant_login') }}" method="post">
             <label for="email">Restaurant Email</label>
             <input class="input" type="email" id="email" name="email" 
                    placeholder="restaurant@example.com" required />
@@ -50,7 +50,7 @@
           </form>
           
           <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
-            <a href="{{ url_for('login') }}" style="color: var(--muted); font-size: 0.9rem;">
+            <a href="{{ url_for('auth.login') }}" style="color: var(--muted); font-size: 0.9rem;">
               ← Back to Customer Login
             </a>
           </div>

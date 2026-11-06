@@ -43,22 +43,32 @@ def test_bad_arguments_exit(argv):
 pytestmark_runpy = pytest.mark.filterwarnings("ignore:.*found in sys.modules:RuntimeWarning")
 
 
-def _run_main(monkeypatch, argv):
+def _run_main(monkeypatch, argv, database):
     calls = []
     monkeypatch.setattr(Flask, "run", lambda self, **kw: calls.append(kw))
     monkeypatch.setattr("sys.argv", ["Flask_app.py", *argv])
+    # The __main__ block checks the database before starting: point it at the
+    # migrated test database, never at the developer's proj2/CSC510_DB.db.
+    monkeypatch.setenv("WEEKLIES_DATABASE", str(database))
     runpy.run_module("proj2.Flask_app", run_name="__main__")
     assert len(calls) == 1
     return calls[0]
 
 
 @pytestmark_runpy
-def test_main_runs_without_debug_by_default(monkeypatch):
-    assert _run_main(monkeypatch, [])["debug"] is False
+def test_main_runs_without_debug_by_default(monkeypatch, temp_db_path):
+    assert _run_main(monkeypatch, [], temp_db_path)["debug"] is False
 
 
 @pytestmark_runpy
-def test_main_runs_with_debug_when_requested(monkeypatch):
-    kw = _run_main(monkeypatch, ["--debug", "--port", "5001"])
+def test_main_refuses_to_start_without_a_database(monkeypatch, tmp_path):
+    with pytest.raises(SystemExit, match="not found"):
+        _run_main(monkeypatch, [], tmp_path / "missing.db")
+    assert not (tmp_path / "missing.db").exists()
+
+
+@pytestmark_runpy
+def test_main_runs_with_debug_when_requested(monkeypatch, temp_db_path):
+    kw = _run_main(monkeypatch, ["--debug", "--port", "5001"], temp_db_path)
     assert kw["debug"] is True
     assert kw["port"] == 5001

@@ -86,7 +86,7 @@ def test_register_db_failure(client, monkeypatch):
     from proj2 import Flask_app
     def boom(*a, **k):
         raise IntegrityError("simulated")
-    monkeypatch.setattr(Flask_app, "execute_query", boom, raising=True)
+    monkeypatch.setattr("proj2.auth.views.execute_query", boom, raising=True)
     resp = client.post("/register", data=_base_form(email="uc01_dbfail@test.com"))
     assert resp.status_code == 200
     assert b"already" in resp.data.lower() or b"registered" in resp.data.lower()

@@ -227,22 +227,22 @@
 <body>
   <header class="site-header">
     <div class="container">
-      <a class="brand" href="{{ url_for('index') }}">
+      <a class="brand" href="{{ url_for('planner.index') }}">
         <span class="logo" aria-hidden="true"></span> Weeklies
       </a>
       <nav>
-        <a href="{{ url_for('index') }}">Home</a>
-        <a href="{{ url_for('profile') }}">Profile</a>
-        <a href="{{ url_for('restaurants') }}">Restaurants</a>
-        <a href="{{ url_for('orders') }}">Order</a>
-        <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+        <a href="{{ url_for('planner.index') }}">Home</a>
+        <a href="{{ url_for('account.profile') }}">Profile</a>
+        <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+        <a href="{{ url_for('food.orders') }}">Order</a>
+        <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
       </nav>
     </div>
   </header>
 
   <main class="main">
     <div class="review-container">
-      <a href="{{ url_for('profile') }}" class="back-link">← Back to Profile</a>
+      <a href="{{ url_for('account.profile') }}" class="back-link">← Back to Profile</a>
       
       <h1>Write a Review</h1>
 
@@ -327,7 +327,7 @@
 
         <!-- Actions -->
         <div class="form-actions">
-          <a href="{{ url_for('profile') }}" class="btn-cancel">Cancel</a>
+          <a href="{{ url_for('account.profile') }}" class="btn-cancel">Cancel</a>
           <button type="submit" class="btn-submit" id="submitBtn" disabled>
             Submit Review
           </button>

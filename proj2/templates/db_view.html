@@ -10,14 +10,14 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">Order</a>
-      <a href="{{ url_for('db_view') }}">DB</a>
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">Order</a>
+      <a href="{{ url_for('food.db_view') }}">DB</a>
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -31,7 +31,7 @@
 
     <div class="card">
       <div class="card-body">
-        <form method="get" action="{{ url_for('db_view') }}" class="db-toolbar">
+        <form method="get" action="{{ url_for('food.db_view') }}" class="db-toolbar">
           <div>
             <label for="t">Table</label>
             <select id="t" name="t" class="input">
@@ -69,11 +69,11 @@
         <div class="pagination mt-4" role="navigation" aria-label="Pagination">
           <span>Showing {{ start }}–{{ end }} of {{ total }}</span>
           <div class="btn-row">
-            <a class="btn" href="{{ url_for('db_view', t=table, page=1) }}" aria-disabled="{{ page == 1 }}">« First</a>
-            <a class="btn" href="{{ url_for('db_view', t=table, page=page-1 if page>1 else 1) }}" aria-disabled="{{ page == 1 }}">‹ Prev</a>
+            <a class="btn" href="{{ url_for('food.db_view', t=table, page=1) }}" aria-disabled="{{ page == 1 }}">« First</a>
+            <a class="btn" href="{{ url_for('food.db_view', t=table, page=page-1 if page>1 else 1) }}" aria-disabled="{{ page == 1 }}">‹ Prev</a>
             <span class="badge">Page {{ page }} / {{ pages }}</span>
-            <a class="btn" href="{{ url_for('db_view', t=table, page=page+1 if page<pages else pages) }}" aria-disabled="{{ page == pages }}">Next ›</a>
-            <a class="btn" href="{{ url_for('db_view', t=table, page=pages) }}" aria-disabled="{{ page == pages }}">Last »</a>
+            <a class="btn" href="{{ url_for('food.db_view', t=table, page=page+1 if page<pages else pages) }}" aria-disabled="{{ page == pages }}">Next ›</a>
+            <a class="btn" href="{{ url_for('food.db_view', t=table, page=pages) }}" aria-disabled="{{ page == pages }}">Last »</a>
           </div>
         </div>
 

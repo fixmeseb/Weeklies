@@ -10,14 +10,14 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">Order</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">Order</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -147,9 +147,9 @@
       <div class="calendar-toolbar" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 8px 0 14px;">
         <div class="cal-title" style="font-weight:700; font-size:1.25rem;">{{ month_name }} {{ year }}</div>
         <div class="btnrow">
-          <a class="btn" href="{{ url_for('index', year=prev_year, month=prev_month) }}">&larr; Prev</a>
-          <a class="btn btn-outline" href="{{ url_for('index') }}">Today</a>
-          <a class="btn" href="{{ url_for('index', year=next_year, month=next_month) }}">Next &rarr;</a>
+          <a class="btn" href="{{ url_for('planner.index', year=prev_year, month=prev_month) }}">&larr; Prev</a>
+          <a class="btn btn-outline" href="{{ url_for('planner.index') }}">Today</a>
+          <a class="btn" href="{{ url_for('planner.index', year=next_year, month=next_month) }}">Next &rarr;</a>
         </div>
       </div>
 
@@ -758,7 +758,7 @@
 
     try {
       const qs = new URLSearchParams({ date: swapSlot.date, meal: swapSlot.meal });
-      const res = await fetch('{{ url_for("swap_meal_options") }}?' + qs.toString());
+      const res = await fetch('{{ url_for("food.swap_meal_options") }}?' + qs.toString());
       const data = await res.json();
       if (!data.ok) { smStatus.textContent = 'Could not load options for this meal.'; return; }
       if (!data.options.length) { smStatus.textContent = 'No other items are available for this meal.'; return; }
@@ -789,7 +789,7 @@
     smList.querySelectorAll('.swap-option').forEach(x => x.disabled = true);
     smStatus.textContent = 'Swapping…';
     try {
-      const res = await fetch('{{ url_for("swap_meal") }}', {
+      const res = await fetch('{{ url_for("food.swap_meal") }}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: swapSlot.date, meal: swapSlot.meal, itm_id: Number(b.dataset.itmId) })
@@ -810,7 +810,7 @@
   omConfirm.addEventListener('click', async () => {
     if (!pendingOrder) return;
     try {
-      const res = await fetch('{{ url_for("order") }}', {
+      const res = await fetch('{{ url_for("food.order") }}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pendingOrder)
@@ -819,7 +819,7 @@
       if (data && data.ok) {
         closeModal();
         // redirect to profile with ?ordered=<id> like legacy flow
-        window.location.href = '{{ url_for("profile") }}' + (data.ord_id ? ('?ordered=' + data.ord_id) : '');
+        window.location.href = '{{ url_for("account.profile") }}' + (data.ord_id ? ('?ordered=' + data.ord_id) : '');
       } else {
         closeModal();
         alert('Sorry, we could not place your order. Please try again.');
