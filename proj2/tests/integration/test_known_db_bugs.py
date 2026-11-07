@@ -2,9 +2,10 @@
 Known database bugs, pinned as strict xfail tests (Phase 0 of the DB cleanup plan,
 docs/Weeklies_DB_Cleanup_Plan.pdf).
 
-Each test asserts the CORRECT behaviour, so it fails today. Because the marker is
-strict, a fix makes the test XPASS, which pytest reports as a failure: remove the
-xfail marker in the same commit as the fix.
+Each test asserts the CORRECT behaviour. Tests still marked xfail fail today; because
+the marker is strict, a fix makes the test XPASS, which pytest reports as a failure:
+remove the xfail marker in the same commit as the fix. Tests without a marker are
+fixed bugs, kept as regression tests.
 
 Every test runs against its own throwaway database so it cannot disturb, or be
 disturbed by, the shared session database used by the rest of the suite.
@@ -95,7 +96,7 @@ def bug_db(temp_db_path, monkeypatch):
     finally:
         conn.close()
 
-    monkeypatch.setattr(Flask_app, "db_file", path)
+    monkeypatch.setitem(Flask_app.app.config, "DATABASE", path)
     yield {"path": path, **ids}
     try:
         os.remove(path)
@@ -216,7 +217,6 @@ def test_analytics_revenue_excludes_cancelled_orders(bug_db):
 # ---------------------------------------------------------------- schema
 
 
-@_known_bug(2, "Review has no UNIQUE(ord_id); only a racy check in the route prevents duplicates")
 def test_schema_rejects_duplicate_review_for_same_order(bug_db):
     ord_id = _insert_order(bug_db, "Delivered", 10.00)
     conn = sqlite3.connect(bug_db["path"])
@@ -234,18 +234,19 @@ def test_schema_rejects_duplicate_review_for_same_order(bug_db):
 # ---------------------------------------------------------------- missing database
 
 
-@_known_bug(1, "a missing/empty DB is silently treated as 'Invalid credentials'")
-def test_missing_database_fails_loudly(app, monkeypatch, tmp_path):
-    empty = tmp_path / "empty.db"
-    empty.touch()
-    monkeypatch.setattr(Flask_app, "db_file", str(empty))
+@pytest.mark.parametrize("create_file", [True, False], ids=["empty-file", "no-file"])
+def test_missing_database_fails_loudly(app, monkeypatch, tmp_path, create_file):
+    path = tmp_path / "missing.db"
+    if create_file:
+        path.touch()
+    monkeypatch.setitem(Flask_app.app.config, "DATABASE", str(path))
     with app.test_client() as c:
-        try:
-            resp = c.post("/login", data={"email": EMAIL, "password": PASSWORD})
-        except Exception:
-            return  # a raised error is the loud failure we want
+        resp = c.post("/login", data={"email": EMAIL, "password": PASSWORD})
+    assert resp.status_code == 500
+    assert b"Database not initialised" in resp.data
     assert b"Invalid credentials" not in resp.data
-    assert resp.status_code >= 500
+    # and opening it must not have created a database file as a side effect
+    assert path.exists() == create_file
 
 
 # ---------------------------------------------------------------- meal generation

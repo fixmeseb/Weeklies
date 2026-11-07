@@ -26,7 +26,7 @@ class TestMenuGeneratorInitialization:
     @pytest.mark.llm
     def test_menu_generator_initializes(self):
         """Test MenuGenerator initializes successfully"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         assert gen is not None
         assert hasattr(gen, 'menu_items')
         assert hasattr(gen, 'restaurants')
@@ -35,7 +35,7 @@ class TestMenuGeneratorInitialization:
     @pytest.mark.llm
     def test_menu_generator_loads_items(self):
         """Test MenuGenerator loads menu items from database"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         assert isinstance(gen.menu_items, pd.DataFrame)
         assert len(gen.menu_items) > 0
         assert 'itm_id' in gen.menu_items.columns
@@ -43,7 +43,7 @@ class TestMenuGeneratorInitialization:
     @pytest.mark.llm
     def test_menu_generator_loads_restaurants(self):
         """Test MenuGenerator loads restaurants from database"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         assert isinstance(gen.restaurants, pd.DataFrame)
         assert 'rtr_id' in gen.restaurants.columns
         assert 'hours' in gen.restaurants.columns
@@ -51,7 +51,7 @@ class TestMenuGeneratorInitialization:
     @pytest.mark.llm
     def test_menu_generator_custom_tokens(self):
         """Test MenuGenerator with custom token count"""
-        gen = MenuGenerator(tokens=100)
+        gen = MenuGenerator(tokens=100, database_path=db_file)
         assert gen.generator.tokens == 100
 
 
@@ -61,7 +61,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_single_meal_no_existing(self):
         """Test generating single meal with no existing menu"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -78,7 +78,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_multiple_meals_single_day(self):
         """Test generating multiple meals in single day"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -95,7 +95,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_multiple_days(self):
         """Test generating meals for multiple days"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -112,7 +112,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_extend_existing(self):
         """Test extending existing menu with new meals"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         # Generate initial menu
         menu1 = gen.update_menu(
             menu=None,
@@ -139,7 +139,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_with_preferences(self):
         """Test menu generation with user preferences"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="high protein,low carb",
@@ -154,7 +154,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_with_allergens(self):
         """Test menu generation avoiding allergens"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -179,7 +179,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_empty_string_preferences(self):
         """Test menu generation with empty string preferences"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -194,7 +194,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_none_allergens(self):
         """Test menu generation with None allergens"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -209,7 +209,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_format_consistency(self):
         """Test that generated menu has consistent format"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -227,7 +227,7 @@ class TestMenuGeneratorMenuUpdate:
     @pytest.mark.llm
     def test_update_menu_different_dates(self):
         """Test generating menus for different dates"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         # Test first date
         result1 = gen.update_menu(
             menu=None,
@@ -257,7 +257,7 @@ class TestMenuGeneratorValidItemIds:
     @pytest.mark.llm
     def test_generated_items_exist_in_database(self):
         """Test that all generated item IDs exist in database"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -277,7 +277,7 @@ class TestMenuGeneratorValidItemIds:
     @pytest.mark.llm
     def test_generated_items_are_in_stock(self):
         """Test that generated items are in stock"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",
@@ -297,7 +297,7 @@ class TestMenuGeneratorValidItemIds:
     @pytest.mark.llm
     def test_no_duplicate_meals_same_day(self):
         """Test that same meal number isn't repeated same day"""
-        gen = MenuGenerator()
+        gen = MenuGenerator(database_path=db_file)
         result = gen.update_menu(
             menu=None,
             preferences="",

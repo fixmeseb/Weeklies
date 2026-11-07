@@ -170,7 +170,7 @@ class TestFilterClosedRestaurants:
 class TestMenuGeneratorInit:
     """Tests for MenuGenerator initialization.
 
-    These use the session test DB (conftest points Flask_app.db_file at it) and a stub
+    These use the session test DB (conftest points app.config["DATABASE"] at it) and a stub
     LLM, so they need neither the real CSC510_DB.db nor torch/model downloads.
     """
 
@@ -185,7 +185,7 @@ class TestMenuGeneratorInit:
 
     def test_menu_generator_creates(self, stub_llm):
         """Test MenuGenerator can be initialized."""
-        gen = MenuGenerator(tokens=50, database_path=Flask_app.db_file)
+        gen = MenuGenerator(tokens=50, database_path=Flask_app.db_path())
         assert gen is not None
         assert hasattr(gen, "menu_items")
         assert hasattr(gen, "restaurants")
@@ -193,7 +193,7 @@ class TestMenuGeneratorInit:
 
     def test_menu_generator_tokens(self, stub_llm):
         """Test MenuGenerator passes its token count to the LLM it creates."""
-        gen = MenuGenerator(tokens=100, database_path=Flask_app.db_file)
+        gen = MenuGenerator(tokens=100, database_path=Flask_app.db_path())
         assert isinstance(gen.generator, stub_llm)
         assert gen.generator.tokens == 100
 
