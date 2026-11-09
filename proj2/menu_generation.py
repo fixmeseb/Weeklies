@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import datetime
 import time
-import json
 import random
 import re
 from typing import Tuple, List
@@ -17,6 +16,7 @@ from proj2.meal_budget import (
 )
 from proj2.sqlQueries import *
 from proj2.dietary import DietaryConstraintError, filter_diets, required_diets
+from proj2.plan_rules import PlanRuleError, is_restaurant_open, item_rejection, parse_allergens
 
 from proj2 import config
 
@@ -165,17 +165,10 @@ def filter_allergens(menu_items: pd.DataFrame, allergens: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The filtered DataFrame with menu items containing the specified allergens removed
     """
-    prohibited = {
-        value.strip().casefold() for value in (allergens or "").split(",") if value.strip()
-    }
+    prohibited = parse_allergens(allergens)
 
     def allowed(value):
-        declared = (
-            set()
-            if pd.isna(value)
-            else {tag.strip().casefold() for tag in str(value).split(",") if tag.strip()}
-        )
-        return not prohibited.intersection(declared)
+        return not prohibited.intersection(parse_allergens(value))
 
     return menu_items.loc[menu_items["allergens"].map(allowed).astype(bool)].copy()
 
@@ -192,29 +185,8 @@ def filter_closed_restaurants(restaurant: pd.DataFrame, weekday: str, time: int)
     Returns:
         pd.DataFrame: The filtered DataFrame with closed restaurants removed
     """
-    for index, rows in restaurant.iterrows():
-        try:
-            opening_times = json.loads(rows["hours"])[weekday]
-            if not isinstance(opening_times, list) or not all(
-                isinstance(value, (int, float)) for value in opening_times
-            ):
-                raise ValueError("Invalid hours")
-        except (TypeError, ValueError, KeyError):
-            restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-            continue
-        if len(opening_times) % 2 == 1:
-            print("Odd opening times - cannot process")
-            restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-        elif len(opening_times) >= 2:
-            open = False
-            for x in range(int(len(opening_times) / 2)):
-                if opening_times[x * 2] <= time and opening_times[x * 2 + 1] >= time:
-                    open = True
-            if not open:
-                restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-        else:
-            restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-    return restaurant
+    is_open = restaurant["hours"].map(lambda hours: is_restaurant_open(hours, weekday, time))
+    return restaurant[is_open.astype(bool)]
 
 
 class MenuGenerator:
@@ -296,6 +268,34 @@ class MenuGenerator:
         if max_price_cents is not None:
             combined = combined[combined["price_cents"] <= max_price_cents]
         return combined.sort_values(["price_cents", "itm_id"], kind="stable")
+
+    def _check_pick(self, itm_id, preferences, allergens, weekday, order_time):
+        """
+        Re-checks a chosen item against proj2.plan_rules before it goes into the plan
+
+        Candidates are already filtered, so a rejection here means a filter and the
+        shared rules disagree; generation stops rather than save a non-compliant plan.
+
+        Raises:
+            PlanRuleError: if the item breaks a rule
+        """
+        rows = self.menu_items[self.menu_items["itm_id"] == itm_id]
+        item = None
+        if not rows.empty:
+            row = rows.iloc[0]
+            restaurant = self.restaurants[self.restaurants["rtr_id"] == row["rtr_id"]]
+            item = {
+                "name": row["name"],
+                "instock": row["instock"],
+                "allergens": row["allergens"],
+                "diet_tags": row.get("diet_tags"),
+                # self.restaurants holds only restaurants whose status is Open
+                "restaurant_status": None if restaurant.empty else "Open",
+                "hours": None if restaurant.empty else restaurant.iloc[0]["hours"],
+            }
+        rejection = item_rejection(item, allergens, preferences, weekday, order_time)
+        if rejection:
+            raise PlanRuleError(f"Chosen item {itm_id} broke a plan rule: {rejection[1]}")
 
     def __get_context(
         self,
@@ -383,6 +383,7 @@ class MenuGenerator:
             llm_output = self.generator.generate(system, prompt)
             output = format_llm_output(llm_output)
             if output > 0 and output in item_ids:
+                self._check_pick(output, preferences, allergens, weekday, order_time)
                 return output
             ## If failed, try increasing the number of choices
             num_choices += ITEM_CHOICES
