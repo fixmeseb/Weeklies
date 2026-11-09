@@ -13,7 +13,7 @@ import re
 
 import pandas as pd
 
-from proj2.menu_generation import DAYS_OF_WEEK, get_meal_and_order_time
+from proj2.menu_generation import DAYS_OF_WEEK, get_meal_and_order_time, is_taking_orders
 from proj2.sqlQueries import fetch_all, fetch_one
 
 ## Matches one menu entry; the meal number is optional for legacy entries
@@ -172,7 +172,7 @@ def swap_rejection(item, user_allergies: str, date: str, meal: int):
         return "item_not_found", "That menu item does not exist."
     if not item["instock"]:
         return "out_of_stock", f"{item['name']} is currently out of stock."
-    if (item["restaurant_status"] or "").strip().lower() != "open":
+    if not is_taking_orders(item["restaurant_status"]):
         return "restaurant_unavailable", "That restaurant is not currently taking orders."
 
     weekday, order_time = slot_weekday_and_time(date, meal)

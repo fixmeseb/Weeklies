@@ -251,7 +251,6 @@ def test_missing_database_fails_loudly(app, monkeypatch, tmp_path):
 # ---------------------------------------------------------------- meal generation
 
 
-@_known_bug(3, "status=='Open' filter is case-sensitive; seeds store 'open' (menu_generation.py:237)")
 def test_meal_generation_sees_lowercase_open_restaurants(bug_db):
     gen = MenuGenerator(tokens=10, database_path=bug_db["path"])
     assert bug_db["rtr_id"] in set(gen.restaurants["rtr_id"])
