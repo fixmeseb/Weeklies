@@ -4,29 +4,17 @@ set -e
 echo "🔍 Running pre-commit checks..."
 echo ""
 
-cd proj2
-
-echo "1️⃣ Checking code formatting with Black..."
-black --check . || {
-    echo "❌ Black formatting check failed!"
-    echo "Run: black proj2/ to auto-fix"
+echo "1️⃣ Checking Black and Ruff on the files you changed..."
+# Scoped to your own changes, matching the CI lint job. The whole tree does not pass
+# yet, so a tree-wide check here would fail on files you never touched.
+bash scripts/check-changed.sh "${1:-dev-branch}" || {
+    echo "❌ Formatting or lint check failed on a file you changed!"
     exit 1
 }
-echo "✅ Black check passed"
+echo "✅ Black and Ruff passed"
 echo ""
 
-echo "2️⃣ Linting with Ruff..."
-ruff check . || {
-    echo "❌ Ruff linting failed!"
-    echo "Run: ruff check proj2/ --fix to auto-fix"
-    exit 1
-}
-echo "✅ Ruff check passed"
-echo ""
-
-cd ..
-
-echo "3️⃣ Running tests (excluding LLM tests)..."
+echo "2️⃣ Running tests (excluding LLM tests)..."
 pytest -m "not llm" -q --maxfail=1 || {
     echo "❌ Tests failed!"
     exit 1
