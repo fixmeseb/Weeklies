@@ -181,7 +181,10 @@ def swap_rejection(item, user_allergies: str, date: str, meal: int):
 
     conflicts = parse_allergens(item["allergens"]) & parse_allergens(user_allergies)
     if conflicts:
-        return "allergen", f"{item['name']} contains your allergens: {', '.join(sorted(conflicts))}."
+        return (
+            "allergen",
+            f"{item['name']} contains your allergens: {', '.join(sorted(conflicts))}.",
+        )
     return None
 
 

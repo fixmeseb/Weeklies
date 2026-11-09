@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import datetime
 import time
@@ -15,7 +14,7 @@ from proj2.meal_budget import (
     week_start,
     weekly_item_totals,
 )
-from proj2.sqlQueries import *
+from proj2.sqlQueries import close_connection, create_connection
 
 from proj2 import config
 
@@ -98,7 +97,7 @@ def get_weekday_and_increment(date: str) -> Tuple[str, str]:
     year, month, day = map(int, date.split("-"))
     try:
         date = datetime.datetime(year, month, day)
-    except:
+    except (ValueError, OverflowError):
         raise ValueError(
             "Unable to parse date string. Ensure it is formatted properly as to YYYY-MM-DD format"
         )
