@@ -13,6 +13,7 @@ import re
 
 import pandas as pd
 
+from proj2.dietary import has_diet_tags_column, missing_diets, required_diets
 from proj2.menu_generation import DAYS_OF_WEEK, get_meal_and_order_time
 from proj2.sqlQueries import fetch_all, fetch_one
 
@@ -127,10 +128,23 @@ def is_restaurant_open(hours: str, weekday: str, time: int) -> bool:
 
 
 ## Columns loaded for a swap candidate; keys of the dicts returned by load_swap_item
-_ITEM_COLUMNS = ("itm_id", "rtr_id", "name", "instock", "allergens", "restaurant_status", "hours")
+_ITEM_COLUMNS = (
+    "itm_id",
+    "rtr_id",
+    "name",
+    "instock",
+    "allergens",
+    "restaurant_status",
+    "hours",
+    "diet_tags",
+)
 
-_ITEM_SQL = """
-    SELECT m.itm_id, m.rtr_id, m.name, m.instock, m.allergens, r.status, r.hours
+
+def _item_sql(conn) -> str:
+    """The candidate query; databases without MenuItem.diet_tags read every item as untagged."""
+    diet_tags = "m.diet_tags" if has_diet_tags_column(conn) else "NULL"
+    return f"""
+    SELECT m.itm_id, m.rtr_id, m.name, m.instock, m.allergens, r.status, r.hours, {diet_tags}
     FROM MenuItem m
     JOIN Restaurant r ON r.rtr_id = m.rtr_id
 """
@@ -155,7 +169,7 @@ def slot_weekday_and_time(date: str, meal: int):
     return weekday, order_time
 
 
-def swap_rejection(item, user_allergies: str, date: str, meal: int):
+def swap_rejection(item, user_allergies: str, date: str, meal: int, user_preferences: str = None):
     """
     Checks whether a menu item may fill a date/meal slot for a user
 
@@ -164,6 +178,8 @@ def swap_rejection(item, user_allergies: str, date: str, meal: int):
         user_allergies (str): The user's comma-separated allergies, as stored on their account
         date (str): The slot date in YYYY-MM-DD format
         meal (int): The slot meal number (1, 2, or 3)
+        user_preferences (str | None): The user's comma-separated preferences; the diets
+            they name (see proj2.dietary) must all be satisfied by the item's diet_tags
 
     Returns:
         Tuple[str, str] | None: (error_code, message) if the item is not allowed, otherwise None
@@ -182,6 +198,10 @@ def swap_rejection(item, user_allergies: str, date: str, meal: int):
     conflicts = parse_allergens(item["allergens"]) & parse_allergens(user_allergies)
     if conflicts:
         return "allergen", f"{item['name']} contains your allergens: {', '.join(sorted(conflicts))}."
+
+    unmet = missing_diets(item.get("diet_tags"), required_diets(user_preferences))
+    if unmet:
+        return "diet", f"{item['name']} is not tagged as {', '.join(sorted(unmet))}."
     return None
 
 
@@ -196,11 +216,13 @@ def load_swap_item(conn, itm_id: int):
     Returns:
         dict | None: The item fields keyed by _ITEM_COLUMNS, or None if it does not exist
     """
-    row = fetch_one(conn, _ITEM_SQL + " WHERE m.itm_id = ?", (itm_id,))
+    row = fetch_one(conn, _item_sql(conn) + " WHERE m.itm_id = ?", (itm_id,))
     return dict(zip(_ITEM_COLUMNS, row)) if row else None
 
 
-def list_swap_options(conn, user_allergies: str, date: str, meal: int, exclude_itm_id=None):
+def list_swap_options(
+    conn, user_allergies: str, date: str, meal: int, exclude_itm_id=None, user_preferences=None
+):
     """
     Lists every menu item that would pass swap_rejection for a slot
 
@@ -210,16 +232,17 @@ def list_swap_options(conn, user_allergies: str, date: str, meal: int, exclude_i
         date (str): The slot date in YYYY-MM-DD format
         meal (int): The slot meal number (1, 2, or 3)
         exclude_itm_id (int | None): An item to leave out, typically the one already planned
+        user_preferences (str | None): The user's comma-separated preferences (diet rules)
 
     Returns:
         List[dict]: The eligible items, ordered by itm_id
     """
-    rows = fetch_all(conn, _ITEM_SQL + " WHERE m.instock = 1 ORDER BY m.itm_id")
+    rows = fetch_all(conn, _item_sql(conn) + " WHERE m.instock = 1 ORDER BY m.itm_id")
     options = []
     for row in rows:
         item = dict(zip(_ITEM_COLUMNS, row))
         if item["itm_id"] == exclude_itm_id:
             continue
-        if swap_rejection(item, user_allergies, date, meal) is None:
+        if swap_rejection(item, user_allergies, date, meal, user_preferences) is None:
             options.append(item)
     return options

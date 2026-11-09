@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS "Restaurant" (
 CREATE TABLE IF NOT EXISTS "MenuItem" (
   itm_id INTEGER PRIMARY KEY AUTOINCREMENT,
   rtr_id INTEGER, name TEXT, description TEXT, price INTEGER, calories INTEGER,
-  instock INTEGER, restock TEXT, allergens TEXT
+  instock INTEGER, restock TEXT, allergens TEXT, diet_tags TEXT
 );
 CREATE TABLE IF NOT EXISTS "Order" (
   ord_id INTEGER PRIMARY KEY AUTOINCREMENT,

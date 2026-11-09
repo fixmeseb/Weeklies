@@ -64,6 +64,7 @@ CREATE TABLE "MenuItem" (
   instock INTEGER DEFAULT 1,
   restock TEXT,
   allergens TEXT,
+  diet_tags TEXT,
   FOREIGN KEY(rtr_id) REFERENCES Restaurant(rtr_id)
 );
 
@@ -217,6 +218,7 @@ def seed_database():
             1,
             "",
             "dairy, gluten",
+            "vegetarian",
         ),
         (
             1,
@@ -227,6 +229,7 @@ def seed_database():
             1,
             "",
             "gluten, dairy",
+            "vegetarian",
         ),
         (
             1,
@@ -237,6 +240,7 @@ def seed_database():
             1,
             "",
             "dairy, eggs, gluten",
+            "vegetarian",
         ),
         (
             1,
@@ -247,6 +251,7 @@ def seed_database():
             1,
             "",
             "dairy",
+            "vegetarian, gluten-free",
         ),
         # Green Garden Bistro (rtr_id: 2)
         (
@@ -258,6 +263,7 @@ def seed_database():
             1,
             "",
             "none",
+            "vegan, gluten-free",
         ),
         (
             2,
@@ -268,6 +274,7 @@ def seed_database():
             1,
             "",
             "gluten, sesame",
+            "vegan",
         ),
         (
             2,
@@ -278,12 +285,13 @@ def seed_database():
             1,
             "",
             "none",
+            "vegan, gluten-free",
         ),
     ]
     cursor.executemany(
         """
-        INSERT INTO "MenuItem" (rtr_id, name, description, price, calories, instock, restock, allergens)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO "MenuItem" (rtr_id, name, description, price, calories, instock, restock, allergens, diet_tags)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         menu_items,
     )
