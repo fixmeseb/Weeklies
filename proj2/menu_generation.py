@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import datetime
 import time
@@ -15,7 +14,7 @@ from proj2.meal_budget import (
     week_start,
     weekly_item_totals,
 )
-from proj2.sqlQueries import *
+from proj2.sqlQueries import close_connection, create_connection
 
 from proj2 import config
 
@@ -98,7 +97,7 @@ def get_weekday_and_increment(date: str) -> Tuple[str, str]:
     year, month, day = map(int, date.split("-"))
     try:
         date = datetime.datetime(year, month, day)
-    except:
+    except (ValueError, OverflowError):
         raise ValueError(
             "Unable to parse date string. Ensure it is formatted properly as to YYYY-MM-DD format"
         )
@@ -179,6 +178,24 @@ def filter_allergens(menu_items: pd.DataFrame, allergens: str) -> pd.DataFrame:
     return menu_items.loc[menu_items["allergens"].map(allowed).astype(bool)].copy()
 
 
+def is_taking_orders(status) -> bool:
+    """
+    Reports whether a restaurant's stored status means it is open for orders.
+
+    The one place this question is answered, so meal generation and single-meal swaps
+    cannot drift apart. Casing and surrounding whitespace are ignored because the seeds and
+    fixtures store 'open' while other code has written 'Open'. A missing status is not open:
+    a restaurant whose status was never recorded is not known to be taking orders.
+
+    Args:
+        status (str | None): The value stored in Restaurant.status.
+
+    Returns:
+        bool: True when the restaurant is open for orders.
+    """
+    return (status or "").strip().lower() == "open"
+
+
 def filter_closed_restaurants(restaurant: pd.DataFrame, weekday: str, time: int) -> pd.DataFrame:
     """
     Filters out restaurants that are closed at the specified time on the specified weekday
@@ -235,9 +252,13 @@ class MenuGenerator:
             catalog = pd.read_sql_query("SELECT itm_id, price FROM MenuItem", conn)
             self.item_prices = dict(zip(catalog.itm_id, catalog.price))
             self.menu_items = pd.read_sql_query("SELECT * FROM MenuItem WHERE instock == 1", conn)
-            self.restaurants = pd.read_sql_query(
-                'SELECT rtr_id, hours FROM Restaurant WHERE status=="Open"', conn
-            )
+            # Filtered here rather than in SQL so it is the same rule the swap path uses.
+            # `WHERE status=="Open"` excluded every restaurant the seeds and fixtures
+            # create, since all of them store 'open'; SQLite's TRIM() would not have fixed
+            # it either, because it strips spaces while str.strip() strips all whitespace.
+            stored = pd.read_sql_query("SELECT rtr_id, hours, status FROM Restaurant", conn)
+            open_now = stored["status"].map(is_taking_orders).astype(bool)
+            self.restaurants = stored.loc[open_now, ["rtr_id", "hours"]].copy()
         finally:
             close_connection(conn)
 

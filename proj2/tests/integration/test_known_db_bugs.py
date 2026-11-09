@@ -90,7 +90,9 @@ def bug_db(temp_db_path, monkeypatch):
             "rtr_id": rtr_id,
             "usr_id": conn.execute('SELECT usr_id FROM "User"').fetchone()[0],
             "in_stock": conn.execute("SELECT itm_id FROM MenuItem WHERE instock=1").fetchone()[0],
-            "out_of_stock": conn.execute("SELECT itm_id FROM MenuItem WHERE instock=0").fetchone()[0],
+            "out_of_stock": conn.execute("SELECT itm_id FROM MenuItem WHERE instock=0").fetchone()[
+                0
+            ],
         }
     finally:
         conn.close()
@@ -116,8 +118,10 @@ def _order_count(bug_db):
 
 
 def _insert_order(bug_db, status, total):
-    details = {"items": [{"itm_id": bug_db["in_stock"], "name": "Soup", "qty": 1}],
-               "charges": {"total": total}}
+    details = {
+        "items": [{"itm_id": bug_db["in_stock"], "name": "Soup", "qty": 1}],
+        "charges": {"total": total},
+    }
     conn = sqlite3.connect(bug_db["path"])
     try:
         cur = conn.execute(
@@ -135,9 +139,7 @@ def _insert_order(bug_db, status, total):
 
 @_known_bug(3, "an empty form field falls back to the old value (Flask_app.py:1525-1527)")
 def test_profile_edit_can_clear_allergies(user_client, bug_db):
-    user_client.post(
-        "/profile/edit", data={"phone": "5550000", "preferences": "", "allergies": ""}
-    )
+    user_client.post("/profile/edit", data={"phone": "5550000", "preferences": "", "allergies": ""})
     assert _rows(bug_db["path"], 'SELECT allergies FROM "User"')[0][0] == ""
 
 
@@ -148,8 +150,11 @@ def test_profile_edit_can_clear_allergies(user_client, bug_db):
 def test_order_rejects_negative_tip(user_client, bug_db):
     resp = user_client.post(
         "/order",
-        json={"restaurant_id": bug_db["rtr_id"],
-              "items": [{"itm_id": bug_db["in_stock"], "qty": 1}], "tip": -50},
+        json={
+            "restaurant_id": bug_db["rtr_id"],
+            "items": [{"itm_id": bug_db["in_stock"], "qty": 1}],
+            "tip": -50,
+        },
     )
     assert resp.status_code == 400
     assert _order_count(bug_db) == 0
@@ -159,8 +164,10 @@ def test_order_rejects_negative_tip(user_client, bug_db):
 def test_order_rejects_out_of_stock_item(user_client, bug_db):
     resp = user_client.post(
         "/order",
-        json={"restaurant_id": bug_db["rtr_id"],
-              "items": [{"itm_id": bug_db["out_of_stock"], "qty": 1}]},
+        json={
+            "restaurant_id": bug_db["rtr_id"],
+            "items": [{"itm_id": bug_db["out_of_stock"], "qty": 1}],
+        },
     )
     assert resp.status_code in (400, 409)
     assert _order_count(bug_db) == 0
@@ -221,8 +228,10 @@ def test_schema_rejects_duplicate_review_for_same_order(bug_db):
     ord_id = _insert_order(bug_db, "Delivered", 10.00)
     conn = sqlite3.connect(bug_db["path"])
     try:
-        insert = ('INSERT INTO "Review"(rtr_id,usr_id,title,rating,description,ord_id,created_at) '
-                  "VALUES (?,?,?,?,?,?,?)")
+        insert = (
+            'INSERT INTO "Review"(rtr_id,usr_id,title,rating,description,ord_id,created_at) '
+            "VALUES (?,?,?,?,?,?,?)"
+        )
         row = (bug_db["rtr_id"], bug_db["usr_id"], "t", 5, "d", ord_id, "2026-11-02T12:00:00")
         conn.execute(insert, row)
         with pytest.raises(sqlite3.IntegrityError):
@@ -251,7 +260,6 @@ def test_missing_database_fails_loudly(app, monkeypatch, tmp_path):
 # ---------------------------------------------------------------- meal generation
 
 
-@_known_bug(3, "status=='Open' filter is case-sensitive; seeds store 'open' (menu_generation.py:237)")
 def test_meal_generation_sees_lowercase_open_restaurants(bug_db):
     gen = MenuGenerator(tokens=10, database_path=bug_db["path"])
     assert bug_db["rtr_id"] in set(gen.restaurants["rtr_id"])
