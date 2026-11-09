@@ -20,7 +20,6 @@ All third-party libraries used in the Weeklies project, along with their version
 | [torchaudio](https://pytorch.org/) | 2.7.1 | BSD-2-Clause | Audio utilities (PyTorch ecosystem) |
 | [transformers](https://huggingface.co/transformers/) | 4.53.3 | Apache-2.0 | NLP model loading and inference |
 | [accelerate](https://huggingface.co/docs/accelerate/) | 1.11.0 | Apache-2.0 | ML model acceleration and mixed precision |
-| [bitsandbytes](https://github.com/TimDettmers/bitsandbytes) | 0.48.2 | MIT | Model quantization for efficient inference |
 
 ## Development & Testing Dependencies
 
