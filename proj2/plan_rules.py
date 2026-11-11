@@ -20,6 +20,10 @@ class PlanRuleError(RuntimeError):
     """A chosen item broke a plan rule; the plan must not be saved."""
 
 
+## Values people write to mean "no allergens"; they are not allergens themselves
+NO_ALLERGENS = frozenset({"none", "n/a", "-"})
+
+
 def parse_allergens(allergens) -> set:
     """
     Normalizes a comma-separated allergen string into a set of casefolded tags
@@ -28,11 +32,13 @@ def parse_allergens(allergens) -> set:
         allergens (str | None): A comma-separated string such as "Gluten, Soy" (None/NaN allowed)
 
     Returns:
-        set: The allergen tags, stripped and casefolded, with empty entries removed
+        set: The allergen tags, stripped and casefolded, without empty entries or
+            placeholders such as "none" (see NO_ALLERGENS)
     """
     if allergens is None or (not isinstance(allergens, str) and pd.isna(allergens)):
         return set()
-    return {tag.strip().casefold() for tag in str(allergens).split(",") if tag.strip()}
+    tags = {tag.strip().casefold() for tag in str(allergens).split(",") if tag.strip()}
+    return tags - NO_ALLERGENS
 
 
 def is_restaurant_open(hours: str, weekday: str, time: int) -> bool:

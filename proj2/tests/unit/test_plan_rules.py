@@ -11,7 +11,7 @@ import pytest
 
 from proj2 import menu_generation
 from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator
-from proj2.plan_rules import PlanRuleError, item_rejection
+from proj2.plan_rules import PlanRuleError, item_rejection, parse_allergens
 
 MONDAY = "2025-11-03"
 ALL_DAY = json.dumps({d: [0, 2359] for d in DAYS_OF_WEEK})
@@ -48,6 +48,18 @@ def test_item_rejection(overrides, user_allergies, user_preferences, code):
         make_item(**overrides), user_allergies, user_preferences, "Mon", 1000
     )
     assert (rejection[0] if rejection else None) == code
+
+
+@pytest.mark.parametrize("placeholder", ["none", "None", " N/A ", "-"])
+def test_none_placeholder_is_not_an_allergen(placeholder):
+    assert parse_allergens(placeholder) == set()
+    # A user who writes "None" as their allergies is not kept away from items marked "none".
+    assert item_rejection(make_item(allergens="none"), placeholder, "", "Mon", 1000) is None
+
+
+def test_placeholder_does_not_hide_real_allergens():
+    assert parse_allergens("None, Soy") == {"soy"}
+    assert item_rejection(make_item(allergens="none, Soy"), "soy", "", "Mon", 1000)[0] == "allergen"
 
 
 def test_missing_item():
