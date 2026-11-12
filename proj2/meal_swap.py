@@ -8,11 +8,14 @@ Flask_app.parse_generated_menu.
 """
 
 import datetime
-import json
 import re
 
-import pandas as pd
-
+from proj2.dietary import has_diet_tags_column
+from proj2.plan_rules import (  # noqa: F401  parse_allergens/is_restaurant_open re-exported
+    is_restaurant_open,
+    item_rejection,
+    parse_allergens,
+)
 from proj2.menu_generation import DAYS_OF_WEEK, get_meal_and_order_time
 from proj2.sqlQueries import fetch_all, fetch_one
 
@@ -80,57 +83,24 @@ def replace_menu_slot(menu: str, date: str, meal: int, new_itm_id: int) -> str:
     return updated
 
 
-def parse_allergens(allergens) -> set:
-    """
-    Normalizes a comma-separated allergen string into a set of casefolded tags.
-    Follows the same rules as menu_generation.filter_allergens.
-
-    Args:
-        allergens (str | None): A comma-separated string such as "Gluten, Soy" (None/NaN allowed)
-
-    Returns:
-        set: The allergen tags, stripped and casefolded, with empty entries removed
-    """
-    if allergens is None or (not isinstance(allergens, str) and pd.isna(allergens)):
-        return set()
-    return {tag.strip().casefold() for tag in str(allergens).split(",") if tag.strip()}
-
-
-def is_restaurant_open(hours: str, weekday: str, time: int) -> bool:
-    """
-    Checks whether one restaurant's stored hours JSON has it open at the specified weekday and time.
-    Follows the same rules as menu_generation.filter_closed_restaurants.
-
-    Args:
-        hours (str): The restaurant hours JSON, e.g. '{"Mon": [1100, 2200], ...}'
-        weekday (str): The day of the week to check (e.g., "Mon", "Tue", etc.)
-        time (int): The time to check in HHMM format (24H time)
-
-    Returns:
-        bool: True if any open/close window contains the time; False if closed, or if the
-            hours are unparseable, missing the weekday, non-numeric, or an odd-length list
-    """
-    try:
-        opening_times = json.loads(hours)[weekday]
-        if not isinstance(opening_times, list) or not all(
-            isinstance(value, (int, float)) for value in opening_times
-        ):
-            raise ValueError("Invalid hours")
-    except (TypeError, ValueError, KeyError):
-        return False
-    if len(opening_times) % 2 == 1:
-        return False
-    for x in range(len(opening_times) // 2):
-        if opening_times[x * 2] <= time and opening_times[x * 2 + 1] >= time:
-            return True
-    return False
-
-
 ## Columns loaded for a swap candidate; keys of the dicts returned by load_swap_item
-_ITEM_COLUMNS = ("itm_id", "rtr_id", "name", "instock", "allergens", "restaurant_status", "hours")
+_ITEM_COLUMNS = (
+    "itm_id",
+    "rtr_id",
+    "name",
+    "instock",
+    "allergens",
+    "restaurant_status",
+    "hours",
+    "diet_tags",
+)
 
-_ITEM_SQL = """
-    SELECT m.itm_id, m.rtr_id, m.name, m.instock, m.allergens, r.status, r.hours
+
+def _item_sql(conn) -> str:
+    """The candidate query; databases without MenuItem.diet_tags read every item as untagged."""
+    diet_tags = "m.diet_tags" if has_diet_tags_column(conn) else "NULL"
+    return f"""
+    SELECT m.itm_id, m.rtr_id, m.name, m.instock, m.allergens, r.status, r.hours, {diet_tags}
     FROM MenuItem m
     JOIN Restaurant r ON r.rtr_id = m.rtr_id
 """
@@ -155,34 +125,25 @@ def slot_weekday_and_time(date: str, meal: int):
     return weekday, order_time
 
 
-def swap_rejection(item, user_allergies: str, date: str, meal: int):
+def swap_rejection(item, user_allergies: str, date: str, meal: int, user_preferences: str = None):
     """
-    Checks whether a menu item may fill a date/meal slot for a user
+    Checks whether a menu item may fill a date/meal slot for a user (see proj2.plan_rules)
 
     Args:
         item (dict | None): A candidate loaded by load_swap_item
         user_allergies (str): The user's comma-separated allergies, as stored on their account
         date (str): The slot date in YYYY-MM-DD format
         meal (int): The slot meal number (1, 2, or 3)
+        user_preferences (str | None): The user's comma-separated preferences; the diets
+            they name (see proj2.dietary) must all be satisfied by the item's diet_tags
 
     Returns:
         Tuple[str, str] | None: (error_code, message) if the item is not allowed, otherwise None
     """
     if item is None:
-        return "item_not_found", "That menu item does not exist."
-    if not item["instock"]:
-        return "out_of_stock", f"{item['name']} is currently out of stock."
-    if (item["restaurant_status"] or "").strip().lower() != "open":
-        return "restaurant_unavailable", "That restaurant is not currently taking orders."
-
+        return item_rejection(None, user_allergies, user_preferences, None, None)
     weekday, order_time = slot_weekday_and_time(date, meal)
-    if not is_restaurant_open(item["hours"], weekday, order_time):
-        return "restaurant_closed", f"That restaurant is closed at that meal time on {weekday}."
-
-    conflicts = parse_allergens(item["allergens"]) & parse_allergens(user_allergies)
-    if conflicts:
-        return "allergen", f"{item['name']} contains your allergens: {', '.join(sorted(conflicts))}."
-    return None
+    return item_rejection(item, user_allergies, user_preferences, weekday, order_time)
 
 
 def load_swap_item(conn, itm_id: int):
@@ -196,11 +157,13 @@ def load_swap_item(conn, itm_id: int):
     Returns:
         dict | None: The item fields keyed by _ITEM_COLUMNS, or None if it does not exist
     """
-    row = fetch_one(conn, _ITEM_SQL + " WHERE m.itm_id = ?", (itm_id,))
+    row = fetch_one(conn, _item_sql(conn) + " WHERE m.itm_id = ?", (itm_id,))
     return dict(zip(_ITEM_COLUMNS, row)) if row else None
 
 
-def list_swap_options(conn, user_allergies: str, date: str, meal: int, exclude_itm_id=None):
+def list_swap_options(
+    conn, user_allergies: str, date: str, meal: int, exclude_itm_id=None, user_preferences=None
+):
     """
     Lists every menu item that would pass swap_rejection for a slot
 
@@ -210,16 +173,17 @@ def list_swap_options(conn, user_allergies: str, date: str, meal: int, exclude_i
         date (str): The slot date in YYYY-MM-DD format
         meal (int): The slot meal number (1, 2, or 3)
         exclude_itm_id (int | None): An item to leave out, typically the one already planned
+        user_preferences (str | None): The user's comma-separated preferences (diet rules)
 
     Returns:
         List[dict]: The eligible items, ordered by itm_id
     """
-    rows = fetch_all(conn, _ITEM_SQL + " WHERE m.instock = 1 ORDER BY m.itm_id")
+    rows = fetch_all(conn, _item_sql(conn) + " WHERE m.instock = 1 ORDER BY m.itm_id")
     options = []
     for row in rows:
         item = dict(zip(_ITEM_COLUMNS, row))
         if item["itm_id"] == exclude_itm_id:
             continue
-        if swap_rejection(item, user_allergies, date, meal) is None:
+        if swap_rejection(item, user_allergies, date, meal, user_preferences) is None:
             options.append(item)
     return options

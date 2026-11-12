@@ -18,6 +18,7 @@ from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
 from proj2.order_progress import order_progress
+from proj2.dietary import with_account_allergies, with_account_diets
 from proj2.meal_swap import (
     SlotNotFoundError,
     find_slot_item,
@@ -2486,6 +2487,10 @@ def generate_menu():
         preferences = (request.form.get('preferences') or prefs_db).strip()
         allergies = (request.form.get('allergens') or allergies_db).strip()
 
+    # Diets and allergies on the account are hard rules; a request can add to them but not drop them.
+    preferences = with_account_diets(preferences, prefs_db)
+    allergies = with_account_allergies(allergies, allergies_db)
+
     want_json = request.is_json or request.accept_mimetypes.best == 'application/json'
 
     def generation_error(message, status):
@@ -2599,12 +2604,13 @@ def swap_meal():
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT usr_id, allergies, generated_menu FROM "User" WHERE email = ?',
+        'SELECT usr_id, allergies, generated_menu, preferences FROM "User" WHERE email = ?',
         (session.get("Email"),),
     )
     if not user:
         return redirect(url_for("logout"))
     usr_id, allergies, menu = user[0], user[1] or "", user[2] or ""
+    preferences = user[3] or ""
 
     current_itm_id = find_slot_item(menu, slot_date, meal)
     if current_itm_id is None:
@@ -2612,7 +2618,9 @@ def swap_meal():
     if current_itm_id == itm_id:
         return _fail("same_item", "That item is already planned for this slot.", 400)
 
-    rejection = swap_rejection(load_swap_item(conn, itm_id), allergies, slot_date, meal)
+    rejection = swap_rejection(
+        load_swap_item(conn, itm_id), allergies, slot_date, meal, preferences
+    )
     if rejection:
         code, message = rejection
         return _fail(code, message, 404 if code == "item_not_found" else 409)
@@ -2648,7 +2656,7 @@ def swap_meal_options():
     List the items that could replace one planned slot for the logged-in user.
 
     Query args: date (YYYY-MM-DD) and meal (1|2|3). Only items that pass the same
-    availability and allergen checks as POST /menu/swap are returned.
+    availability, allergen and diet checks as POST /menu/swap are returned.
     """
     if session.get("Username") is None:
         return jsonify({"ok": False, "error": "login_required"}), 401
@@ -2663,7 +2671,7 @@ def swap_meal_options():
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT allergies, generated_menu FROM "User" WHERE email = ?',
+        'SELECT allergies, generated_menu, preferences FROM "User" WHERE email = ?',
         (session.get("Email"),),
     )
     if not user:
@@ -2671,7 +2679,9 @@ def swap_meal_options():
     current_itm_id = find_slot_item(user[1] or "", slot_date, meal)
     if current_itm_id is None:
         return jsonify({"ok": False, "error": "slot_not_found"}), 404
-    eligible = list_swap_options(conn, user[0] or "", slot_date, meal, current_itm_id)
+    eligible = list_swap_options(
+        conn, user[0] or "", slot_date, meal, current_itm_id, user[2] or ""
+    )
 
     details = fetch_menu_items_by_ids([o["itm_id"] for o in eligible])
     options = [

@@ -124,6 +124,7 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "dairy, gluten",
+            "vegetarian",
         ),
         (
             1,
@@ -134,6 +135,7 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "gluten, dairy",
+            "vegetarian",
         ),
         (
             1,
@@ -144,6 +146,7 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "dairy, eggs, gluten",
+            "vegetarian",
         ),
         (
             1,
@@ -154,6 +157,7 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "dairy",
+            "vegetarian, gluten-free",
         ),
         # Green Garden Bistro (rtr_id: 2)
         (
@@ -165,6 +169,7 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "none",
+            "vegan, gluten-free",
         ),
         (
             2,
@@ -175,6 +180,7 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "gluten, sesame",
+            "vegan",
         ),
         (
             2,
@@ -185,12 +191,13 @@ def _insert_demo_data(cursor, password):
             1,
             "",
             "none",
+            "vegan, gluten-free",
         ),
     ]
     cursor.executemany(
         """
-        INSERT INTO "MenuItem" (rtr_id, name, description, price, calories, instock, restock, allergens)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO "MenuItem" (rtr_id, name, description, price, calories, instock, restock, allergens, diet_tags)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         menu_items,
     )

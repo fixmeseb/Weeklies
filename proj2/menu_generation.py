@@ -1,7 +1,6 @@
 import pandas as pd
 import datetime
 import time
-import json
 import random
 import re
 from typing import Tuple, List
@@ -15,6 +14,8 @@ from proj2.meal_budget import (
     weekly_item_totals,
 )
 from proj2.db import connect
+from proj2.dietary import DietaryConstraintError, filter_diets, required_diets
+from proj2.plan_rules import PlanRuleError, is_restaurant_open, item_rejection, parse_allergens
 
 ## LLM error handling
 MAX_LLM_TRIES = 3
@@ -159,17 +160,10 @@ def filter_allergens(menu_items: pd.DataFrame, allergens: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The filtered DataFrame with menu items containing the specified allergens removed
     """
-    prohibited = {
-        value.strip().casefold() for value in (allergens or "").split(",") if value.strip()
-    }
+    prohibited = parse_allergens(allergens)
 
     def allowed(value):
-        declared = (
-            set()
-            if pd.isna(value)
-            else {tag.strip().casefold() for tag in str(value).split(",") if tag.strip()}
-        )
-        return not prohibited.intersection(declared)
+        return not prohibited.intersection(parse_allergens(value))
 
     return menu_items.loc[menu_items["allergens"].map(allowed).astype(bool)].copy()
 
@@ -186,29 +180,8 @@ def filter_closed_restaurants(restaurant: pd.DataFrame, weekday: str, time: int)
     Returns:
         pd.DataFrame: The filtered DataFrame with closed restaurants removed
     """
-    for index, rows in restaurant.iterrows():
-        try:
-            opening_times = json.loads(rows["hours"])[weekday]
-            if not isinstance(opening_times, list) or not all(
-                isinstance(value, (int, float)) for value in opening_times
-            ):
-                raise ValueError("Invalid hours")
-        except (TypeError, ValueError, KeyError):
-            restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-            continue
-        if len(opening_times) % 2 == 1:
-            print("Odd opening times - cannot process")
-            restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-        elif len(opening_times) >= 2:
-            open = False
-            for x in range(int(len(opening_times) / 2)):
-                if opening_times[x * 2] <= time and opening_times[x * 2 + 1] >= time:
-                    open = True
-            if not open:
-                restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-        else:
-            restaurant = restaurant[restaurant["rtr_id"] != rows["rtr_id"]]
-    return restaurant
+    is_open = restaurant["hours"].map(lambda hours: is_restaurant_open(hours, weekday, time))
+    return restaurant[is_open.astype(bool)]
 
 
 class MenuGenerator:
@@ -251,8 +224,17 @@ class MenuGenerator:
     def generator(self, value):
         self._generator = value
 
-    def _eligible_candidates(self, allergens, weekday, order_time, max_price_cents=None):
-        """Filter stock, open restaurants and allergens; rank valid prices cheapest first."""
+    def _eligible_candidates(
+        self, allergens, weekday, order_time, max_price_cents=None, preferences=None
+    ):
+        """
+        Filter stock, open restaurants, allergens and required diets; rank valid prices
+        cheapest first.
+
+        Raises:
+            DietaryConstraintError: if items are available but none satisfies the diets
+                named in preferences (see proj2.dietary)
+        """
         combined = pd.merge(
             self.menu_items[self.menu_items["instock"] == 1],
             self.restaurants,
@@ -261,6 +243,15 @@ class MenuGenerator:
         )
         combined = filter_closed_restaurants(combined, weekday, order_time)
         combined = filter_allergens(combined, allergens)
+        if not combined.empty:
+            combined = filter_diets(combined, preferences)
+            if combined.empty:
+                diets = ", ".join(sorted(required_diets(preferences)))
+                raise DietaryConstraintError(
+                    f"No available menu item on {weekday} at {order_time:04d} is tagged as "
+                    f"meeting your diet ({diets}). Restaurants must tag items before they "
+                    f"can be planned for {diets} meals."
+                )
 
         def valid_price(value):
             try:
@@ -274,8 +265,42 @@ class MenuGenerator:
             combined = combined[combined["price_cents"] <= max_price_cents]
         return combined.sort_values(["price_cents", "itm_id"], kind="stable")
 
+    def _check_pick(self, itm_id, preferences, allergens, weekday, order_time):
+        """
+        Re-checks a chosen item against proj2.plan_rules before it goes into the plan
+
+        Candidates are already filtered, so a rejection here means a filter and the
+        shared rules disagree; generation stops rather than save a non-compliant plan.
+
+        Raises:
+            PlanRuleError: if the item breaks a rule
+        """
+        rows = self.menu_items[self.menu_items["itm_id"] == itm_id]
+        item = None
+        if not rows.empty:
+            row = rows.iloc[0]
+            restaurant = self.restaurants[self.restaurants["rtr_id"] == row["rtr_id"]]
+            item = {
+                "name": row["name"],
+                "instock": row["instock"],
+                "allergens": row["allergens"],
+                "diet_tags": row.get("diet_tags"),
+                # self.restaurants holds only restaurants whose status is Open
+                "restaurant_status": None if restaurant.empty else "Open",
+                "hours": None if restaurant.empty else restaurant.iloc[0]["hours"],
+            }
+        rejection = item_rejection(item, allergens, preferences, weekday, order_time)
+        if rejection:
+            raise PlanRuleError(f"Chosen item {itm_id} broke a plan rule: {rejection[1]}")
+
     def __get_context(
-        self, allergens: str, weekday: str, order_time: int, num_choices: int, candidates=None
+        self,
+        allergens: str,
+        weekday: str,
+        order_time: int,
+        num_choices: int,
+        candidates=None,
+        preferences: str = None,
     ) -> str:
         """
         Generates the context block for the LLM based on the provided allergens, date, and order time
@@ -293,7 +318,9 @@ class MenuGenerator:
         start = time.time()
 
         if candidates is None:
-            combined = self._eligible_candidates(allergens, weekday, order_time)
+            combined = self._eligible_candidates(
+                allergens, weekday, order_time, preferences=preferences
+            )
             choices = limit_scope(combined, num_choices)
         else:
             # Budgeted generation always exposes the cheapest ranked options first.
@@ -335,7 +362,7 @@ class MenuGenerator:
         ## Tries to get output from LLM a number of times, increasing the number of options every time
         for x in range(MAX_LLM_TRIES):
             context, item_ids = self.__get_context(
-                allergens, weekday, order_time, num_choices, candidates
+                allergens, weekday, order_time, num_choices, candidates, preferences
             )
             if not item_ids:
                 raise RuntimeError("No eligible menu items are available for this meal.")
@@ -352,6 +379,7 @@ class MenuGenerator:
             llm_output = self.generator.generate(system, prompt)
             output = format_llm_output(llm_output)
             if output > 0 and output in item_ids:
+                self._check_pick(output, preferences, allergens, weekday, order_time)
                 return output
             ## If failed, try increasing the number of choices
             num_choices += ITEM_CHOICES
@@ -379,7 +407,9 @@ LLM output:
                 _, order_time = get_meal_and_order_time(meal)
                 if (day, meal) in occupied:
                     continue
-                candidates = self._eligible_candidates(allergens, weekday, order_time)
+                candidates = self._eligible_candidates(
+                    allergens, weekday, order_time, preferences=preferences
+                )
                 if candidates.empty:
                     raise BudgetExceededError(f"No eligible meals are available for {day}.")
                 minimum = int(candidates.price_cents.min())
