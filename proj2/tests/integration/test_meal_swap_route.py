@@ -345,3 +345,9 @@ def test_calendar_shows_weekly_variety(logged_in, plan):
     # Four different dishes from one restaurant, with no other tags: 60% varied
     assert "60%" in card
     assert "Oatmeal (Mon breakfast) and Sandwich (Mon lunch): same restaurant" in card
+
+
+def test_calendar_shows_readable_hours(logged_in, plan):
+    html = logged_in.get("/2025/11").get_data(as_text=True)
+    assert "Daily 8 am–10 pm" in html
+    assert '{"Mon"' not in html

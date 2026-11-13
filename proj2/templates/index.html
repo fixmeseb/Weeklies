@@ -104,7 +104,7 @@
                       <span>📍 {{ entry.item.restaurant_address }}</span>
                     {% endif %}
                     {% if entry.item.restaurant_hours %}
-                      <span class="rest-hours" data-hours="{{ entry.item.restaurant_hours }}">🕐 {{ entry.item.restaurant_hours }}</span>
+                      <span class="rest-hours">🕐 {{ entry.item.restaurant_hours | hours_display }}</span>
                     {% endif %}
                     {% if entry.item.restaurant_phone %}
                       <span>📞 {{ entry.item.restaurant_phone }}</span>
@@ -223,7 +223,7 @@
                               <span>📍 {{ m.item.restaurant_address }}</span>
                             {% endif %}
                             {% if m.item.restaurant_hours %}
-                              <span class="rest-hours" style="margin-left: 8px;" data-hours="{{ m.item.restaurant_hours }}">🕐 {{ m.item.restaurant_hours }}</span>
+                              <span class="rest-hours" style="margin-left: 8px;">🕐 {{ m.item.restaurant_hours | hours_display }}</span>
                             {% endif %}
                             {% if m.item.restaurant_phone %}
                               <span style="margin-left: 8px;">📞 {{ m.item.restaurant_phone }}</span>
@@ -522,33 +522,6 @@
 
 <script>
 (function () {
-  // Format hours to readable format - defined early
-  function formatHours(hoursStr) {
-    if (!hoursStr || !hoursStr.trim()) return '';
-    let hours = hoursStr.trim();
-    hours = hours
-      .replace(/monday/gi, 'M')
-      .replace(/tuesday/gi, 'T')
-      .replace(/wednesday/gi, 'W')
-      .replace(/thursday/gi, 'Th')
-      .replace(/friday/gi, 'F')
-      .replace(/saturday/gi, 'Sa')
-      .replace(/sunday/gi, 'Su')
-      .replace(/mon(?!\w)/gi, 'M')
-      .replace(/tue(?!\w)/gi, 'T')
-      .replace(/wed(?!\w)/gi, 'W')
-      .replace(/thu(?!\w)/gi, 'Th')
-      .replace(/fri(?!\w)/gi, 'F')
-      .replace(/sat(?!\w)/gi, 'Sa')
-      .replace(/sun(?!\w)/gi, 'Su');
-    hours = hours.replace(/([MTWThFSaSu])\s*-\s*([MTWThFSaSu])/g, '$1$2');
-    hours = hours.replace(/\s*-\s*/g, ' to ');
-    hours = hours.replace(/(\d+)\s*(AM|PM)/gi, (match, num, period) => num + ' ' + period.toLowerCase());
-    hours = hours.replace(/\s+/g, ' ').trim();
-    if (hours.match(/[MTWThFSaSu]/) && hours.match(/\d/)) return hours;
-    return hoursStr.replace(/\s+/g, ' ').trim();
-  }
-
   // ======== Calendar Popover (existing) ========
   const popover = document.createElement('div');
   popover.className = 'menu-popover';
@@ -569,15 +542,6 @@
     popover.style.visibility = 'hidden';
     popover.classList.add('visible');
     document.body.offsetHeight; // reflow
-
-    // Format hours in popover content
-    popover.querySelectorAll('.rest-hours[data-hours]').forEach(el => {
-      const hrs = el.getAttribute('data-hours');
-      if (hrs) {
-        const formatted = formatHours(hrs);
-        if (formatted) el.textContent = '🕐 ' + formatted;
-      }
-    });
 
     const rect = dayCell.getBoundingClientRect();
     const pW = popover.offsetWidth, pH = popover.offsetHeight;
@@ -662,14 +626,6 @@
   // Esc to close popover
   window.addEventListener('keydown', e=>{ if(e.key==='Escape') hidePopover(true); });
 
-  // Format hours in the page on load
-  document.querySelectorAll('.rest-hours[data-hours]').forEach(el => {
-    const hrs = el.getAttribute('data-hours');
-    if (hrs) {
-      const formatted = formatHours(hrs);
-      if (formatted) el.textContent = '🕐 ' + formatted;
-    }
-  });
 
 
   // ======== Order Confirm Modal (new) ========

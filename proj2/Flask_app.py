@@ -13,8 +13,9 @@ from datetime import timedelta, date, datetime
 from functools import wraps
 from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
-from proj2.menu_generation import MenuGenerator
 from proj2 import variety
+from proj2.hours import format_hours
+from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
@@ -100,6 +101,8 @@ def load_secret_key(environ=None, key_file=None) -> str:
 SECRET_KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "secret_key")
 
 app = Flask(__name__)
+# Restaurant hours for display: {{ r.hours | hours_display }} (see proj2/hours.py)
+app.add_template_filter(format_hours, "hours_display")
 app.config["SECRET_KEY"] = load_secret_key(key_file=SECRET_KEY_FILE)
 
 init_db_support(app)  # app.config["DATABASE"], connection teardown, `flask init-db` etc.
@@ -2296,6 +2299,7 @@ def restaurants():
             "state": r[7] or "",
             "zip": r[8] if r[8] is not None else "",
             "hours": r[9] or "",
+            "hours_display": format_hours(r[9]),
             "status": r[10] or "",
             "address_full": _addr(r[5], r[6], r[7], r[8]),
         }

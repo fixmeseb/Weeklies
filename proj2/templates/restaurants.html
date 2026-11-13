@@ -398,50 +398,6 @@
   const ORDER_FEES = {{ order_fees|tojson }};  // from proj2/config.py via inject_order_fees
   function formatAddress(r){ if (!r) return ''; if (r.address_full) return r.address_full; const parts=[r.address,r.city,r.state,r.zip].filter(Boolean); return parts.join(', '); }
   
-  // Format hours to readable format like "MTW 11 to 4, Th F 2 to 9 pm"
-  function formatHours(hoursStr) {
-    if (!hoursStr || !hoursStr.trim()) return '';
-    
-    let hours = hoursStr.trim();
-    
-    // Normalize day names to abbreviations
-    hours = hours
-      .replace(/monday/gi, 'M')
-      .replace(/tuesday/gi, 'T')
-      .replace(/wednesday/gi, 'W')
-      .replace(/thursday/gi, 'Th')
-      .replace(/friday/gi, 'F')
-      .replace(/saturday/gi, 'Sa')
-      .replace(/sunday/gi, 'Su')
-      .replace(/mon(?!\w)/gi, 'M')
-      .replace(/tue(?!\w)/gi, 'T')
-      .replace(/wed(?!\w)/gi, 'W')
-      .replace(/thu(?!\w)/gi, 'Th')
-      .replace(/fri(?!\w)/gi, 'F')
-      .replace(/sat(?!\w)/gi, 'Sa')
-      .replace(/sun(?!\w)/gi, 'Su');
-    
-    // Clean up dashes between days - replace with space or comma
-    hours = hours.replace(/([MTWThFSaSu])\s*-\s*([MTWThFSaSu])/g, '$1$2');
-    
-    // Normalize time separators
-    hours = hours.replace(/\s*-\s*/g, ' to ');
-    hours = hours.replace(/\s*:\s*/g, ':');
-    
-    // Normalize am/pm to lowercase  
-    hours = hours.replace(/(\d+)\s*(AM|PM)/gi, (match, num, period) => num + ' ' + period.toLowerCase());
-    
-    // Clean up multiple spaces
-    hours = hours.replace(/\s+/g, ' ').trim();
-    
-    // If format looks good (has day abbreviations and times), return it
-    if (hours.match(/[MTWThFSaSu]/) && hours.match(/\d/)) {
-      return hours;
-    }
-    
-    // Fallback: just clean up spaces
-    return hoursStr.replace(/\s+/g, ' ').trim();
-  }
 
   // ---------- Search functionality ----------
   let searchTerm = '';
@@ -492,7 +448,7 @@
       header.setAttribute('aria-expanded', 'false');
       
       const addr = formatAddress(r);
-      const formattedHours = r.hours ? formatHours(r.hours) : '';
+      const formattedHours = r.hours_display || '';  // formatted by proj2/hours.py
       const reviewsUrl = `{{ url_for('restaurant_reviews', rtr_id=0) }}`.replace('/0', `/${r.rtr_id}`);
       const infoHtml = `
         <div>
