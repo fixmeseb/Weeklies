@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Your Review · Weeklies</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>
     .review-container {
       max-width: 700px;
@@ -72,12 +73,12 @@
 
     .stars-large {
       font-size: 2rem;
-      color: #fbbf24;
+      color: var(--star);
       letter-spacing: 0.1rem;
     }
 
     .stars-large .empty-star {
-      color: #d1d5db;
+      color: color-mix(in srgb, var(--text) 25%, transparent);
     }
 
     .rating-number {

@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard · {{ restaurant_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>
     /* Dashboard-specific styles */
     .dashboard-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
+      color: var(--on-hero);
       padding: 2rem;
       margin-bottom: 2rem;
       border-radius: var(--radius);
@@ -38,8 +39,8 @@
     }
     
     .logout-btn {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
+      background: color-mix(in srgb, var(--on-hero) 20%, transparent);
+      color: var(--on-hero);
       padding: 0.75rem 1.5rem;
       border: none;
       border-radius: 8px;
@@ -51,7 +52,7 @@
     }
     
     .logout-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: color-mix(in srgb, var(--on-hero) 30%, transparent);
       text-decoration: none;
     }
 
@@ -253,8 +254,8 @@
     }
 
     .nav-link {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
+      background: color-mix(in srgb, var(--on-hero) 20%, transparent);
+      color: var(--on-hero);
       padding: 0.75rem 1.5rem;
       border: none;
       border-radius: 8px;
@@ -266,7 +267,7 @@
     }
 
     .nav-link:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: color-mix(in srgb, var(--on-hero) 30%, transparent);
       text-decoration: none;
     }
 
@@ -278,8 +279,8 @@
     }
 
     .nav-link {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
+      background: color-mix(in srgb, var(--on-hero) 20%, transparent);
+      color: var(--on-hero);
       padding: 0.75rem 1.5rem;
       border: none;
       border-radius: 8px;
@@ -291,7 +292,7 @@
     }
 
     .nav-link:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: color-mix(in srgb, var(--on-hero) 30%, transparent);
       text-decoration: none;
     }
   </style>

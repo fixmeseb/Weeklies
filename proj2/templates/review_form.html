@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Write Review · Weeklies</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>
     .review-container {
       max-width: 700px;
@@ -104,7 +105,7 @@
 
     .star {
       cursor: pointer;
-      color: #d1d5db;
+      color: color-mix(in srgb, var(--text) 25%, transparent);
       transition: color 0.2s, transform 0.1s;
       user-select: none;
     }
@@ -114,11 +115,11 @@
     }
 
     .star.filled {
-      color: #fbbf24;
+      color: var(--star);
     }
 
     .star.hover {
-      color: #fcd34d;
+      color: color-mix(in srgb, var(--star) 70%, var(--surface));
     }
 
     .rating-text {
@@ -165,7 +166,7 @@
       flex: 1;
       padding: 0.875rem 1.5rem;
       background: var(--primary);
-      color: white;
+      color: var(--on-primary);
       border: none;
       border-radius: var(--radius-xs);
       font-size: 1rem;

@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Customer Reviews · {{ restaurant_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>
     .dashboard-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
+      color: var(--on-hero);
       padding: 2rem;
       margin-bottom: 2rem;
     }
@@ -38,8 +39,8 @@
     }
     
     .logout-btn {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
+      background: color-mix(in srgb, var(--on-hero) 20%, transparent);
+      color: var(--on-hero);
       padding: 0.75rem 1.5rem;
       border: none;
       border-radius: 8px;
@@ -51,7 +52,7 @@
     }
     
     .logout-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: color-mix(in srgb, var(--on-hero) 30%, transparent);
       text-decoration: none;
     }
 
@@ -107,12 +108,12 @@
 
     .stars-display {
       font-size: 1.5rem;
-      color: #fbbf24;
+      color: var(--star);
       letter-spacing: 0.1rem;
     }
 
     .stars-display .empty-star {
-      color: #d1d5db;
+      color: color-mix(in srgb, var(--text) 25%, transparent);
     }
 
     .review-count {
@@ -176,7 +177,7 @@
     }
 
     .review-card:hover {
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--shade) 10%, transparent);
     }
 
     .review-header {
@@ -196,11 +197,11 @@
       width: 40px;
       height: 40px;
       border-radius: 50%;
-      background: linear-gradient(135deg, var(--primary), var(--accent));
+      background: linear-gradient(135deg, var(--primary), var(--primary-700));
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: var(--on-primary);
       font-weight: 600;
       font-size: 1rem;
     }
@@ -219,11 +220,11 @@
 
     .review-rating {
       font-size: 1.25rem;
-      color: #fbbf24;
+      color: var(--star);
     }
 
     .review-rating .empty-star {
-      color: #d1d5db;
+      color: color-mix(in srgb, var(--text) 25%, transparent);
     }
 
     .review-title {
@@ -274,7 +275,7 @@
 
     .page-btn.active {
       background: var(--primary);
-      color: white;
+      color: var(--on-primary);
       border-color: var(--primary);
     }
 

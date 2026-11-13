@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Edit Profile · Weeklies</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
@@ -119,7 +120,7 @@
   .bubble {
     display:inline-flex; align-items:center; justify-content:center;
     border-radius:999px; border:2px solid var(--border);
-    background: rgba(0,0,0,0.05); color: var(--text);
+    background: color-mix(in srgb, var(--shade) 5%, transparent); color: var(--text);
     padding: 8px 14px; cursor:pointer; user-select:none;
     transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
     opacity: .5;
@@ -175,7 +176,9 @@
     function randomColor() {
       const h = Math.floor(Math.random()*360);
       const s = 65 + Math.random()*25;   // 65–90
-      const l = 55 + Math.random()*15;   // 55–70
+      // Light themes need darker text to stay readable (colour themes in static/style.css)
+      const light = getComputedStyle(document.documentElement).colorScheme === "light";
+      const l = (light ? 28 : 55) + Math.random()*15;   // 28–43 on light themes, 55–70 on dark
       return `hsl(${h} ${s}% ${l}%)`;
     }
 

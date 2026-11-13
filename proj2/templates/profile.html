@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Profile · Weeklies</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
@@ -161,9 +162,9 @@
           </div>
           
           <!-- Loading spinner (hidden by default) - Bright colors for dark mode visibility -->
-          <div id="menuLoading" style="display: none; margin-top: 20px; text-align: center; padding: 20px; background: rgba(255, 193, 7, 0.1); border-radius: 12px; border: 2px solid #ffc107;">
+          <div id="menuLoading" style="display: none; margin-top: 20px; text-align: center; padding: 20px; background: color-mix(in srgb, var(--warning) 10%, transparent); border-radius: 12px; border: 2px solid var(--warning);">
             <div style="display: inline-flex; align-items: center; gap: 12px;">
-              <div style="width: 32px; height: 32px; border: 4px solid rgba(255, 193, 7, 0.3); border-top-color: #ffc107; border-right-color: #ff9800; border-radius: 50%; animation: spin 0.8s linear infinite; box-shadow: 0 0 12px rgba(255, 193, 7, 0.5);"></div>
+              <div style="width: 32px; height: 32px; border: 4px solid color-mix(in srgb, var(--warning) 30%, transparent); border-top-color: var(--warning); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
               <div style="text-align: left;">
                 <span style="font-size: 14px; font-weight: 700; color: var(--warning); display: block;">Planning your meals...</span>
               </div>
@@ -294,7 +295,7 @@
   .bubble {
     display:inline-flex; align-items:center; justify-content:center;
     border-radius:999px; border:2px solid var(--border);
-    background: rgba(0,0,0,0.05); color: var(--text);
+    background: color-mix(in srgb, var(--shade) 5%, transparent); color: var(--text);
     padding: 8px 14px; user-select:none;
     transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
     opacity:.5;
@@ -342,7 +343,7 @@
   .tag { padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:var(--surface); font-size:14px; }
   pre.menu { margin:0; white-space:pre-wrap; word-break:break-word; background:var(--surface); padding:10px; border-radius:8px; border:1px solid var(--border); }
   /* Modal basics */
-  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:1000; }
+  .modal-backdrop { position:fixed; inset:0; background:color-mix(in srgb, var(--shade) 45%, transparent); display:none; z-index:1000; }
   .modal-sheet { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(92vw,480px); background:var(--surface); border:1px solid var(--border); border-radius:14px; display:none; z-index:1001; }
   .modal-backdrop.show, .modal-sheet.show { display:block; }
   .modal-head {
@@ -380,7 +381,9 @@
     function randomColor(){
       const h = Math.floor(Math.random()*360);
       const s = 65 + Math.random()*25;
-      const l = 55 + Math.random()*15;
+      // Light themes need darker text to stay readable (colour themes in static/style.css)
+      const light = getComputedStyle(document.documentElement).colorScheme === "light";
+      const l = (light ? 28 : 55) + Math.random()*15;
       return `hsl(${h} ${s}% ${l}%)`;
     }
 

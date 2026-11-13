@@ -6,12 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Analytics · {{ restaurant_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     /* Analytics Dashboard Styles */
     .analytics-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
+      color: var(--on-hero);
       padding: 2rem;
       margin-bottom: 2rem;
       border-radius: var(--radius);
@@ -32,8 +33,8 @@
     }
     
     .nav-btn {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
+      background: color-mix(in srgb, var(--on-hero) 20%, transparent);
+      color: var(--on-hero);
       padding: 0.75rem 1.5rem;
       border: 2px solid transparent;
       border-radius: 8px;
@@ -46,14 +47,14 @@
     }
     
     .nav-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: color-mix(in srgb, var(--on-hero) 30%, transparent);
       text-decoration: none;
     }
     
     .nav-btn.active {
-      background: white;
-      color: #667eea;
-      border-color: white;
+      background: var(--surface);
+      color: var(--primary);
+      border-color: var(--surface);
     }
     
     .analytics-grid {
@@ -83,7 +84,7 @@
     .metric-value {
       font-size: 2.5rem;
       font-weight: bold;
-      color: var(--primary, #667eea);
+      color: var(--primary);
       margin-bottom: 0.5rem;
     }
     
@@ -257,14 +258,28 @@
       }
     };
     
-    const defaultChartColors = {
-      primary: '#667eea',
-      secondary: '#764ba2',
-      tertiary: '#f093fb',
-      success: '#4ade80',
-      warning: '#fbbf24',
-      danger: '#ef4444'
+    // Chart colours follow the colour theme (CSS variables in static/style.css).
+    const themeColor = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const withAlpha = (hex, alpha) => {
+      const m = /^#([0-9a-f]{6})$/i.exec(hex);
+      if (!m) return hex;
+      const n = parseInt(m[1], 16);
+      return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
     };
+    const defaultChartColors = {
+      primary: themeColor('--primary'),
+      secondary: themeColor('--accent-2'),
+      tertiary: themeColor('--accent'),
+      success: themeColor('--success'),
+      warning: themeColor('--warning'),
+      danger: themeColor('--danger')
+    };
+    if (window.Chart) {
+      Chart.defaults.color = themeColor('--muted');
+      Chart.defaults.borderColor = withAlpha(themeColor('--text'), 0.1);
+    }
+    // Charts are drawn once, so redraw the page when the theme changes.
+    document.addEventListener('palettechange', () => location.reload());
     
     // Status Distribution Chart
     {% if status_labels %}
@@ -333,7 +348,7 @@
             beginAtZero: true,
             grid: {
               display: true,
-              color: 'rgba(0, 0, 0, 0.05)'
+              color: withAlpha(themeColor('--text'), 0.06)
             }
           },
           y: {
@@ -357,7 +372,7 @@
           label: 'Orders',
           data: {{ date_counts | tojson }},
           borderColor: defaultChartColors.primary,
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          backgroundColor: withAlpha(defaultChartColors.primary, 0.1),
           fill: true,
           tension: 0.4,
           pointRadius: 4,
@@ -373,7 +388,7 @@
           y: {
             beginAtZero: true,
             grid: {
-              color: 'rgba(0, 0, 0, 0.05)'
+              color: withAlpha(themeColor('--text'), 0.06)
             }
           },
           x: {
