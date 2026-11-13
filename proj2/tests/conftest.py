@@ -8,7 +8,6 @@ import tempfile
 import contextlib
 import pytest
 import sqlite3
-import platform
 
 # Import your app module
 import proj2.Flask_app as Flask_app
@@ -221,21 +220,3 @@ def monkeypatch_pdf(monkeypatch):
         return b"%PDF-1.4\n%fake\n"
 
     monkeypatch.setattr("proj2.Flask_app.generate_order_receipt_pdf", fake_pdf, raising=True)
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip LLM generator tests on Windows due to transformers library access violation issues.
-
-    Note: test_llm.py and test_helpers.py do not require model generation and should pass.
-    The issue is in the transformers library when running model.generate() on Windows CPU.
-    This is a known limitation and may be resolved in future transformers releases.
-    See: https://github.com/huggingface/transformers/issues/...
-    """
-    if platform.system() == "Windows":
-        skip_llm = pytest.mark.skip(
-            reason="LLM generator tests skipped on Windows due to PyTorch/transformers access violation"
-        )
-        for item in items:
-            # Only skip tests that use the MenuGenerator (which calls model.generate())
-            if "test_generator.py" in str(item.fspath):
-                item.add_marker(skip_llm)

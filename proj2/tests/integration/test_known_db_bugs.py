@@ -252,7 +252,26 @@ def test_missing_database_fails_loudly(app, monkeypatch, tmp_path, create_file):
 # ---------------------------------------------------------------- meal generation
 
 
-@_known_bug(3, "status=='Open' filter is case-sensitive; seeds store 'open' (menu_generation.py:237)")
 def test_meal_generation_sees_lowercase_open_restaurants(bug_db):
-    gen = MenuGenerator(tokens=10, database_path=bug_db["path"])
+    gen = MenuGenerator(database_path=bug_db["path"])
     assert bug_db["rtr_id"] in set(gen.restaurants["rtr_id"])
+
+
+@pytest.mark.parametrize("status", ["Open", "OPEN", " open "])
+def test_meal_generation_matches_open_status_like_plan_rules(bug_db, status):
+    conn = sqlite3.connect(bug_db["path"])
+    conn.execute("UPDATE Restaurant SET status = ? WHERE rtr_id = ?", (status, bug_db["rtr_id"]))
+    conn.commit()
+    conn.close()
+    gen = MenuGenerator(database_path=bug_db["path"])
+    assert bug_db["rtr_id"] in set(gen.restaurants["rtr_id"])
+
+
+@pytest.mark.parametrize("status", ["closed", "Closed", "", None, "opening soon"])
+def test_meal_generation_excludes_restaurants_not_open(bug_db, status):
+    conn = sqlite3.connect(bug_db["path"])
+    conn.execute("UPDATE Restaurant SET status = ? WHERE rtr_id = ?", (status, bug_db["rtr_id"]))
+    conn.commit()
+    conn.close()
+    gen = MenuGenerator(database_path=bug_db["path"])
+    assert bug_db["rtr_id"] not in set(gen.restaurants["rtr_id"])

@@ -1,14 +1,15 @@
 """
-Tag menu items with the diets they meet (vegetarian, vegan, halal, ...).
+Tag menu items with their diets, cuisine, protein, flavor and meal type.
 
-    python proj2/scripts/diet_tags.py export menu_tags.csv
-    # fill in the diet_tags column, then check it:
-    python proj2/scripts/diet_tags.py import menu_tags.csv
+    python proj2/scripts/menu_tags.py export menu_tags.csv
+    # fill in the diet_tags, cuisine, protein, flavor and meal_type columns, then check:
+    python proj2/scripts/menu_tags.py import menu_tags.csv
     # write it once the check is clean:
-    python proj2/scripts/diet_tags.py import menu_tags.csv --apply
+    python proj2/scripts/menu_tags.py import menu_tags.csv --apply
 
 Uses WEEKLIES_DB_PATH or proj2/CSC510_DB.db unless --db is given. Import changes nothing
-unless every row is valid; see proj2/diet_tags_io.py for the rules.
+unless every row is valid; a CSV may leave out tag columns it does not change. See
+proj2/menu_tags_io.py for the checks and proj2/meal_tags.py for the allowed tags.
 """
 
 import argparse
@@ -19,7 +20,7 @@ import sys
 # Repo root on sys.path so `proj2` imports when run as `python scripts/<name>.py`.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 from proj2 import config  # noqa: E402
-from proj2.diet_tags_io import apply_import, export_csv, plan_import  # noqa: E402
+from proj2.menu_tags_io import apply_import, export_csv, plan_import  # noqa: E402
 
 
 def parse_args(argv=None):
@@ -66,9 +67,10 @@ def main(argv=None, out=None) -> int:
                 print(f"  {error}", file=out)
             return 1
 
-        for itm_id, name, old, new in plan.changes:
-            print(f"  {itm_id:>5}  {name}: {_show(old)} -> {_show(new)}", file=out)
-        summary = f"{len(plan.changes)} to change, {plan.unchanged} unchanged"
+        for itm_id, name, column, old, new in plan.changes:
+            print(f"  {itm_id:>5}  {name}, {column}: {_show(old)} -> {_show(new)}", file=out)
+        changed = len({itm_id for itm_id, *_ in plan.changes})
+        summary = f"{changed} to change, {plan.unchanged} unchanged"
         if not args.apply:
             print(f"Dry run: {summary}. Run again with --apply to write.", file=out)
             return 0

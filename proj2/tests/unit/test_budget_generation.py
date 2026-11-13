@@ -1,10 +1,8 @@
 import json
-from unittest.mock import Mock
-
 import pandas as pd
 import pytest
 
-from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator
+from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator, NoEligibleMealError
 from proj2.meal_budget import BudgetExceededError
 
 
@@ -29,7 +27,6 @@ def generator():
     gen.restaurants = pd.DataFrame(
         [{"rtr_id": 1, "hours": json.dumps({day: [0, 2359] for day in DAYS_OF_WEEK})}]
     )
-    gen.generator = Mock()
     gen.item_prices = dict(zip(gen.menu_items.itm_id, gen.menu_items.price))
     return gen
 
@@ -56,24 +53,10 @@ def test_unavailable_hours_exclude_candidates(generator, hours):
     assert generator._eligible_candidates("", "Mon", 2000).empty
 
 
-def test_picker_only_accepts_an_affordable_offered_item(generator):
-    candidates = generator._eligible_candidates("", "Mon", 2000, 500)
-    generator.generator.generate.side_effect = [
-        "<|start_of_role|>assistant<|end_of_role|>1<|end_of_text|>",
-        "<|start_of_role|>assistant<|end_of_role|>3<|end_of_text|>",
-    ]
-    assert generator._MenuGenerator__pick_menu_item("", "", "Mon", 3, candidates) == 3
-    for call in generator.generator.generate.call_args_list:
-        prompt = call.args[1]
-        assert "1,Meal 1" not in prompt
-        assert prompt.index("2,Meal 2") < prompt.index("3,Meal 3")
-
-
-def test_empty_candidates_fail_before_model_generation(generator):
-    candidates = generator._eligible_candidates("", "Mon", 2000, 499)
-    with pytest.raises(RuntimeError, match="No eligible"):
-        generator._MenuGenerator__pick_menu_item("", "", "Mon", 3, candidates)
-    generator.generator.generate.assert_not_called()
+def test_no_candidate_for_a_slot_is_a_clear_error(generator):
+    generator.menu_items["instock"] = 0
+    with pytest.raises(NoEligibleMealError, match="dinner on 2026-10-05"):
+        generator.update_menu("", "", "", "2026-10-05", [3])
 
 
 def generate(generator, **overrides):
@@ -91,21 +74,16 @@ def generate(generator, **overrides):
 
 
 def test_plan_fits_exact_cap_and_reserves_later_meals(generator):
-    generator.generator.generate.return_value = (
-        "<|start_of_role|>assistant<|end_of_role|>2<|end_of_text|>"
-    )
-    assert generate(generator) == "[2026-10-05,2,3],[2026-10-06,2,3]"
+    # Monday must leave $5 for Tuesday, so only the $5 items fit; Tuesday then avoids
+    # repeating Monday's item, which counts as the least varied choice.
+    assert generate(generator) == "[2026-10-05,2,3],[2026-10-06,3,3]"
     assert generator.item_total_cents == 1000
     assert generator.weekly_totals_cents == {"2026-10-05": 1000}
-    assert all(
-        "1,Meal 1" not in call.args[1] for call in generator.generator.generate.call_args_list
-    )
 
 
 def test_impossible_budget_is_rejected_before_generation(generator):
     with pytest.raises(BudgetExceededError, match=r"needs at least \$10.00"):
         generate(generator, weekly_cap_cents=999)
-    generator.generator.generate.assert_not_called()
 
 
 def test_existing_meals_outside_requested_dates_consume_weekly_budget(generator):
@@ -113,14 +91,10 @@ def test_existing_meals_outside_requested_dates_consume_weekly_budget(generator)
     existing = "[2026-10-11,1,3]"
     with pytest.raises(BudgetExceededError, match=r"needs at least \$20.00"):
         generate(generator, menu=existing)
-    generator.generator.generate.assert_not_called()
     assert existing == "[2026-10-11,1,3]"
 
 
 def test_each_calendar_week_has_its_own_cap(generator):
-    generator.generator.generate.return_value = (
-        "<|start_of_role|>assistant<|end_of_role|>2<|end_of_text|>"
-    )
     generate(generator, date="2026-10-11", weekly_cap_cents=500)
     assert generator.weekly_totals_cents == {"2026-10-05": 500, "2026-10-12": 500}
 
@@ -129,7 +103,6 @@ def test_existing_legacy_dinner_is_preserved_and_counted_once(generator):
     existing = "[2026-10-05,2]"
     assert generate(generator, menu=existing, number_of_days=1, weekly_cap_cents=500) == existing
     assert generator.item_total_cents == 500
-    generator.generator.generate.assert_not_called()
 
 
 def test_reservation_uses_each_days_eligible_prices(generator):
@@ -137,19 +110,13 @@ def test_reservation_uses_each_days_eligible_prices(generator):
     generator.menu_items.loc[generator.menu_items.itm_id.isin([2, 3]), "rtr_id"] = 2
     hours = {day: ([0, 2359] if day == "Mon" else []) for day in DAYS_OF_WEEK}
     generator.restaurants.loc[1] = {"rtr_id": 2, "hours": json.dumps(hours)}
-    generator.generator.generate.side_effect = [
-        "<|start_of_role|>assistant<|end_of_role|>2<|end_of_text|>",
-        "<|start_of_role|>assistant<|end_of_role|>1<|end_of_text|>",
-    ]
     assert generate(generator, weekly_cap_cents=1500) == "[2026-10-05,2,3],[2026-10-06,1,3]"
     assert generator.item_total_cents == 1500
-    assert "1,Meal 1" not in generator.generator.generate.call_args_list[0].args[1]
 
 
 def test_preflight_rejects_impossible_later_week_before_any_generation(generator):
     with pytest.raises(BudgetExceededError, match="2026-10-12"):
         generate(generator, menu="[2026-10-13,1,3]", date="2026-10-11", weekly_cap_cents=500)
-    generator.generator.generate.assert_not_called()
 
 
 def test_saved_out_of_stock_meals_still_consume_budget(generator):
@@ -163,22 +130,21 @@ def test_zero_cap_allows_only_free_meals(generator):
         generate(generator, weekly_cap_cents=0)
     generator.menu_items.loc[1, "price"] = 0
     generator.item_prices[2] = 0
-    generator.generator.generate.return_value = (
-        "<|start_of_role|>assistant<|end_of_role|>2<|end_of_text|>"
-    )
-    generate(generator, weekly_cap_cents=0)
+    assert generate(generator, weekly_cap_cents=0, number_of_days=1) == "[2026-10-05,2,3]"
     assert generator.item_total_cents == 0
 
 
-def test_repeated_unaffordable_model_choices_never_bypass_cap(generator):
-    generator.generator.generate.return_value = (
-        "<|start_of_role|>assistant<|end_of_role|>1<|end_of_text|>"
-    )
-    with pytest.raises(RuntimeError, match="LLM has failed"):
-        generate(generator)
+def test_variety_never_buys_past_the_cap(generator):
+    # Item 1 ($10) is from another restaurant, so it is the most varied second meal...
+    generator.menu_items.loc[0, "rtr_id"] = 2
+    generator.restaurants.loc[1] = {"rtr_id": 2, "hours": generator.restaurants.loc[0, "hours"]}
+    # ...and is chosen when the cap allows it,
+    assert generate(generator, weekly_cap_cents=1500) == "[2026-10-05,2,3],[2026-10-06,1,3]"
+    # but not when it would go over: the cheaper, less varied item is used instead.
+    assert generate(generator, weekly_cap_cents=1100) == "[2026-10-05,2,3],[2026-10-06,3,3]"
+    assert generator.item_total_cents == 1000
 
 
 def test_unknown_saved_price_does_not_silently_become_zero(generator):
     with pytest.raises(ValueError, match="no longer in the catalog"):
         generate(generator, menu="[2026-10-11,999,3]")
-    generator.generator.generate.assert_not_called()

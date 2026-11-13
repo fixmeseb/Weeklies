@@ -57,7 +57,6 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | `WEEKLIES_SECRET_KEY` | Signs session cookies. Never commit a real value. | On first run the app generates a key and saves it to `proj2/instance/secret_key` (git-ignored), then reuses it, so logins survive restarts and auto-reloads. Delete that file to log everyone out. |
 | `WEEKLIES_DB_PATH` | Path of the SQLite database. A relative path is taken from the directory you run the command in. | `proj2/CSC510_DB.db` |
 | `WEEKLIES_SEED_PASSWORD` | Password for the demo accounts `flask seed` creates. | Each `flask seed` generates a random one and prints it. |
-| `WEEKLIES_LLM_MODEL` | Hugging Face model used for meal generation. | `ibm-granite/granite-4.0-h-350M` |
 | `FLASK_DEBUG` | `1` enables auto-reload and the interactive debugger for local development. | Debug is off. |
 
 When starting the app directly with `python -m proj2.Flask_app`, debug mode is off unless you pass `--debug`. Never enable it on a server others can reach: the debugger lets anyone who sees an error page run code on the machine.
@@ -76,7 +75,7 @@ flask init-db    # create an empty database
 | Account | Email |
 |---|---|
 | Customer | `testuser@example.com`, `seconduser@example.com` |
-| Restaurant owner | `owner@tasteofitaly.com`, `owner@greengarden.com` |
+| Restaurant owner | `owner@tasteofitaly.com`, `owner@greengarden.com`, and one per demo restaurant: `owner@sunrisegriddle.com`, `owner@lotusnoodle.com`, `owner@casaverde.com`, `owner@saffrontandoor.com`, `owner@oliveandember.com`, `owner@tokyobento.com`, `owner@bayousmokehouse.com`, `owner@dailygrind.com`, `owner@valleyfarmhouse.com` |
 
 The schema lives in numbered files in `proj2/migrations/`. After pulling changes that add one, run `flask migrate` to bring your database up to date without losing data. Databases made by the old setup scripts have no schema version and are refused: recreate them with `flask seed`.
 

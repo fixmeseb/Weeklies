@@ -1,10 +1,11 @@
 """
-The one demo/test seed: two customers, two restaurants, seven menu items, four orders,
-a review and two analytics snapshots. Used by `flask seed` and by Cypress
-(scripts/cypress_seed.py). Seeding always recreates the database from the migrations.
+The one demo/test seed: two customers, eleven restaurants, 76 menu items (listed in
+proj2/demo_menu.py), four orders, a review and two analytics snapshots. Used by
+`flask seed` and by Cypress (scripts/cypress_seed.py). Seeding always recreates the
+database from the migrations.
 
-Accounts (customers testuser@example.com, seconduser@example.com; owners
-owner@tasteofitaly.com, owner@greengarden.com) all get one password: Cypress uses the
+Accounts (customers testuser@example.com, seconduser@example.com; one owner per
+restaurant, e.g. owner@tasteofitaly.com, owner@greengarden.com) all get one password: Cypress uses the
 default, password123, which its fixtures expect; `flask seed` passes
 config.seed_password(), so a seeded development database has no guessable login.
 """
@@ -15,7 +16,10 @@ from datetime import date, datetime, timedelta
 
 from werkzeug.security import generate_password_hash
 
+from proj2 import demo_menu
 from proj2.db_cli import init_database
+from proj2.menu_tags_io import TAG_COLUMNS, canonical_cell, contradictions
+from proj2.meal_tags import tag_clashes
 
 CYPRESS_PASSWORD = "password123"
 
@@ -30,6 +34,70 @@ def seed_database(path, password=CYPRESS_PASSWORD):
             _insert_demo_data(conn.cursor(), password)
     finally:
         conn.close()
+
+
+class SeedDataError(ValueError):
+    """An item in proj2/demo_menu.py has an invalid or contradictory tag."""
+
+
+_RESTAURANT_COLUMNS = (
+    "name", "description", "phone", "email", "address", "city", "state", "zip", "hours", "status"
+)
+_ITEM_COLUMNS = ("rtr_id", "name", "description", "price", "calories", "allergens")
+
+
+def menu_item_row(item: dict) -> dict:
+    """
+    Checks one demo menu item and returns it with every tag in canonical form
+
+    Args:
+        item (dict): An entry of demo_menu.MENU_ITEMS
+
+    Returns:
+        dict: The item's columns, ready to insert (instock 1, restock "")
+
+    Raises:
+        SeedDataError: if a tag is missing, unknown, or contradicts the item's diets,
+            allergens or other tags
+    """
+    row = {column: item[column] for column in _ITEM_COLUMNS}
+    problems = []
+    for column in TAG_COLUMNS:
+        if column not in item:
+            problems.append(f"no {column}")
+            continue
+        value, cell_problems = canonical_cell(column, item[column])
+        problems += cell_problems
+        row[column] = None if value == "" else value
+    if not problems:
+        problems += contradictions(
+            row["diet_tags"], row["allergens"], row["protein"], row["contains"]
+        )
+        problems += tag_clashes(row)
+    if problems:
+        raise SeedDataError(f"{item['name']}: {'; '.join(problems)}")
+    row.update(instock=1, restock="")
+    return row
+
+
+def _insert_menu(cursor, pw_hash):
+    """Insert demo_menu's restaurants (one owner login each) and its tagged menu items."""
+    cursor.executemany(
+        f"""
+        INSERT INTO "Restaurant" ({", ".join(_RESTAURANT_COLUMNS)}, password_HS)
+        VALUES ({", ".join("?" * (len(_RESTAURANT_COLUMNS) + 1))})
+        """,
+        [
+            [restaurant[column] for column in _RESTAURANT_COLUMNS] + [pw_hash]
+            for restaurant in demo_menu.RESTAURANTS
+        ],
+    )
+    rows = [menu_item_row(item) for item in demo_menu.MENU_ITEMS]
+    columns = list(rows[0])
+    cursor.executemany(
+        f'INSERT INTO "MenuItem" ({", ".join(columns)}) VALUES ({", ".join("?" * len(columns))})',
+        [[row[column] for column in columns] for row in rows],
+    )
 
 
 def _insert_demo_data(cursor, password):
@@ -75,132 +143,8 @@ def _insert_demo_data(cursor, password):
         users,
     )
 
-    # 2. Seed Restaurants
-    restaurants = [
-        (
-            "Taste of Italy",
-            "Authentic artisanal Italian cuisine crafted with fresh ingredients.",
-            "9195550201",
-            "owner@tasteofitaly.com",
-            pw_hash,
-            "100 Main Street",
-            "Raleigh",
-            "NC",
-            "27601",
-            "11:00 AM - 10:00 PM",
-            "open",
-        ),
-        (
-            "Green Garden Bistro",
-            "Fresh farm-to-table salads, grain bowls, and cold-pressed juices.",
-            "9195550202",
-            "owner@greengarden.com",
-            pw_hash,
-            "200 Hillsborough Street",
-            "Raleigh",
-            "NC",
-            "27603",
-            "10:00 AM - 9:00 PM",
-            "open",
-        ),
-    ]
-    cursor.executemany(
-        """
-        INSERT INTO "Restaurant" (name, description, phone, email, password_HS, address, city, state, zip, hours, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        restaurants,
-    )
-
-    # 3. Seed Menu Items
-    menu_items = [
-        # Taste of Italy (rtr_id: 1)
-        (
-            1,
-            "Margherita Pizza",
-            "San Marzano tomatoes, fresh mozzarella, fresh basil, extra virgin olive oil",
-            1499,
-            750,
-            1,
-            "",
-            "dairy, gluten",
-            "vegetarian",
-        ),
-        (
-            1,
-            "Penne Arrabbiata",
-            "Spicy garlic tomato marinara with fresh herbs and parmesan",
-            1299,
-            550,
-            1,
-            "",
-            "gluten, dairy",
-            "vegetarian",
-        ),
-        (
-            1,
-            "Classic Tiramisu",
-            "Espresso-soaked ladyfingers with whipped mascarpone cream and cocoa",
-            799,
-            420,
-            1,
-            "",
-            "dairy, eggs, gluten",
-            "vegetarian",
-        ),
-        (
-            1,
-            "Caprese Salad",
-            "Heirloom tomatoes, sliced fresh mozzarella, balsamic glaze, sweet basil",
-            999,
-            320,
-            1,
-            "",
-            "dairy",
-            "vegetarian, gluten-free",
-        ),
-        # Green Garden Bistro (rtr_id: 2)
-        (
-            2,
-            "Avocado Quinoa Bowl",
-            "Tri-color quinoa, sliced avocado, black beans, corn, lime vinaigrette",
-            1350,
-            480,
-            1,
-            "",
-            "none",
-            "vegan, gluten-free",
-        ),
-        (
-            2,
-            "Mediterranean Wrap",
-            "House hummus, kalamata olives, crisp greens, cucumber, tahini in spinach tortilla",
-            1150,
-            410,
-            1,
-            "",
-            "gluten, sesame",
-            "vegan",
-        ),
-        (
-            2,
-            "Green Goddess Smoothie",
-            "Baby kale, granny smith apple, cucumber, ginger, coconut water",
-            699,
-            180,
-            1,
-            "",
-            "none",
-            "vegan, gluten-free",
-        ),
-    ]
-    cursor.executemany(
-        """
-        INSERT INTO "MenuItem" (rtr_id, name, description, price, calories, instock, restock, allergens, diet_tags)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        menu_items,
-    )
+    # 2-3. Restaurants and menu items (proj2/demo_menu.py)
+    _insert_menu(cursor, pw_hash)
 
     # 4. Seed Orders
     now_iso = datetime.now().isoformat()

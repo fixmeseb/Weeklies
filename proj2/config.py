@@ -48,25 +48,6 @@ def order_fees() -> dict:
     return {"tax_rate": TAX_RATE, "delivery_fee": DELIVERY_FEE, "service_fee": SERVICE_FEE}
 
 
-# ---------------------- Meal-generation model ----------------------
-
-LLM_MODEL_ENV = "WEEKLIES_LLM_MODEL"
-# The 350M model keeps local CPU generation from exhausting RAM.
-DEFAULT_LLM_MODEL = "ibm-granite/granite-4.0-h-350M"
-
-
-def llm_model(environ=None) -> str:
-    """
-    Hugging Face model id used for meal generation.
-    Args:
-        environ (Mapping | None): Environment to read; defaults to os.environ.
-    Returns:
-        str: WEEKLIES_LLM_MODEL if set, otherwise the default Granite model.
-    """
-    environ = os.environ if environ is None else environ
-    return (environ.get(LLM_MODEL_ENV) or "").strip() or DEFAULT_LLM_MODEL
-
-
 # ---------------------- Seed-script passwords ----------------------
 
 SEED_PASSWORD_ENV = "WEEKLIES_SEED_PASSWORD"

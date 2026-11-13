@@ -10,7 +10,9 @@ Flask_app.parse_generated_menu.
 import datetime
 import re
 
-from proj2.dietary import has_diet_tags_column
+from proj2 import variety
+from proj2.meal_budget import item_price_cents, plan_entries
+from proj2.meal_tags import has_column
 from proj2.plan_rules import (  # noqa: F401  parse_allergens/is_restaurant_open re-exported
     is_restaurant_open,
     item_rejection,
@@ -93,14 +95,21 @@ _ITEM_COLUMNS = (
     "restaurant_status",
     "hours",
     "diet_tags",
+    "course",
+    "meal_type",
 )
+
+## Tag columns read when the database has them; older databases read them as untagged
+_OPTIONAL_COLUMNS = ("diet_tags", "course", "meal_type")
 
 
 def _item_sql(conn) -> str:
-    """The candidate query; databases without MenuItem.diet_tags read every item as untagged."""
-    diet_tags = "m.diet_tags" if has_diet_tags_column(conn) else "NULL"
+    """The candidate query; tag columns a database lacks read as NULL (untagged)."""
+    optional = ", ".join(
+        f"m.{column}" if has_column(conn, column) else "NULL" for column in _OPTIONAL_COLUMNS
+    )
     return f"""
-    SELECT m.itm_id, m.rtr_id, m.name, m.instock, m.allergens, r.status, r.hours, {diet_tags}
+    SELECT m.itm_id, m.rtr_id, m.name, m.instock, m.allergens, r.status, r.hours, {optional}
     FROM MenuItem m
     JOIN Restaurant r ON r.rtr_id = m.rtr_id
 """
@@ -143,7 +152,7 @@ def swap_rejection(item, user_allergies: str, date: str, meal: int, user_prefere
     if item is None:
         return item_rejection(None, user_allergies, user_preferences, None, None)
     weekday, order_time = slot_weekday_and_time(date, meal)
-    return item_rejection(item, user_allergies, user_preferences, weekday, order_time)
+    return item_rejection(item, user_allergies, user_preferences, weekday, order_time, meal)
 
 
 def load_swap_item(conn, itm_id: int):
@@ -187,3 +196,47 @@ def list_swap_options(
         if swap_rejection(item, user_allergies, date, meal, user_preferences) is None:
             options.append(item)
     return options
+
+
+def rank_swap_options(options, catalog: dict, menu: str, date: str, meal: int, preferences=None):
+    """
+    Orders swap options by how much variety each adds next to the rest of the plan
+
+    Uses the same score as generation (proj2.variety): the option's weighted distance
+    to the other planned meals around the slot, plus the soft-preference bonus; ties go
+    to the cheaper item, then the lower itm_id.
+
+    Args:
+        options (List[dict]): Eligible items from list_swap_options
+        catalog (dict): itm_id -> MenuItem row (proj2.variety.catalog_rows)
+        menu (str): The user's generated menu string
+        date (str): The slot date in YYYY-MM-DD format
+        meal (int): The slot meal number (1, 2, or 3)
+        preferences (str | None): The user's comma-separated preferences
+
+    Returns:
+        List[dict]: The options, best first, each with a "variety" score from 0 to about 1
+    """
+    position = variety.slot_position(date, meal)
+    neighbours = [
+        (variety.slot_position(day, slot_meal), variety.features(catalog[itm_id]))
+        for day, itm_id, slot_meal in plan_entries(menu)
+        if itm_id in catalog and variety.slot_position(day, slot_meal) != position
+    ]
+
+    def price(option):
+        try:
+            return item_price_cents(catalog.get(option["itm_id"], {}).get("price"))
+        except ValueError:
+            return float("inf")
+
+    ranked = []
+    for option in options:
+        row = catalog.get(option["itm_id"], option)
+        gain, weight_sum = variety.slot_gain(variety.features(row), position, neighbours)
+        score = variety.candidate_score(
+            gain, weight_sum, variety.preference_match(row, preferences)
+        )
+        ranked.append(((-score, price(option), option["itm_id"]), dict(option, variety=score)))
+    ranked.sort(key=lambda pair: pair[0])
+    return [option for _, option in ranked]

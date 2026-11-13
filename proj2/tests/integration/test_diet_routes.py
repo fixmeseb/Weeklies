@@ -3,8 +3,8 @@ Integration tests: the diets on a user's account are enforced by /menu/generate 
 """
 
 import json
+import re
 import sqlite3
-from unittest.mock import Mock
 
 import pytest
 
@@ -14,7 +14,7 @@ MONDAY = "2026-10-05"
 
 
 @pytest.fixture
-def diet_catalog(app, temp_db_path, seed_minimal_data, login_session, monkeypatch):
+def diet_catalog(app, temp_db_path, seed_minimal_data, login_session):
     """A vegetarian user and two open items: one tagged vegetarian, one untagged."""
     snapshot = sqlite3.connect(":memory:")
     with sqlite3.connect(temp_db_path) as conn:
@@ -35,16 +35,14 @@ def diet_catalog(app, temp_db_path, seed_minimal_data, login_session, monkeypatc
             'UPDATE "User" SET preferences="Vegetarian, Indian", generated_menu=? WHERE usr_id=?',
             (f"[{MONDAY},{veg},3]", seed_minimal_data["usr_id"]),
         )
-    llm = Mock()
-    monkeypatch.setattr("proj2.menu_generation.llm_toolkit.LLM", Mock(return_value=llm))
-    yield {"veg": veg, "meat": meat, "llm": llm, "usr_id": seed_minimal_data["usr_id"]}
+    yield {"veg": veg, "meat": meat, "usr_id": seed_minimal_data["usr_id"]}
     with sqlite3.connect(temp_db_path) as conn:
         snapshot.backup(conn)
     snapshot.close()
 
 
-def picks(llm, itm_id):
-    llm.generate.return_value = f"<|start_of_role|>assistant<|end_of_role|>{itm_id}<|end_of_text|>"
+def planned_ids(response):
+    return {int(itm_id) for itm_id in re.findall(r",(\d+),", response.get_json()["generated_menu"])}
 
 
 def generate(client, **overrides):
@@ -54,12 +52,10 @@ def generate(client, **overrides):
 
 
 def test_request_preferences_cannot_drop_account_diet(client, diet_catalog):
-    picks(diet_catalog["llm"], diet_catalog["veg"])
-    response = generate(client, preferences="Spicy")
+    response = generate(client, preferences="Spicy", number_of_days=3)
     assert response.status_code == 200, response.get_json()
-    _, prompt = diet_catalog["llm"].generate.call_args.args
-    assert "Veg Curry" in prompt
-    assert "Beef Curry" not in prompt
+    assert diet_catalog["veg"] in planned_ids(response)
+    assert diet_catalog["meat"] not in planned_ids(response)
 
 
 def test_no_tagged_items_returns_clear_400(client, diet_catalog, temp_db_path):
@@ -68,7 +64,6 @@ def test_no_tagged_items_returns_clear_400(client, diet_catalog, temp_db_path):
     response = generate(client)
     assert response.status_code == 400
     assert "vegetarian" in response.get_json()["error"]
-    diet_catalog["llm"].generate.assert_not_called()
 
 
 def test_swap_to_untagged_item_is_rejected(client, diet_catalog):
@@ -102,10 +97,8 @@ def test_request_allergens_cannot_drop_account_allergies(client, diet_catalog, t
         conn.execute(
             'UPDATE MenuItem SET allergens="Peanuts" WHERE itm_id=?', (diet_catalog["meat"],)
         )
-    picks(diet_catalog["llm"], diet_catalog["veg"])
     # The request names a different allergen; the account's peanut allergy must still apply.
-    response = generate(client, allergens="Soy")
+    response = generate(client, allergens="Soy", number_of_days=3)
     assert response.status_code == 200, response.get_json()
-    _, prompt = diet_catalog["llm"].generate.call_args.args
-    assert "Veg Curry" in prompt
-    assert "Beef Curry" not in prompt
+    assert diet_catalog["veg"] in planned_ids(response)
+    assert diet_catalog["meat"] not in planned_ids(response)

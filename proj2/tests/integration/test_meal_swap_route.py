@@ -323,3 +323,25 @@ def test_calendar_unknown_error_code_is_generic(logged_in, plan):
 def test_calendar_without_swap_params_has_no_banner(logged_in, plan):
     html = logged_in.get("/2025/11").get_data(as_text=True)
     assert 'class="flash' not in html
+
+
+# ---- Variety ----
+
+
+def test_options_are_ranked_by_variety(logged_in, plan):
+    opts = options(logged_in, MONDAY, 2).get_json()["options"]
+    scores = [o["variety"] for o in opts]
+    assert scores == sorted(scores, reverse=True)
+    # The rice bowl is not planned anywhere nearby; these repeat a neighbouring meal.
+    order = [o["itm_id"] for o in opts]
+    for repeat in ("breakfast", "dinner", "tuesday"):
+        assert order.index(plan["ids"]["safe"]) < order.index(plan["ids"][repeat])
+
+
+def test_calendar_shows_weekly_variety(logged_in, plan):
+    html = logged_in.get("/2025/11").get_data(as_text=True)
+    card = html.split('aria-label="Plan variety"')[1].split("</section>")[0]
+    assert "2025-11-03" in card
+    # Four different dishes from one restaurant, with no other tags: 60% varied
+    assert "60%" in card
+    assert "Oatmeal (Mon breakfast) and Sandwich (Mon lunch): same restaurant" in card

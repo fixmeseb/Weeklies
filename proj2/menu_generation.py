@@ -1,11 +1,24 @@
-import pandas as pd
-import datetime
-import time
-import random
-import re
-from typing import Tuple, List
+"""
+Meal-plan generation: fills empty date/meal slots with the most varied eligible meals.
 
-import proj2.llm_toolkit as llm_toolkit
+For every slot, the candidates are the items that pass the shared rules
+(proj2.plan_rules: stock, opening hours, allergens, diets, and the slot's course and
+meal type), and, with a weekly cap, that leave enough budget for the meals still to
+plan. Among them the planner picks the one that adds the most variety next to the meals
+already in the plan (proj2.variety), with soft preferences such as "Italian" breaking
+near-ties, then the lower price, then the lower itm_id. After every slot is filled it
+makes one improvement pass, re-picking each new slot with the rest of the plan fixed.
+
+The result is deterministic: the same catalog and request always give the same plan.
+"""
+
+import datetime
+import json
+from typing import Tuple
+
+import pandas as pd
+
+from proj2 import variety
 from proj2.meal_budget import (
     BudgetExceededError,
     item_price_cents,
@@ -15,35 +28,26 @@ from proj2.meal_budget import (
 )
 from proj2.db import connect
 from proj2.dietary import DietaryConstraintError, filter_diets, required_diets
-from proj2.plan_rules import PlanRuleError, is_restaurant_open, item_rejection, parse_allergens
-
-## LLM error handling
-MAX_LLM_TRIES = 3
-LLM_ATTRIBUTE_ERROR = -1
-
-## Increase to increase the sample size the AI can draw from at the cost of increased runtime
-ITEM_CHOICES = 10
+from proj2.plan_rules import (
+    SLOT_NAMES,
+    PlanRuleError,
+    is_restaurant_open,
+    item_rejection,
+    parse_allergens,
+    slot_rejection,
+)
 
 ## Days of the week in an array - should be the same as in the database*
 DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-## LLM Prompt - defined as global variables to enable testing
-SYSTEM_TEMPLATE = "You are a health and nutrition expert planning meals for a customer based on their preferences. Use only the menu items provided under CSV CONTEXT."
-PROMPT_TEMPLATE = """Choose a meal for a customer based on their preferences: {preferences}
-Pay special attention that meal's dont include prohibited categories, like vegetarian meals dont have meat or halal meals dont have pork
-Make sure that the item makes sense for {meal}.
-Provide only the itm_id as output
-
-CSV CONTEXT:
-{context}"""
-
-## Regex used for parsing a number from LLM Output
-LLM_OUTPUT_MATCH = r"<\|start_of_role\|>assistant<\|end_of_role\|>(\d+)<\|end_of_text\|>"
 
 ## Preset Meal times - In the future, times will be user-provided
 BREAKFAST_TIME = 1000
 LUNCH_TIME = 1400
 DINNER_TIME = 2000
+
+
+class NoEligibleMealError(ValueError):
+    """No menu item passes the rules for one of the requested slots."""
 
 
 def get_meal_and_order_time(meal_number: int) -> Tuple[str, int]:
@@ -94,59 +98,12 @@ def get_weekday_and_increment(date: str) -> Tuple[str, str]:
     year, month, day = map(int, date.split("-"))
     try:
         date = datetime.datetime(year, month, day)
-    except:
+    except ValueError:
         raise ValueError(
             "Unable to parse date string. Ensure it is formatted properly as to YYYY-MM-DD format"
         )
     next_day = date + datetime.timedelta(days=1)
     return next_day.strftime(r"%Y-%m-%d"), DAYS_OF_WEEK[date.weekday()]
-
-
-def format_llm_output(output: str) -> int:
-    """
-    Grabs the LLM output and extracts the item ID from it
-
-    Args:
-        output (str): The output from the llm_toolkit LLM
-
-    Returns:
-        int: The item ID extracted from the LLM output
-
-    Raises:
-        ValueError: if the LLM output does not match the expected format or if multiple matches are found
-    """
-    match = LLM_OUTPUT_MATCH
-    result = 0
-    try:
-        result = int(re.search(match, output).group(1))
-    except AttributeError:
-        return LLM_ATTRIBUTE_ERROR
-    try:
-        print(re.search(match, output).group(2))
-        raise ValueError(
-            "Injection attack may have gotten through. There should not be multiple matches for LLM output."
-        )
-    except Exception:
-        None
-    return result
-
-
-def limit_scope(items: pd.DataFrame, num_choices: int) -> List[int]:
-    """
-    Limits the number of items to ITEM_CHOICES by randomly selecting items if necessary
-
-    Args:
-        items (pd.DataFrame): The DataFrame containing the items
-        num_choices (int): The maximum number of choices to return
-
-    Returns:
-        List[int]: The list of item_ids of the selected items
-    """
-    num_items = items.shape[0]
-    choices = range(num_items)
-    if num_items > num_choices:
-        choices = random.sample(choices, num_choices)
-    return choices
 
 
 def filter_allergens(menu_items: pd.DataFrame, allergens: str) -> pd.DataFrame:
@@ -184,52 +141,69 @@ def filter_closed_restaurants(restaurant: pd.DataFrame, weekday: str, time: int)
     return restaurant[is_open.astype(bool)]
 
 
+def filter_meal_slot(menu_items: pd.DataFrame, meal) -> pd.DataFrame:
+    """
+    Keeps only the items that may fill a meal slot on their own (see plan_rules.slot_rejection)
+
+    Args:
+        menu_items (pd.DataFrame): The candidate items
+        meal (int | None): The slot's meal number (1, 2, 3); None keeps every item
+
+    Returns:
+        pd.DataFrame: The items whose course and meal type fit the slot
+    """
+    if meal is None or menu_items.empty:
+        return menu_items.copy()
+    keep = [slot_rejection(row, meal) is None for _, row in menu_items.iterrows()]
+    return menu_items.loc[keep].copy()
+
+
+def _hours_are_readable(hours) -> bool:
+    """True if a restaurant's hours are the per-day JSON that is_restaurant_open reads."""
+    try:
+        parsed = json.loads(hours)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(parsed, dict) and any(day in parsed for day in DAYS_OF_WEEK)
+
+
 class MenuGenerator:
     """
-    MenuGenerator class that uses an LLM to generate menu items based on user preferences and restrictions
+    Plans meals from the catalog in one database, choosing for variety (see module docstring)
     """
 
-    def __init__(self, tokens: int = 500, *, database_path: str):
+    def __init__(self, *, database_path: str):
         """
-        Initializes the MenuGenerator with menu items and restaurants from the database and initializes
-        the local LLM.
+        Loads menu items and open restaurants from the database
 
         Args:
-            tokens (int): The number of tokens to use for the LLM generation
             database_path (str): The SQLite database to read the catalog from.
         """
         conn = connect(database_path)
         conn.row_factory = None  # pandas expects plain tuples
         try:
-            catalog = pd.read_sql_query("SELECT itm_id, price FROM MenuItem", conn)
-            self.item_prices = dict(zip(catalog.itm_id, catalog.price))
+            self.catalog = pd.read_sql_query("SELECT * FROM MenuItem", conn)
+            self.item_prices = dict(zip(self.catalog.itm_id, self.catalog.price))
             self.menu_items = pd.read_sql_query("SELECT * FROM MenuItem WHERE instock == 1", conn)
+            # Same match as plan_rules.item_rejection: trimmed, case-insensitive
             self.restaurants = pd.read_sql_query(
-                'SELECT rtr_id, hours FROM Restaurant WHERE status=="Open"', conn
+                "SELECT rtr_id, hours FROM Restaurant WHERE LOWER(TRIM(status)) = 'open'", conn
             )
         finally:
             conn.close()
-
-        self.tokens = tokens
-        self._generator = None
-
-    @property
-    def generator(self):
-        """Load the model only after a feasible set of meals has been found."""
-        if self._generator is None:
-            self._generator = llm_toolkit.LLM(tokens=self.tokens)
-        return self._generator
-
-    @generator.setter
-    def generator(self, value):
-        self._generator = value
+        self.weekly_totals_cents = None
+        self.item_total_cents = None
+        self.variety = None
 
     def _eligible_candidates(
-        self, allergens, weekday, order_time, max_price_cents=None, preferences=None
+        self, allergens, weekday, order_time, max_price_cents=None, preferences=None, meal=None
     ):
         """
-        Filter stock, open restaurants, allergens and required diets; rank valid prices
-        cheapest first.
+        Filter stock, open restaurants, the slot's course and meal type, allergens and
+        required diets; rank valid prices cheapest first.
+
+        Args:
+            meal (int | None): The slot's meal number; None skips the course/meal-type rule
 
         Raises:
             DietaryConstraintError: if items are available but none satisfies the diets
@@ -242,6 +216,7 @@ class MenuGenerator:
             how="inner",
         )
         combined = filter_closed_restaurants(combined, weekday, order_time)
+        combined = filter_meal_slot(combined, meal)
         combined = filter_allergens(combined, allergens)
         if not combined.empty:
             combined = filter_diets(combined, preferences)
@@ -265,7 +240,45 @@ class MenuGenerator:
             combined = combined[combined["price_cents"] <= max_price_cents]
         return combined.sort_values(["price_cents", "itm_id"], kind="stable")
 
-    def _check_pick(self, itm_id, preferences, allergens, weekday, order_time):
+    def _empty_slot_reason(self, allergens, weekday, order_time, meal) -> str:
+        """
+        Says which rule left a slot with no candidates, replaying _eligible_candidates'
+        filters in order, so the error points at the cause rather than just the slot
+
+        Returns:
+            str: One sentence, e.g. "no restaurant is open at 10:00 on Tue."
+        """
+        when = f"{order_time // 100:02d}:{order_time % 100:02d} on {weekday}"
+        if self.restaurants.empty:
+            return "no restaurant is currently taking orders."
+        stocked = pd.merge(
+            self.menu_items[self.menu_items["instock"] == 1], self.restaurants, on="rtr_id"
+        )
+        if stocked.empty:
+            return "no open restaurant has any item in stock."
+        open_now = filter_closed_restaurants(stocked, weekday, order_time)
+        if open_now.empty:
+            unreadable = [
+                hours for hours in self.restaurants["hours"] if not _hours_are_readable(hours)
+            ]
+            if unreadable:
+                return (
+                    f"no restaurant is open at {when}. {len(unreadable)} restaurant(s) list "
+                    f'hours the planner cannot read (for example "{unreadable[0]}"); hours must '
+                    'be stored per day, like {"Mon": [1100, 2200]}. Reseeding the demo '
+                    "database (flask seed) adds restaurants with readable hours."
+                )
+            return f"no restaurant is open at {when}."
+        fits = filter_meal_slot(open_now, meal)
+        if fits.empty:
+            return (
+                f"none of the restaurants open at {when} serves a main dish for {SLOT_NAMES[meal]}."
+            )
+        if filter_allergens(fits, allergens).empty:
+            return f"every item that fits contains one of your allergens ({allergens})."
+        return "no item that fits has a valid price."
+
+    def _check_pick(self, itm_id, preferences, allergens, weekday, order_time, meal=None):
         """
         Re-checks a chosen item against proj2.plan_rules before it goes into the plan
 
@@ -285,159 +298,63 @@ class MenuGenerator:
                 "instock": row["instock"],
                 "allergens": row["allergens"],
                 "diet_tags": row.get("diet_tags"),
+                "course": row.get("course"),
+                "meal_type": row.get("meal_type"),
                 # self.restaurants holds only restaurants whose status is Open
                 "restaurant_status": None if restaurant.empty else "Open",
                 "hours": None if restaurant.empty else restaurant.iloc[0]["hours"],
             }
-        rejection = item_rejection(item, allergens, preferences, weekday, order_time)
+        rejection = item_rejection(item, allergens, preferences, weekday, order_time, meal)
         if rejection:
             raise PlanRuleError(f"Chosen item {itm_id} broke a plan rule: {rejection[1]}")
 
-    def __get_context(
-        self,
-        allergens: str,
-        weekday: str,
-        order_time: int,
-        num_choices: int,
-        candidates=None,
-        preferences: str = None,
-    ) -> str:
-        """
-        Generates the context block for the LLM based on the provided allergens, date, and order time
+    # ---------------------------------------------------------------- variety
 
-        Args:
-            allergens (str): A comma-separated string of allergens to filter out
-            weekday (str): The day of the week (e.g., "Mon", "Tue", etc.)
-            order_time (int): The time the meal is typically ordered at in HHMM format (in 24H time)
-            num_choices (int): The maximum number of choices to provide in the context
-            item_ids (List[int]): The list of item_ids passed - used for checking validity
+    def _rows(self) -> dict:
+        """itm_id -> catalog row (every item, in stock or not), for scoring saved meals too."""
+        if getattr(self, "_rows_cache", None) is None:
+            catalog = getattr(self, "catalog", None)
+            if catalog is None:  # built without __init__ (tests): the in-stock items
+                catalog = self.menu_items
+            self._rows_cache = {int(row["itm_id"]): row for row in catalog.to_dict("records")}
+            self._feature_cache = {}
+        return self._rows_cache
+
+    def _features(self, itm_id: int) -> dict:
+        rows = self._rows()
+        if itm_id not in self._feature_cache:
+            self._feature_cache[itm_id] = variety.features(rows[itm_id])
+        return self._feature_cache[itm_id]
+
+    def _neighbours(self, planned: dict, position: int) -> list:
+        """(position, features) of every planned meal except the one in this slot."""
+        rows = self._rows()
+        return [
+            (other, self._features(itm_id))
+            for other, itm_id in planned.items()
+            if other != position and itm_id in rows
+        ]
+
+    def _ranked(self, pool: pd.DataFrame, position: int, neighbours: list, preferences) -> list:
+        """
+        Ranks a slot's candidates, best first
 
         Returns:
-            str: The context block for the LLM in CSV format
+            List[Tuple[tuple, int]]: (sort key, itm_id); the key is (-score, price, itm_id),
+                so the most varied fit wins, then the cheaper one, then the lower ID
         """
-        start = time.time()
-
-        if candidates is None:
-            combined = self._eligible_candidates(
-                allergens, weekday, order_time, preferences=preferences
+        ranked = []
+        for row in pool.to_dict("records"):
+            itm_id = int(row["itm_id"])
+            gain, weight_sum = variety.slot_gain(self._features(itm_id), position, neighbours)
+            score = variety.candidate_score(
+                gain, weight_sum, variety.preference_match(row, preferences)
             )
-            choices = limit_scope(combined, num_choices)
-        else:
-            # Budgeted generation always exposes the cheapest ranked options first.
-            combined = candidates.head(num_choices)
-            choices = range(len(combined))
+            ranked.append(((-score, int(row["price_cents"]), itm_id), itm_id))
+        ranked.sort()
+        return ranked
 
-        context_data = "item_id,name,description,price,calories\n"
-
-        ## Create the context data with the chosen items
-        item_ids = []
-        for x in choices:
-            row = combined.iloc[x]
-            context_data += f"{row['itm_id']},{row['name']},{row['description']},{row['price']},{row['calories']}\n"
-            item_ids.append(row["itm_id"])
-
-        end = time.time()
-        print("Context block generated in %.4f seconds" % (end - start))
-        return context_data, item_ids
-
-    def __pick_menu_item(
-        self, preferences: str, allergens: str, weekday: str, meal_number: int, candidates=None
-    ) -> int:
-        """
-        Picks a menu item based on user preferences, allergens, date, and meal number
-
-        Args:
-            preferences (str): A comma-separated string of user preferences
-            allergens (str): A comma-separated string of allergens to filter out
-            weekday (str): The day of the week (e.g., "Mon", "Tue", etc.)
-            meal_number (int): The meal number (1 for breakfast, 2 for lunch, 3 for dinner)
-
-        Returns:
-            int: The item_id of the selected menu item
-        """
-        meal, order_time = get_meal_and_order_time(meal_number)
-
-        num_choices = ITEM_CHOICES
-
-        ## Tries to get output from LLM a number of times, increasing the number of options every time
-        for x in range(MAX_LLM_TRIES):
-            context, item_ids = self.__get_context(
-                allergens, weekday, order_time, num_choices, candidates, preferences
-            )
-            if not item_ids:
-                raise RuntimeError("No eligible menu items are available for this meal.")
-
-            ## Gets the prompt
-            system = SYSTEM_TEMPLATE
-            prompt = PROMPT_TEMPLATE
-
-            ## Initializes variables in prompt
-            prompt = prompt.replace("{preferences}", preferences)
-            prompt = prompt.replace("{context}", context)
-            prompt = prompt.replace("{meal}", meal)
-
-            llm_output = self.generator.generate(system, prompt)
-            output = format_llm_output(llm_output)
-            if output > 0 and output in item_ids:
-                self._check_pick(output, preferences, allergens, weekday, order_time)
-                return output
-            ## If failed, try increasing the number of choices
-            num_choices += ITEM_CHOICES
-        raise RuntimeError(
-            f"""LLM has failed {MAX_LLM_TRIES} times to generate a meal. This may be a critical error, a lack of options, or a bad prompt. 
-LLM output:
-{llm_output}"""
-        )
-
-    def _update_budgeted_menu(
-        self, menu, preferences, allergens, date, meal_numbers, number_of_days, cap_cents
-    ):
-        """Reserve cheapest remaining meals before offering any budgeted choice."""
-        cap_cents = item_price_cents(cap_cents)
-        start = datetime.date.fromisoformat(date)
-        days = [(start + datetime.timedelta(days=i)).isoformat() for i in range(number_of_days)]
-        weeks = list(dict.fromkeys(week_start(day) for day in days))
-        totals = weekly_item_totals(menu, self.item_prices, weeks)
-        occupied = {(day, meal) for day, _, meal in plan_entries(menu)}
-        slots = []
-        minimum_remaining = dict.fromkeys(weeks, 0)
-        for day in days:
-            weekday = DAYS_OF_WEEK[datetime.date.fromisoformat(day).weekday()]
-            for meal in dict.fromkeys(meal_numbers):
-                _, order_time = get_meal_and_order_time(meal)
-                if (day, meal) in occupied:
-                    continue
-                candidates = self._eligible_candidates(
-                    allergens, weekday, order_time, preferences=preferences
-                )
-                if candidates.empty:
-                    raise BudgetExceededError(f"No eligible meals are available for {day}.")
-                minimum = int(candidates.price_cents.min())
-                week = week_start(day)
-                minimum_remaining[week] += minimum
-                slots.append((day, weekday, meal, week, candidates, minimum))
-
-        # Check every affected week before generating anything; never save a partial plan.
-        for week in weeks:
-            required = totals[week] + minimum_remaining[week]
-            if required > cap_cents:
-                raise BudgetExceededError(
-                    f"Week of {week} needs at least ${required / 100:.2f} in items; "
-                    f"the weekly cap is ${cap_cents / 100:.2f}. "
-                    "Raise the cap or request fewer meals."
-                )
-
-        updated = menu or ""
-        for day, weekday, meal, week, candidates, minimum in slots:
-            minimum_remaining[week] -= minimum
-            available = cap_cents - totals[week] - minimum_remaining[week]
-            affordable = candidates[candidates.price_cents <= available]
-            item = self.__pick_menu_item(preferences, allergens, weekday, meal, affordable)
-            totals[week] += item_price_cents(self.item_prices[item])
-            updated = f"{updated},[{day},{item},{meal}]" if updated else f"[{day},{item},{meal}]"
-        self.weekly_totals_cents = totals
-        self.item_total_cents = sum(totals.values())
-        return updated
+    # ---------------------------------------------------------------- planning
 
     def update_menu(
         self,
@@ -445,45 +362,161 @@ LLM output:
         preferences: str,
         allergens: str,
         date: str,
-        meal_numbers: List[int],
+        meal_numbers,
         number_of_days: int = 1,
         weekly_cap_cents: int = None,
     ) -> str:
         """
-        Updates the menu string with a new menu item based on user preferences, allergens, date, and meal number
+        Fills the empty slots of a plan with the most varied eligible meals
 
         Args:
-            menu (str): The current menu string (can be empty or None)
-            preferences (str): A comma-separated string of user preferences
+            menu (str): The current menu string (can be empty or None); its meals stay
+                as they are and count as neighbours for variety
+            preferences (str): A comma-separated string of user preferences; diets in it
+                are hard rules, other words ("Italian", "spicy") are soft preferences
             allergens (str): A comma-separated string of allergens to avoid
-            date (str): The date string in YYYY-MM-DD format
-            meal_number (List[int]): The list of meal numbers to generate (1 for breakfast, 2 for lunch, 3 for dinner). e.g. [1,2,3]
-            number_of_days (int): The number of days to generate meals for, past the {date} specified
+            date (str): The first day to plan, in YYYY-MM-DD format
+            meal_numbers (List[int]): The meals to plan each day (1 breakfast, 2 lunch, 3 dinner)
+            number_of_days (int): The number of days to plan, starting at {date}
             weekly_cap_cents (int | None): Item-price limit per Monday–Sunday week,
                 counting all existing meals in that week. None leaves generation uncapped.
 
         Returns:
-            str: The updated menu string
+            str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
+                for the requested days) and, with a cap, self.weekly_totals_cents and
+                self.item_total_cents.
+
+        Raises:
+            ValueError: for a malformed date or meal number
+            NoEligibleMealError: if no item passes the rules for a slot
+            DietaryConstraintError: if items are available but none meets the user's diet
+            BudgetExceededError: if the cheapest possible plan does not fit the cap
         """
-        if weekly_cap_cents is not None:
-            return self._update_budgeted_menu(
-                menu, preferences, allergens, date, meal_numbers, number_of_days, weekly_cap_cents
+        self._rows_cache = None
+        try:
+            start = datetime.date.fromisoformat(date)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "Unable to parse date string. Ensure it is formatted properly as to YYYY-MM-DD format"
             )
-        next_date, current_weekday = get_weekday_and_increment(date)
-        for x in range(number_of_days):
-            for meal_number in meal_numbers:
-                if menu is None or len(menu) < 1:
-                    itm_id = self.__pick_menu_item(
-                        preferences, allergens, current_weekday, meal_number
+        meals = sorted(dict.fromkeys(int(meal) for meal in meal_numbers))
+        for meal in meals:
+            get_meal_and_order_time(meal)  # rejects anything but 1, 2, 3
+        days = [(start + datetime.timedelta(days=i)).isoformat() for i in range(number_of_days)]
+        weeks = list(dict.fromkeys(week_start(day) for day in days))
+        capped = weekly_cap_cents is not None
+        if capped:
+            cap = item_price_cents(weekly_cap_cents)
+            totals = weekly_item_totals(menu, self.item_prices, weeks)
+
+        existing = list(plan_entries(menu))
+        occupied = {(day, meal) for day, _, meal in existing}
+        slots = []
+        minimum_remaining = dict.fromkeys(weeks, 0)
+        for day in days:
+            weekday = DAYS_OF_WEEK[datetime.date.fromisoformat(day).weekday()]
+            for meal in meals:
+                if (day, meal) in occupied:
+                    continue
+                _, order_time = get_meal_and_order_time(meal)
+                candidates = self._eligible_candidates(
+                    allergens, weekday, order_time, preferences=preferences, meal=meal
+                )
+                if candidates.empty:
+                    reason = self._empty_slot_reason(allergens, weekday, order_time, meal)
+                    raise NoEligibleMealError(
+                        f"No menu item can be planned for {SLOT_NAMES[meal]} on {day}: {reason}"
                     )
-                    menu = f"[{date},{itm_id},{meal_number}]"
-                elif re.search(rf"\[{date},\d+,{meal_number}\]", menu) is None:
-                    print(rf"\[{date},\d+,{meal_number}\]")
-                    print(menu)
-                    itm_id = self.__pick_menu_item(
-                        preferences, allergens, current_weekday, meal_number
+                week = week_start(day)
+                minimum = int(candidates.price_cents.min())
+                minimum_remaining[week] += minimum
+                slots.append(
+                    {
+                        "day": day,
+                        "meal": meal,
+                        "weekday": weekday,
+                        "order_time": order_time,
+                        "week": week,
+                        "candidates": candidates,
+                        "minimum": minimum,
+                        "position": variety.slot_position(day, meal),
+                    }
+                )
+
+        if capped:
+            # Check every affected week before choosing anything; never save a partial plan.
+            for week in weeks:
+                required = totals[week] + minimum_remaining[week]
+                if required > cap:
+                    raise BudgetExceededError(
+                        f"Week of {week} needs at least ${required / 100:.2f} in items; "
+                        f"the weekly cap is ${cap / 100:.2f}. "
+                        "Raise the cap or request fewer meals."
                     )
-                    menu = f"{menu},[{date},{itm_id},{meal_number}]"
-            date = next_date
-            next_date, current_weekday = get_weekday_and_increment(date)
-        return menu
+
+        def price(itm_id):
+            return item_price_cents(self.item_prices[itm_id])
+
+        def check(itm_id, slot):
+            self._check_pick(
+                itm_id, preferences, allergens, slot["weekday"], slot["order_time"], slot["meal"]
+            )
+
+        rows = self._rows()
+        planned = {
+            variety.slot_position(day, meal): itm_id
+            for day, itm_id, meal in existing
+            if itm_id in rows
+        }
+
+        # Pass 1: fill slots in time order, each next to the meals already planned.
+        chosen = []
+        for slot in slots:
+            pool = slot["candidates"]
+            if capped:
+                # Keep enough for the cheapest meal in every later slot of this week.
+                minimum_remaining[slot["week"]] -= slot["minimum"]
+                available = cap - totals[slot["week"]] - minimum_remaining[slot["week"]]
+                pool = pool[pool.price_cents <= available]
+            ranked = self._ranked(
+                pool, slot["position"], self._neighbours(planned, slot["position"]), preferences
+            )
+            itm_id = ranked[0][1]
+            check(itm_id, slot)
+            planned[slot["position"]] = itm_id
+            chosen.append(itm_id)
+            if capped:
+                totals[slot["week"]] += price(itm_id)
+
+        # Pass 2: re-pick each new slot with the rest of the plan fixed; keep strict gains.
+        for i, slot in enumerate(slots):
+            current = chosen[i]
+            pool = slot["candidates"]
+            if capped:
+                available = cap - totals[slot["week"]] + price(current)
+                pool = pool[pool.price_cents <= available]
+            ranked = self._ranked(
+                pool, slot["position"], self._neighbours(planned, slot["position"]), preferences
+            )
+            best_key, best = ranked[0]
+            current_score = next(key[0] for key, itm_id in ranked if itm_id == current)
+            if best != current and best_key[0] < current_score:
+                check(best, slot)
+                planned[slot["position"]] = best
+                chosen[i] = best
+                if capped:
+                    totals[slot["week"]] += price(best) - price(current)
+
+        updated = menu or ""
+        for slot, itm_id in zip(slots, chosen):
+            entry = f"[{slot['day']},{itm_id},{slot['meal']}]"
+            updated = f"{updated},{entry}" if updated else entry
+
+        if capped:
+            self.weekly_totals_cents = totals
+            self.item_total_cents = sum(totals.values())
+        requested = set(days)
+        self.variety = variety.plan_variety(
+            [entry for entry in plan_entries(updated) if entry[0] in requested], rows
+        )
+        return updated

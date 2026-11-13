@@ -16,11 +16,10 @@ request; it is not saved as a standing account budget.
 For every requested date and meal period, generation finds menu items that are
 in stock, belong to an open restaurant serving at that time, do not contain the
 user's listed allergens, and have a valid nonnegative price. Eligible items are
-ordered by price and then item ID. The language model only sees the offered
-candidate rows. Its answer must be an ID in that list; an unavailable or
-over-budget ID is rejected and retried.
+ordered by price and then item ID. The planner only chooses from these
+candidates, so an unavailable or over-budget item can never be picked.
 
-Before starting the model, generation estimates the minimum spend needed to
+Before choosing anything, generation estimates the minimum spend needed to
 fill every new meal slot. For each affected week, it adds the cheapest eligible
 item for each requested, unfilled slot to the prices of meals already saved in
 that week. If this minimum exceeds the cap, the request returns an error with
@@ -30,7 +29,7 @@ suggests increasing the cap or requesting fewer meals.
 When the plan can fit, selection proceeds one slot at a time. Each slot's
 available price is the weekly cap minus the prices already counted minus the
 cheapest possible cost reserved for the other slots. This leaves room to finish
-the requested plan even when the model selects a more expensive affordable item
+the requested plan even when the planner picks a more expensive affordable item for variety
 for an earlier meal. The resulting plan is checked and totaled before it is
 saved.
 

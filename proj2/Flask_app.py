@@ -14,6 +14,8 @@ from functools import wraps
 from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
 from proj2.menu_generation import MenuGenerator
+from proj2 import variety
+from proj2.plan_rules import SLOT_NAMES
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
@@ -24,6 +26,7 @@ from proj2.meal_swap import (
     find_slot_item,
     list_swap_options,
     load_swap_item,
+    rank_swap_options,
     replace_menu_slot,
     slot_weekday_and_time,
     swap_rejection,
@@ -471,6 +474,43 @@ SWAP_ERROR_MESSAGES = {
 
 
 # Home route (supports /<year>/<month> for nav)
+def describe_similar_pair(pair, items_by_id) -> str:
+    """One similar pair from proj2.variety as a sentence for the calendar."""
+
+    def label(entry):
+        day = date.fromisoformat(entry["date"])
+        name = items_by_id.get(entry["itm_id"], {}).get("name", f"item {entry['itm_id']}")
+        return f"{name} ({day.strftime('%a')} {SLOT_NAMES.get(entry['meal'], 'meal')})"
+
+    shared = "; ".join(pair["shared"]) or "similar tags"
+    return f"{label(pair['a'])} and {label(pair['b'])}: {shared}"
+
+
+def calendar_week_variety(conn, gen_str, year, month, items_by_id):
+    """
+    Variety of each Monday–Sunday week shown in a calendar month (see proj2.variety)
+
+    Returns:
+        dict: week start -> {"score": percent or None, "similar": [sentence, ...]}
+    """
+    prefix = f"{year:04d}-{month:02d}-"
+    entries = list(plan_entries(gen_str))
+    weeks = sorted({week_start(day) for day, _, _ in entries if day.startswith(prefix)})
+    if not weeks:
+        return {}
+    catalog = variety.catalog_rows(conn)
+    out = {}
+    for week in weeks:
+        report = variety.plan_variety(
+            [e for e in entries if week_start(e[0]) == week], catalog
+        )
+        out[week] = {
+            "score": None if report.score is None else round(report.score * 100),
+            "similar": [describe_similar_pair(p, items_by_id) for p in report.similar_pairs(2)],
+        }
+    return out
+
+
 @app.route("/", defaults={"year": None, "month": None})
 @app.route("/<int:year>/<int:month>")
 def index(year, month):
@@ -527,6 +567,8 @@ def index(year, month):
     except ValueError:
         item_total_error = "Item totals are unavailable because a planned meal or its price is missing."
 
+    weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
+
     # Build cells for the month
     cells = build_calendar_cells(gen_map, year, month, items_by_id)
 
@@ -571,6 +613,7 @@ def index(year, month):
         today_menu=today_menu,
         weekly_item_totals=item_totals,
         item_total_error=item_total_error,
+        weekly_variety=weekly_variety,
     )
 
 
@@ -1334,7 +1377,7 @@ def register():
 
             password_hashed = generate_password_hash(password)
 
-            # Insert WITHOUT generated_menu (your LLM will populate it later)
+            # Insert WITHOUT generated_menu (meal planning fills it later)
             execute_query(
                 conn,
                 """
@@ -2432,11 +2475,11 @@ def db_view():
     )
 
 
-# ----------- LLM Menu Generation Route -----------
+# ----------- Meal Plan Generation Route -----------
 @app.route('/menu/generate', methods=['POST'])
 def generate_menu():
     """
-    Generate or extend the logged-in user's AI menu plan and persist it.
+    Generate or extend the logged-in user's meal plan and persist it.
 
     Supports application/json and HTML form submissions.
     """
@@ -2519,7 +2562,7 @@ def generate_menu():
 
     # Generate
     try:
-        gen = MenuGenerator(tokens=100, database_path=db_path())
+        gen = MenuGenerator(database_path=db_path())
         updated_menu = gen.update_menu(
             menu=existing_menu,
             preferences=preferences,
@@ -2564,6 +2607,7 @@ def generate_menu():
             "weekly_cap_cents": weekly_cap_cents,
             "item_total_cents": sum(totals.values()) if totals is not None else None,
             "weekly_item_totals_cents": totals,
+            "variety": gen.variety.as_json() if gen.variety else None,
         })
     return redirect(url_for('index'))
 
@@ -2682,6 +2726,10 @@ def swap_meal_options():
     eligible = list_swap_options(
         conn, user[0] or "", slot_date, meal, current_itm_id, user[2] or ""
     )
+    # Most varied next to the rest of the plan first (same score as generation)
+    eligible = rank_swap_options(
+        eligible, variety.catalog_rows(conn), user[1] or "", slot_date, meal, user[2] or ""
+    )
 
     details = fetch_menu_items_by_ids([o["itm_id"] for o in eligible])
     options = [
@@ -2692,6 +2740,7 @@ def swap_meal_options():
             "price": details.get(o["itm_id"], {}).get("price"),
             "calories": details.get(o["itm_id"], {}).get("calories"),
             "allergens": o["allergens"] or "",
+            "variety": o["variety"],
         }
         for o in eligible
     ]

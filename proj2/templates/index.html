@@ -141,6 +141,31 @@
       </div>
     </section>
 
+    <section class="card" aria-label="Plan variety" style="margin-bottom: 20px;">
+      <div class="card-body">
+        <h2>Plan variety</h2>
+        <p class="muted">How different each week's meals are from each other, from 0% (the same
+          meal every time) to 100%. Meals close together in time count the most.</p>
+        {% if weekly_variety %}
+          <table class="table">
+            <thead><tr><th scope="col">Week starting</th><th scope="col">Variety</th>
+              <th scope="col">Most similar nearby meals</th></tr></thead>
+            <tbody>
+              {% for week, info in weekly_variety.items() %}
+                <tr>
+                  <td>{{ week }}</td>
+                  <td>{% if info.score is not none %}{{ info.score }}%{% else %}&mdash;{% endif %}</td>
+                  <td>{% if info.similar %}{{ info.similar | join('<br>' | safe) }}{% else %}&mdash;{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">Generate a meal plan to see how varied it is.</p>
+        {% endif %}
+      </div>
+    </section>
+
     <!-- Calendar -->
     <div class="calendar-wrap calendar-wide">
       <!-- Unified calendar toolbar -->

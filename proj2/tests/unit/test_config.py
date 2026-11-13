@@ -22,11 +22,6 @@ def test_blank_db_path_env_uses_default():
     assert config.db_path({config.DB_PATH_ENV: "  "}) == config.DEFAULT_DB_PATH
 
 
-def test_llm_model_default_and_override():
-    assert config.llm_model({}) == config.DEFAULT_LLM_MODEL
-    assert config.llm_model({config.LLM_MODEL_ENV: "org/model"}) == "org/model"
-
-
 def test_seed_password_override_and_random_default():
     assert config.seed_password({config.SEED_PASSWORD_ENV: "chosen"}) == "chosen"
     first, second = config.seed_password({}), config.seed_password({})

@@ -4,7 +4,6 @@ Unit tests for the hard dietary rules in proj2/dietary.py and where generation a
 
 import json
 import sqlite3
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -21,7 +20,7 @@ from proj2.dietary import (
     with_account_allergies,
     with_account_diets,
 )
-from proj2.meal_budget import BudgetExceededError
+from proj2.meal_budget import BudgetExceededError, plan_entries
 from proj2.meal_swap import list_swap_options, load_swap_item, swap_rejection
 from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator
 
@@ -54,7 +53,7 @@ class TestTags:
         assert required_diets(prefs) == set()
 
     def test_diet_words_inside_other_text_do_not_count(self):
-        # Only whole comma-separated entries are diets; "not vegan" is free text for the LLM.
+        # Only whole comma-separated entries are diets; "not vegan" is a soft preference.
         assert required_diets("not vegan, veganish") == set()
 
     def test_vegan_implies_vegetarian_and_pescatarian(self):
@@ -168,14 +167,7 @@ def generator():
     )
     gen.restaurants = pd.DataFrame([{"rtr_id": 1, "hours": ALL_WEEK}])
     gen.item_prices = dict(zip(gen.menu_items.itm_id, gen.menu_items.price))
-    gen.generator = Mock()
     return gen
-
-
-def llm_returns(gen, itm_id):
-    gen.generator.generate.return_value = (
-        f"<|start_of_role|>assistant<|end_of_role|>{itm_id}<|end_of_text|>"
-    )
 
 
 def test_candidates_exclude_untagged_items(generator):
@@ -183,19 +175,14 @@ def test_candidates_exclude_untagged_items(generator):
     assert candidates.itm_id.tolist() == [2, 3]
 
 
-def test_llm_never_sees_items_outside_the_diet(generator):
-    llm_returns(generator, 3)
+def test_plan_uses_only_items_within_the_diet(generator):
     assert generator.update_menu("", "Vegan", "", MONDAY, [3]) == f"[{MONDAY},3,3]"
-    _, prompt = generator.generator.generate.call_args.args
-    assert ",Meal 3," in prompt
-    assert ",Meal 1," not in prompt and ",Meal 2," not in prompt
 
 
-def test_llm_pick_outside_the_diet_is_rejected(generator):
-    # Item 1 is the cheapest but untagged; a model that picks it anyway gets retried, then fails.
-    llm_returns(generator, 1)
-    with pytest.raises(RuntimeError):
-        generator.update_menu("", "Vegetarian", "", MONDAY, [3])
+def test_cheapest_untagged_item_is_never_planned_for_a_diet(generator):
+    # Item 1 is the cheapest but untagged; a week of vegetarian dinners never uses it.
+    plan = generator.update_menu("", "Vegetarian", "", MONDAY, [3], 7)
+    assert {itm_id for _, itm_id, _ in plan_entries(plan)} <= {2, 3}
 
 
 def test_no_tagged_items_is_a_clear_error(generator):
@@ -205,7 +192,6 @@ def test_no_tagged_items_is_a_clear_error(generator):
 
 def test_budget_plan_reserves_cheapest_item_within_the_diet(generator):
     # Untagged item 1 ($3) would fit a $5 cap; the cheapest vegetarian item is $5.
-    llm_returns(generator, 2)
     assert generator.update_menu("", "Vegetarian", "", MONDAY, [3], 1, 500) == f"[{MONDAY},2,3]"
     with pytest.raises(BudgetExceededError):
         generator.update_menu("", "Vegetarian", "", MONDAY, [3], 1, 499)

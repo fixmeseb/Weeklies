@@ -14,13 +14,7 @@ All third-party libraries used in the Weeklies project, along with their version
 | [python-dotenv](https://github.com/theskumar/python-dotenv) | ≥1.2.1 | BSD-3-Clause | Environment variable management |
 | [reportlab](https://www.reportlab.com/) | 4.2.2 | BSD-3-Clause | PDF receipt generation |
 | [markdown](https://github.com/Python-Markdown/markdown) | ≥3.10 | BSD-3-Clause | Markdown processing for documentation |
-| [pandas](https://pandas.pydata.org/) | 2.3.3 | BSD-3-Clause | Data manipulation for LLM module |
-| [torch](https://pytorch.org/) | 2.7.1 | BSD-3-Clause | Machine learning framework for LLM inference |
-| [torchvision](https://pytorch.org/) | 0.22.1 | BSD-3-Clause | Vision utilities (PyTorch ecosystem) |
-| [torchaudio](https://pytorch.org/) | 2.7.1 | BSD-2-Clause | Audio utilities (PyTorch ecosystem) |
-| [transformers](https://huggingface.co/transformers/) | 4.53.3 | Apache-2.0 | NLP model loading and inference |
-| [accelerate](https://huggingface.co/docs/accelerate/) | 1.11.0 | Apache-2.0 | ML model acceleration and mixed precision |
-| [bitsandbytes](https://github.com/TimDettmers/bitsandbytes) | 0.48.2 | MIT | Model quantization for efficient inference |
+| [pandas](https://pandas.pydata.org/) | 2.3.3 | BSD-3-Clause | Catalog filtering for meal planning |
 
 ## Development & Testing Dependencies
 

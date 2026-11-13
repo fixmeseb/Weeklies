@@ -1,5 +1,5 @@
 """
-Unit tests for the diet tag CSV export/import (proj2/diet_tags_io.py, proj2/scripts/diet_tags.py)
+Unit tests for the menu tag CSV export/import (proj2/menu_tags_io.py, proj2/scripts/menu_tags.py)
 """
 
 import csv
@@ -8,7 +8,8 @@ import sqlite3
 
 import pytest
 
-from proj2.diet_tags_io import (
+from proj2.menu_tags_io import (
+    TAG_COLUMNS,
     apply_import,
     canonical_tags,
     contradictions,
@@ -16,7 +17,7 @@ from proj2.diet_tags_io import (
     plan_import,
 )
 from proj2.dietary import has_diet_tags_column
-from proj2.scripts.diet_tags import main
+from proj2.scripts.menu_tags import main
 
 
 def make_db(path=":memory:", with_column=False):
@@ -98,7 +99,10 @@ class TestPlanImport:
         conn = make_db()
         plan = plan_import(conn, tagged(['1,"Vegan, Halal"', "2,vegetarian"]))
         assert plan.ok
-        assert [(c[0], c[3]) for c in plan.changes] == [(1, "halal, vegan"), (2, "vegetarian")]
+        assert [(c[0], c[2], c[4]) for c in plan.changes] == [
+            (1, "diet_tags", "halal, vegan"),
+            (2, "diet_tags", "vegetarian"),
+        ]
         assert not has_diet_tags_column(conn)
 
     def test_reports_every_problem(self):
@@ -133,7 +137,9 @@ class TestPlanImport:
 
     def test_missing_column(self):
         plan = plan_import(make_db(), tagged(["1"], header="itm_id"))
-        assert plan.errors == ["line 1: missing column(s) diet_tags"]
+        assert plan.errors == [
+            f"line 1: missing column(s) at least one of {', '.join(TAG_COLUMNS)}"
+        ]
 
     def test_extra_columns_blank_lines_and_header_spaces_are_fine(self):
         csv_text = io.StringIO(" itm_id , name , diet_tags \n1,Chana,vegan\n\n,,\n")
@@ -190,7 +196,7 @@ class TestCommandLine:
 
         code, text = self.run("--db", db_path, "import", str(sheet))
         assert code == 0
-        assert "Chana Masala: (none) -> halal, vegan" in text
+        assert "Chana Masala, diet_tags: (none) -> halal, vegan" in text
         assert "Dry run: 2 to change, 2 unchanged" in text
         assert not has_diet_tags_column(sqlite3.connect(db_path))
 

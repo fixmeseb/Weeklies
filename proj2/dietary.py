@@ -3,7 +3,7 @@ Hard dietary rules (vegetarian, vegan, halal, ...) for meal generation and swaps
 
 A user's diet is read from the known diet words in their comma-separated preferences,
 e.g. "Vegetarian, Italian" requires "vegetarian"; "Italian" stays a soft preference
-for the LLM. Each menu item declares the diets it satisfies in MenuItem.diet_tags.
+(proj2.variety.preference_match). Each menu item declares the diets it satisfies in MenuItem.diet_tags.
 
 The check fails closed: an item without a tag does not satisfy that diet, the same way
 a missing price is never treated as free. Allergens remain a separate filter, but
@@ -12,7 +12,7 @@ requests may not drop the account's allergies either (with_account_allergies).
 
 import pandas as pd
 
-## Diets enforced in code. Any other preference word is left to the LLM.
+## Diets enforced as hard rules. Any other preference word is a soft preference.
 KNOWN_DIETS = frozenset({"vegetarian", "vegan", "pescatarian", "halal", "kosher", "gluten-free"})
 
 ## A tag also satisfies every diet it implies (vegan food is vegetarian, and so on)
@@ -127,7 +127,7 @@ def with_account_diets(preferences, account_preferences) -> str:
     """
     Adds the diets on the user's account to preferences supplied with a request
 
-    A request may change the soft preferences sent to the LLM, but it cannot drop a
+    A request may change the soft preferences used for ranking, but it cannot drop a
     diet the account requires.
 
     Args:

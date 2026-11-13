@@ -6,7 +6,8 @@ against item_rejection before the plan is saved; meal swaps check the replacemen
 with the same function. A new way of choosing meals (another model, a manual editor)
 should also call item_rejection before saving.
 
-Imports only pandas and proj2.dietary so menu_generation and meal_swap can both use it.
+Imports only pandas, proj2.dietary and proj2.meal_tags so menu_generation and meal_swap
+can both use it.
 """
 
 import json
@@ -14,11 +15,19 @@ import json
 import pandas as pd
 
 from proj2.dietary import missing_diets, required_diets
+from proj2.meal_tags import parse_tags
 
 
 class PlanRuleError(RuntimeError):
     """A chosen item broke a plan rule; the plan must not be saved."""
 
+
+## The meal_type an item must be served as to fill each meal slot (1, 2, 3)
+SLOT_MEAL_TYPES = {1: "breakfast", 2: "lunch-dinner", 3: "lunch-dinner"}
+SLOT_NAMES = {1: "breakfast", 2: "lunch", 3: "dinner"}
+
+## The course an item must be to fill a meal slot on its own
+SLOT_COURSE = "main"
 
 ## Values people write to mean "no allergens"; they are not allergens themselves
 NO_ALLERGENS = frozenset({"none", "n/a", "-"})
@@ -70,18 +79,50 @@ def is_restaurant_open(hours: str, weekday: str, time: int) -> bool:
     return False
 
 
-def item_rejection(item, user_allergies, user_preferences, weekday: str, order_time: int):
+def slot_rejection(item, meal):
+    """
+    Checks whether a menu item is the kind of dish that fills a meal slot on its own
+
+    An item tagged with a course must be a main, and an item tagged with meal types must
+    be served at that meal (breakfast, or lunch-dinner for lunch and dinner). An item
+    without those tags is allowed in any slot: unlike diets this is not a safety rule,
+    and untagged catalogs keep working.
+
+    Args:
+        item (Mapping): The item, with keys name and (optionally) course and meal_type
+        meal (int | None): The slot's meal number (1, 2, 3); None skips the check
+
+    Returns:
+        Tuple[str, str] | None: (error_code, message) if the item does not fit, otherwise None
+    """
+    if meal is None:
+        return None
+    courses = parse_tags("course", item.get("course"))
+    if courses and SLOT_COURSE not in courses:
+        course = ", ".join(sorted(courses))
+        return "not_a_meal", f"{item['name']} is a {course}, not a main dish."
+    meal_types = parse_tags("meal_type", item.get("meal_type"))
+    if meal_types and SLOT_MEAL_TYPES[meal] not in meal_types:
+        return "wrong_meal_type", f"{item['name']} is not served as {SLOT_NAMES[meal]}."
+    return None
+
+
+def item_rejection(
+    item, user_allergies, user_preferences, weekday: str, order_time: int, meal=None
+):
     """
     Checks whether a menu item may fill a meal slot for a user
 
     Args:
         item (dict | None): The item, with keys name, instock, allergens, restaurant_status,
-            hours and (optionally) diet_tags; None if it does not exist
+            hours and (optionally) diet_tags, course and meal_type; None if it does not exist
         user_allergies (str | None): The user's comma-separated allergies
         user_preferences (str | None): The user's comma-separated preferences; the diets
             they name (see proj2.dietary) must all be satisfied by the item's diet_tags
         weekday (str): The slot's day of the week ("Mon".."Sun")
         order_time (int): The slot's order time in HHMM format
+        meal (int | None): The slot's meal number (1, 2, 3), for slot_rejection; None
+            skips that check
 
     Returns:
         Tuple[str, str] | None: (error_code, message) if the item is not allowed, otherwise None
@@ -105,4 +146,4 @@ def item_rejection(item, user_allergies, user_preferences, weekday: str, order_t
     unmet = missing_diets(item.get("diet_tags"), required_diets(user_preferences))
     if unmet:
         return "diet", f"{item['name']} is not tagged as {', '.join(sorted(unmet))}."
-    return None
+    return slot_rejection(item, meal)
