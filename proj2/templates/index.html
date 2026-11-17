@@ -88,7 +88,7 @@
     {% set has_any = today_menu and (today_menu|length) %}
 
     <!-- Compact Today's Menu -->
-    <div class="card mb-3 compact">
+    <div class="card mb-3 compact std-only">
       <div class="card-body">
         <h2 class="h6 mb-1">Today’s Menu ({{ today_year }}-{{ '%02d'|format(today_month) }}-{{ '%02d'|format(today_day) }})</h2>
         {% if has_any %}
@@ -120,7 +120,7 @@
       </div>
     </div>
 
-    <section class="card" aria-label="Weekly item totals" style="margin-bottom: 20px;">
+    <section class="card std-only" aria-label="Weekly item totals" style="margin-bottom: 20px;">
       <div class="card-body">
         <h2>Weekly item totals</h2>
         <p class="muted">Monday–Sunday, including planned meals outside the displayed month.
@@ -142,7 +142,7 @@
       </div>
     </section>
 
-    <section class="card" aria-label="Plan variety" style="margin-bottom: 20px;">
+    <section class="card std-only" aria-label="Plan variety" style="margin-bottom: 20px;">
       <div class="card-body">
         <h2>Plan variety</h2>
         <p class="muted">How different each week's meals are from each other, from 0% (the same
@@ -179,7 +179,105 @@
         </div>
       </div>
 
-      <div class="cal-grid">
+      <!-- Seed Catalog & Almanac style (static/theme.js sets data-style="almanac"; proj2/almanac.py) -->
+      <div class="almanac-only">
+        {% set slot_titles = {1: "Breakfast · 10 o'clock", 2: "Luncheon · 2 o'clock", 3: "Supper · 8 o'clock"} %}
+        {% for wk in almanac_weeks %}
+          <article class="al" aria-label="Week of {{ wk.start }}">
+            <header class="al-mast">
+              <div class="al-vol"><span>Vol. {{ wk.volume }} · No. {{ wk.number }}</span><span>Week of {{ wk.title }}</span></div>
+              <h2>The Weeklies Almanac &amp; Meal Catalog</h2>
+              <p>{{ wk.meal_count }} meal{{ '' if wk.meal_count == 1 else 's' }} from {{ wk.kitchens }} kitchen{{ '' if wk.kitchens == 1 else 's' }}, set out by the day</p>
+              <div class="al-orn" aria-hidden="true">❦ ❦ ❦</div>
+            </header>
+            {% if loop.first %}
+              <p class="al-intro">This table was laid out by the planner from every main dish served at the hour of each meal. It favors meals unlike their neighbors, the way a careful grower rotates beds so no soil gives the same crop twice running. Choose any entry to plant something else in its place.</p>
+            {% endif %}
+            <div class="al-scroll">
+              <table class="al-table">
+                <thead><tr><th scope="col">Day</th>{% for slot in [1, 2, 3] %}<th scope="col">{{ slot_titles[slot] }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                  {% for d in wk.days %}
+                    <tr{% if d.date == '%04d-%02d-%02d'|format(today_year, today_month, today_day) %} class="al-today"{% endif %}>
+                      <th scope="row" class="d">{{ d.weekday }}. {{ d.day }}<small>{% if d.total %}${{ '%.2f'|format(d.total / 100) }}{% else %}&mdash;{% endif %}</small></th>
+                      {% for slot in [1, 2, 3] %}
+                        {% set m = d.meals.get(slot) %}
+                        <td>
+                          {% if m %}
+                            <button type="button" class="al-e swap-btn" data-meal="{{ m.meal }}" data-date="{{ m.date }}"
+                                    data-item-name="{{ m.name }}" aria-label="Swap {{ meal_names[m.meal] }} on {{ m.date }}: {{ m.name }}">
+                              <span class="al-no">No. {{ m.itm_id }} · {{ meal_names[m.meal] }}</span>
+                              <span class="al-nm">{{ m.name }}</span>
+                              <span class="al-gr">{{ m.restaurant }}</span>
+                              <span class="al-px">${{ '%.2f'|format(m.price / 100) }}{% if m.calories %} · {{ m.calories }} cal.{% endif %}</span>
+                              {% if m.again %}<span class="al-flag">Sown again {{ m.again | join(', ') }}</span>{% endif %}
+                            </button>
+                            <a class="al-order order-btn" href="#"
+                               data-itm-id="{{ m.itm_id }}" data-meal="{{ m.meal }}" data-date="{{ m.date }}"
+                               data-rtr-id="{{ m.rtr_id }}" data-rtr-name="{{ m.restaurant }}" data-item-name="{{ m.name }}"
+                               data-price-cents="{{ m.price }}" data-delivery-type="delivery">Order this</a>
+                          {% else %}
+                            <span class="al-fallow">Fallow</span>
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="al-cols">
+              <section>
+                <h3>Crop Rotation</h3>
+                {% if wk.rotation %}
+                  <div class="al-scroll">
+                    <table class="al-rot">
+                      <thead><tr><th scope="col">Bed</th>{% for d in wk.days %}<th scope="col">{{ d.weekday }}</th>{% endfor %}</tr></thead>
+                      <tbody>
+                        {% for row in wk.rotation %}
+                          <tr><th scope="row">{{ row.bed | capitalize }}</th>
+                            {% for c in row.cells %}<td class="{{ c }}">{% if c %}●{% else %}·{% endif %}</td>{% endfor %}
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="al-cap">● planted that day. Ochre marks a bed planted two days running.</p>
+                {% else %}
+                  <p class="al-cap">These dishes carry no protein tags yet.</p>
+                {% endif %}
+              </section>
+              <section class="al-notes">
+                <h3>Notes for the Week</h3>
+                <div>
+                  {% if wk.score is not none %}<span class="al-big">{{ wk.score }} parts in 100</span><br>{% endif %}
+                  <i>{{ wk.forecast }}.</i> {{ wk.distinct }} different dish{{ '' if wk.distinct == 1 else 'es' }} among {{ wk.meal_count }}.
+                </div>
+                {% if wk.similar %}
+                  <ol>{% for line in wk.similar %}<li>{{ line }}.</li>{% endfor %}</ol>
+                {% endif %}
+              </section>
+              <section>
+                <h3>Grower's Guarantee</h3>
+                <div class="al-guar">
+                  <p>Every entry was checked when it was planned: a main dish of the right kind for its meal, in stock, from a kitchen open at that hour, and free of any allergen on the account. The week's items come to ${{ '%.2f'|format(wk.total / 100) }}, before taxes, delivery and tips.</p>
+                </div>
+              </section>
+            </div>
+          </article>
+        {% else %}
+          <div class="al al-empty">
+            <header class="al-mast">
+              <h2>The Weeklies Almanac &amp; Meal Catalog</h2>
+              <p>Nothing is sown for {{ month_name }} {{ year }} yet.</p>
+              <div class="al-orn" aria-hidden="true">❦ ❦ ❦</div>
+            </header>
+            <p class="al-intro">Generate a meal plan from your profile and this page will set it out by the day.</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="cal-grid std-only">
         {% for dow in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
           <div class="cal-dow">{{ dow }}</div>
         {% endfor %}

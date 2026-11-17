@@ -13,7 +13,7 @@ from datetime import timedelta, date, datetime
 from functools import wraps
 from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
-from proj2 import variety
+from proj2 import almanac, variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
@@ -571,6 +571,14 @@ def index(year, month):
         item_total_error = "Item totals are unavailable because a planned meal or its price is missing."
 
     weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
+    # The same weeks drawn as almanac pages, for the "Seed Catalog & Almanac" style
+    almanac_weeks = (
+        almanac.build_weeks(
+            plan_entries(gen_str), items_by_id, variety.catalog_rows(conn), weekly_variety
+        )
+        if weekly_variety
+        else []
+    )
 
     # Build cells for the month
     cells = build_calendar_cells(gen_map, year, month, items_by_id)
@@ -617,6 +625,7 @@ def index(year, month):
         weekly_item_totals=item_totals,
         item_total_error=item_total_error,
         weekly_variety=weekly_variety,
+        almanac_weeks=almanac_weeks,
     )
 
 

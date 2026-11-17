@@ -1,16 +1,23 @@
 /*
- * Colour theme switcher.
+ * Colour theme and style switcher.
  *
- * Loaded without `defer` in every page's <head>, so the saved palette is applied
- * before the page paints (no flash of the default colours). The palettes
- * themselves are CSS variable sets in static/style.css, keyed by data-palette
- * on <html>; "classic" is the default and uses no attribute.
+ * Loaded without `defer` in every page's <head>, so the saved choices are applied
+ * before the page paints (no flash of the default look). Both live in static/style.css:
  *
- * The choice is saved in this browser only (localStorage). Pages that draw with
- * colours once, like the analytics charts, listen for the "palettechange" event.
+ *   - Theme: a palette, a set of CSS colour variables keyed by data-palette on <html>;
+ *     "classic" is the default and uses no attribute.
+ *   - Style: a whole look keyed by data-style on <html>. "standard" uses no attribute;
+ *     "almanac" (Seed Catalog & Almanac) brings its own paper-and-ink colours and fonts
+ *     and draws the calendar as almanac pages, so the Theme picker is disabled while it
+ *     is on.
+ *
+ * Choices are saved in this browser only (localStorage). Pages that draw with colours
+ * once, like the analytics charts, listen for the "palettechange" event, which also
+ * fires when the style changes.
  */
 (function () {
   var KEY = "weeklies-palette";
+  var STYLE_KEY = "weeklies-style";
   var PALETTES = [
     { id: "classic", name: "Classic", swatch: ["#0b0c10", "#5b8cff", "#29c48a"] },
     { id: "sorbet", name: "Sorbet", swatch: ["#b0f2b4", "#bad7f2", "#f2bac9"] },
@@ -22,105 +29,178 @@
     { id: "admiral", name: "Admiral", swatch: ["#1b264f", "#274690", "#f5f3f5"] },
     { id: "lagoon", name: "Lagoon", swatch: ["#1b264f", "#44ffd1", "#2c8c99"] },
   ];
+  // Styles use "label", not "name", so they are never mistaken for palettes (see test_themes.py)
+  var STYLES = [
+    { id: "standard", label: "Standard", glyph: "▦" },
+    {
+      id: "almanac",
+      label: "Seed Catalog & Almanac",
+      glyph: "❦",
+      fonts:
+        "https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC" +
+        "&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap",
+    },
+  ];
   var root = document.documentElement;
 
-  function known(id) {
-    for (var i = 0; i < PALETTES.length; i++) if (PALETTES[i].id === id) return PALETTES[i];
+  function find(list, id) {
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
   }
 
-  function saved() {
+  function load(key) {
     try {
-      return localStorage.getItem(KEY);
+      return localStorage.getItem(key);
     } catch (e) {
       return null; // storage blocked: use the default
     }
   }
 
+  function store(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      /* the choice still applies to this page */
+    }
+  }
+
   function apply(id) {
-    var palette = known(id) || PALETTES[0];
+    var palette = find(PALETTES, id) || PALETTES[0];
     if (palette.id === "classic") root.removeAttribute("data-palette");
     else root.setAttribute("data-palette", palette.id);
     return palette;
   }
 
-  function choose(id) {
-    var palette = apply(id);
-    try {
-      localStorage.setItem(KEY, palette.id);
-    } catch (e) {
-      /* the choice still applies to this page */
-    }
-    document.dispatchEvent(new CustomEvent("palettechange", { detail: { palette: palette.id } }));
-    return palette;
+  function loadFonts(style) {
+    if (!style.fonts || document.querySelector('link[data-style-fonts="' + style.id + '"]')) return;
+    var link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = style.fonts;
+    link.setAttribute("data-style-fonts", style.id);
+    (document.head || root).appendChild(link);
   }
 
-  var current = apply(saved());
+  function applyStyle(id) {
+    var style = find(STYLES, id) || STYLES[0];
+    if (style.id === "standard") root.removeAttribute("data-style");
+    else root.setAttribute("data-style", style.id);
+    loadFonts(style);
+    return style;
+  }
+
+  function announce() {
+    document.dispatchEvent(
+      new CustomEvent("palettechange", { detail: { palette: current.id, style: currentStyle.id } })
+    );
+  }
+
+  function choose(id) {
+    current = apply(id);
+    store(KEY, current.id);
+    announce();
+    return current;
+  }
+
+  function chooseStyle(id) {
+    currentStyle = applyStyle(id);
+    store(STYLE_KEY, currentStyle.id);
+    announce();
+    return currentStyle;
+  }
+
+  var current = apply(load(KEY));
+  var currentStyle = applyStyle(load(STYLE_KEY));
 
   function swatchStyle(palette) {
     var c = palette.swatch;
     return "background: linear-gradient(90deg, " + c[0] + " 0 33%, " + c[1] + " 33% 66%, " + c[2] + " 66%)";
   }
 
-  function build() {
-    // The whole pill opens the list: the native <select> is stretched invisibly over it
-    // (see .palette-picker in style.css), and the spans below are what shows.
+  // One pill: the whole pill opens the list, because the native <select> is stretched
+  // invisibly over it (see .palette-picker in style.css) and the spans are what shows.
+  function pill(word, selectId, ariaLabel, options, value) {
     var label = document.createElement("label");
     label.className = "palette-picker";
-    var swatch = document.createElement("span");
-    swatch.className = "palette-swatch";
-    swatch.setAttribute("aria-hidden", "true");
+    var mark = document.createElement("span");
+    mark.setAttribute("aria-hidden", "true");
     var text = document.createElement("span");
     text.className = "palette-label";
-    text.textContent = "Theme";
+    text.textContent = word;
     text.setAttribute("aria-hidden", "true");
     var name = document.createElement("span");
     name.className = "palette-name";
     name.setAttribute("aria-hidden", "true");
     var select = document.createElement("select");
-    select.id = "paletteSelect";
-    select.setAttribute("aria-label", "Colour theme");
-    PALETTES.forEach(function (p) {
+    select.id = selectId;
+    select.setAttribute("aria-label", ariaLabel);
+    options.forEach(function (o) {
       var option = document.createElement("option");
-      option.value = p.id;
-      option.textContent = p.name;
+      option.value = o.id;
+      option.textContent = o.name || o.label;
       select.appendChild(option);
     });
-    function show() {
-      swatch.setAttribute("style", swatchStyle(current));
-      name.textContent = current.name;
-    }
-    select.value = current.id;
-    show();
-    select.addEventListener("change", function () {
-      current = choose(select.value);
-      show();
-    });
-    label.appendChild(swatch);
+    select.value = value;
+    label.appendChild(mark);
     label.appendChild(text);
     label.appendChild(name);
     label.appendChild(select);
+    return { label: label, mark: mark, name: name, select: select };
+  }
+
+  function build() {
+    var theme = pill("Theme", "paletteSelect", "Colour theme", PALETTES, current.id);
+    theme.mark.className = "palette-swatch";
+    var style = pill("Style", "styleSelect", "Page style", STYLES, currentStyle.id);
+    style.mark.className = "style-glyph";
+
+    function show() {
+      theme.mark.setAttribute("style", swatchStyle(current));
+      theme.name.textContent = current.name;
+      style.mark.textContent = currentStyle.glyph;
+      style.name.textContent = currentStyle.label;
+      // The Almanac style sets its own colours, so the palette has no effect while it is on
+      var locked = currentStyle.id !== "standard";
+      theme.select.disabled = locked;
+      theme.label.classList.toggle("is-disabled", locked);
+      theme.label.title = locked ? "The " + currentStyle.label + " style uses its own colours" : "";
+    }
+    show();
+    theme.select.addEventListener("change", function () {
+      choose(theme.select.value);
+      show();
+    });
+    style.select.addEventListener("change", function () {
+      chooseStyle(style.select.value);
+      show();
+    });
+
+    var set = document.createElement("span");
+    set.className = "picker-set";
+    set.appendChild(theme.label);
+    set.appendChild(style.label);
 
     // Customer pages: in the header nav. Restaurant-owner pages: in the banner's
-    // button row, or grouped with Logout so it sits beside it.
+    // button row, or grouped with Logout so they sit beside it.
     var nav = document.querySelector(".site-header nav");
     var heroNav = document.querySelector(".analytics-nav, .dashboard-nav");
     var logout = document.querySelector(".logout-btn");
     if (nav) {
-      nav.appendChild(label);
+      nav.appendChild(set);
     } else if (heroNav) {
-      label.classList.add("on-hero");
-      heroNav.insertBefore(label, heroNav.firstChild);
+      theme.label.classList.add("on-hero");
+      style.label.classList.add("on-hero");
+      heroNav.insertBefore(set, heroNav.firstChild);
     } else if (logout && logout.parentNode) {
-      label.classList.add("on-hero");
+      theme.label.classList.add("on-hero");
+      style.label.classList.add("on-hero");
       var group = document.createElement("div");
       group.className = "palette-group";
       logout.parentNode.insertBefore(group, logout);
-      group.appendChild(label);
+      group.appendChild(set);
       group.appendChild(logout);
     } else {
-      label.classList.add("floating");
-      document.body.appendChild(label);
+      set.classList.add("floating");
+      document.body.appendChild(set);
     }
   }
 
@@ -128,4 +208,5 @@
   else build();
 
   window.WeekliesPalettes = { list: PALETTES, choose: choose };
+  window.WeekliesStyles = { list: STYLES, choose: chooseStyle };
 })();
