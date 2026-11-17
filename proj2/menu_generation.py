@@ -423,26 +423,33 @@ class MenuGenerator:
         ranked.sort()
         return ranked
 
-    def _restart_openings(self, slots, limit=RESTART_OPENINGS):
+    def _restart_openings(self, slots, limit=None):
         """
         The items to try in the first slot, spread across its candidates
 
         Args:
             slots (list): The slots to be planned, in time order
-            limit (int): How many openings to try besides the default
+            limit (int | None): How many openings to try besides the default; None reads
+                RESTART_OPENINGS. Read here rather than taken as a default argument,
+                which would bind the constant at import and make it untunable.
 
         Returns:
             list: itm_ids to force into the first slot, led by None, which means "pick
                 the first slot the usual way". Keeping None first means the restarts can
                 only improve on the plan the planner would have produced without them.
         """
-        if not slots:
+        limit = RESTART_OPENINGS if limit is None else limit
+        if not slots or limit < 1:
             return [None]
         pool = [int(itm_id) for itm_id in slots[0]["candidates"]["itm_id"]]
         if not pool:
             return [None]
         if len(pool) <= limit:
             return [None] + pool
+        if limit == 1:
+            # One extra opening cannot be "spread" across the pool, and the step below
+            # would divide by limit - 1.
+            return [None, pool[0]]
         # The pool is ordered by price then itm_id, so even steps through it sample the
         # whole price range instead of crowding the cheap end the tie-break already favours.
         step = (len(pool) - 1) / (limit - 1)

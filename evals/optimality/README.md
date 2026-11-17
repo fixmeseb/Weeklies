@@ -45,7 +45,7 @@ Demo catalog (11 restaurants, 76 tagged dishes), week of 2026-11-23, 90 s solver
 | dinners, 3 days | 3 | 0.9286 | **0.9614** | 0.9667 | 0.0054 | yes |
 | dinners, 5 days | 5 | 0.9337 | **0.9402** | 0.9402 | 0.0001 | yes |
 | dinners, 5d, vegetarian | 5 | 0.9127 | 0.9127 | 0.9127 | 0.0001 | yes |
-| dinners, 5d, nut+dairy allergy | 5 | 0.9340 | **0.9402** | 0.9402 | 0.0001 | yes |
+| dinners, 5d, nut+dairy allergy | 5 | 0.9340 | **0.9206** | 0.9206 | 0.0000 | yes |
 | all meals, 3 days | 9 | 0.9069 | **0.9115** | ≤ 0.9682 | ≤ 0.0567 | bound only |
 
 Three of the four scenarios that solve to proven optimality now **sit on the optimum**
@@ -70,9 +70,24 @@ already a local optimum. Two changes, both in `proj2/menu_generation.py`:
 
 ### What it cost
 
-Planning a full week, 21 slots, went from about 30 ms to **0.94 s** — against a 5 s target,
-so there is headroom, but it is a real thirty-fold increase and worth knowing before the
-catalog grows much further.
+Restarts multiply planning work, so the cost depends entirely on the per-request caching in
+the speedup PR. Measured by [`scripts/bench_planner.py`](../../scripts/bench_planner.py),
+one week of 21 slots, on top of that caching:
+
+| catalog | 12 restarts | 4 | 1 | none |
+|---|---|---|---|---|
+| 76 items | 0.13 s | 0.06 s | 0.03 s | 0.03 s |
+| 228 items | 0.25 s | 0.11 s | 0.07 s | 0.05 s |
+| 1,596 items | **1.80 s** | 0.72 s | 0.36 s | 0.22 s |
+
+At the largest catalog the full twelve restarts cost about 8x the planning time and still
+finish in **1.8 s against the 5 s target**. Without that caching the same work would be
+roughly an order of magnitude slower and would miss the target, so these two changes belong
+in that order: the speedup first, this on top of it.
+
+`RESTART_OPENINGS` is the dial if the catalog grows past this. The variety it buys falls off
+quickly — 12 restarts beat 4 by 0.0009 on the 1,596-item catalog, because that catalog is
+the demo menu repeated and has variety to spare.
 
 ### What it exposed
 
