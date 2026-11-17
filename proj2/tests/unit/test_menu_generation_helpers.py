@@ -107,48 +107,42 @@ class TestFilterAllergens:
 
     def test_filter_single_allergen(self):
         """Test filtering items with single allergen"""
-        items = pd.DataFrame({
-            "name": ["Item1", "Item2", "Item3"],
-            "allergens": ["Peanuts", None, "Shellfish"]
-        })
+        items = pd.DataFrame(
+            {"name": ["Item1", "Item2", "Item3"], "allergens": ["Peanuts", None, "Shellfish"]}
+        )
         filtered = filter_allergens(items, "Peanuts")
         assert len(filtered) == 2
         assert "Item1" not in filtered["name"].values
 
     def test_filter_multiple_allergens(self):
         """Test filtering items with multiple allergens"""
-        items = pd.DataFrame({
-            "name": ["Item1", "Item2", "Item3", "Item4"],
-            "allergens": ["Peanuts", "Shellfish", "Dairy", None]
-        })
+        items = pd.DataFrame(
+            {
+                "name": ["Item1", "Item2", "Item3", "Item4"],
+                "allergens": ["Peanuts", "Shellfish", "Dairy", None],
+            }
+        )
         filtered = filter_allergens(items, "Peanuts,Shellfish")
         assert len(filtered) == 2
         assert set(filtered["name"].values) == {"Item3", "Item4"}
 
     def test_filter_no_allergens_to_filter(self):
         """Test filtering when no allergens specified"""
-        items = pd.DataFrame({
-            "name": ["Item1", "Item2"],
-            "allergens": ["Peanuts", "Shellfish"]
-        })
+        items = pd.DataFrame({"name": ["Item1", "Item2"], "allergens": ["Peanuts", "Shellfish"]})
         filtered = filter_allergens(items, "")
         assert len(filtered) == 2
 
     def test_filter_all_items_contain_allergen(self):
         """Test when all items contain specified allergen"""
-        items = pd.DataFrame({
-            "name": ["Item1", "Item2"],
-            "allergens": ["Peanuts", "Peanuts"]
-        })
+        items = pd.DataFrame({"name": ["Item1", "Item2"], "allergens": ["Peanuts", "Peanuts"]})
         filtered = filter_allergens(items, "Peanuts")
         assert len(filtered) == 0
 
     def test_filter_none_allergens(self):
         """Test filtering with None allergen values"""
-        items = pd.DataFrame({
-            "name": ["Item1", "Item2", "Item3"],
-            "allergens": [None, None, "Shellfish"]
-        })
+        items = pd.DataFrame(
+            {"name": ["Item1", "Item2", "Item3"], "allergens": [None, None, "Shellfish"]}
+        )
         filtered = filter_allergens(items, "Peanuts")
         assert len(filtered) == 3  # All items pass since Peanuts not found
 
@@ -158,76 +152,95 @@ class TestFilterClosedRestaurants:
 
     def test_restaurant_open_during_time(self):
         """Test restaurant open during specified time"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 2000]})]
-        })
+        restaurants = pd.DataFrame({"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 2000]})]})
         filtered = filter_closed_restaurants(restaurants, "Mon", 1200)
         assert len(filtered) == 1
 
     def test_restaurant_closed_during_time(self):
         """Test restaurant closed during specified time"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 1100]})]
-        })
+        restaurants = pd.DataFrame({"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 1100]})]})
         filtered = filter_closed_restaurants(restaurants, "Mon", 1200)
         assert len(filtered) == 0
 
     def test_restaurant_multiple_opening_times(self):
         """Test restaurant with multiple opening periods"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 1200, 1400, 2000]})]
-        })
+        restaurants = pd.DataFrame(
+            {"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 1200, 1400, 2000]})]}
+        )
         filtered = filter_closed_restaurants(restaurants, "Mon", 1500)
         assert len(filtered) == 1  # Open in afternoon
 
     def test_restaurant_gap_between_periods(self):
         """Test restaurant closed during gap between opening periods"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 1100, 1400, 2000]})]
-        })
+        restaurants = pd.DataFrame(
+            {"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 1100, 1400, 2000]})]}
+        )
         filtered = filter_closed_restaurants(restaurants, "Mon", 1200)
         assert len(filtered) == 0  # Closed during gap
 
     def test_restaurant_odd_number_times(self):
         """Test restaurant with odd number of times (malformed)"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 1100, 1400]})]
-        })
+        restaurants = pd.DataFrame(
+            {"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 1100, 1400]})]}
+        )
         filtered = filter_closed_restaurants(restaurants, "Mon", 1200)
         assert len(filtered) == 0  # Removed due to malformed data
 
     def test_restaurant_edge_case_opening_time(self):
         """Test time exactly at opening"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 2000]})]
-        })
+        restaurants = pd.DataFrame({"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 2000]})]})
         filtered = filter_closed_restaurants(restaurants, "Mon", 1000)
         assert len(filtered) == 1
 
     def test_restaurant_edge_case_closing_time(self):
         """Test time exactly at closing"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1],
-            "hours": [json.dumps({"Mon": [1000, 2000]})]
-        })
+        restaurants = pd.DataFrame({"rtr_id": [1], "hours": [json.dumps({"Mon": [1000, 2000]})]})
         filtered = filter_closed_restaurants(restaurants, "Mon", 2000)
         assert len(filtered) == 1
 
     def test_multiple_restaurants_mixed_status(self):
         """Test filtering multiple restaurants with mixed open/closed status"""
-        restaurants = pd.DataFrame({
-            "rtr_id": [1, 2, 3],
-            "hours": [
-                json.dumps({"Mon": [1000, 2000]}),
-                json.dumps({"Mon": [800, 900]}),
-                json.dumps({"Mon": [1400, 2200]})
-            ]
-        })
+        restaurants = pd.DataFrame(
+            {
+                "rtr_id": [1, 2, 3],
+                "hours": [
+                    json.dumps({"Mon": [1000, 2000]}),
+                    json.dumps({"Mon": [800, 900]}),
+                    json.dumps({"Mon": [1400, 2200]}),
+                ],
+            }
+        )
         filtered = filter_closed_restaurants(restaurants, "Mon", 1500)
         assert len(filtered) == 2  # Restaurants 1 and 3 open at 1500
+
+
+def test_map_distinct_checks_each_value_once_and_treats_empty_cells_alike():
+    from proj2.menu_generation import map_distinct
+
+    calls = []
+
+    def check(value):
+        calls.append(value)
+        return value == "a"
+
+    values = pd.Series(["a", "b", "a", None, float("nan"), pd.NA, "b"], index=list("pqrstuv"))
+    mask = map_distinct(values, check)
+    assert mask.tolist() == [True, False, True, False, False, False, False]
+    assert list(mask.index) == list("pqrstuv")
+    assert calls == ["a", "b", None]
+
+
+def test_filter_meal_slot_handles_missing_tag_columns_and_empty_cells():
+    from proj2.menu_generation import filter_meal_slot
+
+    items = pd.DataFrame(
+        [
+            {"name": "Pancakes", "course": "main", "meal_type": "breakfast"},
+            {"name": "Soup", "course": "side", "meal_type": None},
+            {"name": "Untagged", "course": float("nan"), "meal_type": float("nan")},
+        ]
+    )
+    assert filter_meal_slot(items, 1).name.tolist() == ["Pancakes", "Untagged"]
+    assert filter_meal_slot(items, 3).name.tolist() == ["Untagged"]
+    no_tags = items[["name"]]
+    assert filter_meal_slot(no_tags, 2).name.tolist() == ["Pancakes", "Soup", "Untagged"]

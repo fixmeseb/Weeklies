@@ -448,3 +448,23 @@ class TestEmptySlotReason:
     def test_nothing_in_stock(self):
         gen = make_generator([{"instock": 0}])
         assert "no open restaurant has any item in stock" in self.plan(gen)
+
+
+def test_item_distances_match_uncached_scores():
+    rows = {row["itm_id"]: row for row in demo_rows().values()}
+    cached = variety.ItemDistances(rows)
+    ids = sorted(rows)
+    neighbours = [
+        (variety.slot_position(MONDAY, 1) + i, itm_id) for i, itm_id in enumerate(ids[:6])
+    ]
+    position = variety.slot_position(MONDAY, 3)
+    for a, b in itertools.combinations(ids, 2):
+        expected = variety.distance(variety.features(rows[a]), variety.features(rows[b]))
+        assert cached.distance(a, b) == cached.distance(b, a) == expected
+    for itm_id in ids:
+        expected = variety.slot_gain(
+            variety.features(rows[itm_id]),
+            position,
+            [(pos, variety.features(rows[other])) for pos, other in neighbours],
+        )
+        assert cached.slot_gain(itm_id, position, neighbours) == expected

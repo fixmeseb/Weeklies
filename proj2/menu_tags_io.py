@@ -20,6 +20,7 @@ import csv
 from dataclasses import dataclass, field
 
 from proj2 import meal_tags
+from proj2.allergens import normalize_allergen, parse_allergens
 from proj2.dietary import DIET_TAGS_COLUMN, KNOWN_DIETS, normalize_tag, satisfied_diets
 
 ## Every column this tool reads and writes, in CSV order
@@ -28,14 +29,17 @@ CONTEXT_COLUMNS = ("itm_id", "restaurant", "name", "description", "allergens")
 EXPORT_COLUMNS = (*CONTEXT_COLUMNS, *TAG_COLUMNS)
 
 ## A diet that cannot hold if the item declares one of these allergens.
-## Each entry lists the allergen spellings that count (compared casefolded).
-CONTRADICTIONS = {
+## Each entry lists the allergens that count, in any spelling proj2.allergens accepts.
+_CONTRADICTIONS = {
     "vegetarian": {"fish", "shellfish", "crustacean", "shrimp", "meat", "pork", "beef"},
     "vegan": {"dairy", "milk", "eggs", "egg", "honey"},
     "pescatarian": {"meat", "pork", "beef"},
-    "gluten-free": {"gluten", "wheat"},
+    "gluten-free": {"gluten", "wheat", "barley", "rye"},
     "halal": {"pork", "alcohol"},
     "kosher": {"pork", "shellfish", "crustacean", "shrimp"},
+}
+CONTRADICTIONS = {
+    diet: {normalize_allergen(name) for name in names} for diet, names in _CONTRADICTIONS.items()
 }
 
 _MEAT = {"chicken", "turkey", "beef", "pork", "lamb", "goat"}
@@ -118,7 +122,7 @@ def contradictions(diet_tags: str, allergens: str, protein: str = None, contains
     Returns:
         List[str]: Messages such as "vegan but contains dairy"; empty if consistent
     """
-    declared = {tag.strip().casefold() for tag in (allergens or "").split(",") if tag.strip()}
+    declared = parse_allergens(allergens)
     proteins = meal_tags.parse_tags("protein", protein)
     contained = meal_tags.parse_tags("contains", contains)
     problems = []
