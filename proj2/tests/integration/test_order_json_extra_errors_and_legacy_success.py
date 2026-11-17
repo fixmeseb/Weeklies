@@ -63,7 +63,7 @@ def test_orders_json_item_specific_not_found(
     assert body.get("error") == "item_999999_not_found"
 
 
-def test_legacy_get_order_success_redirects_to_profile(
+def test_legacy_get_order_success_redirects_to_my_orders(
     client, temp_db_path, seed_minimal_data, login_session
 ):
     rtr_id = seed_minimal_data["rtr_id"]
@@ -75,5 +75,5 @@ def test_legacy_get_order_success_redirects_to_profile(
     )
     assert resp.status_code in (302, 303)
     loc = resp.headers.get("Location", "")
-    assert "/profile" in loc
+    assert "/orders" in loc
     assert "ordered=" in loc

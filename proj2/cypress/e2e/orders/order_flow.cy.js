@@ -4,30 +4,24 @@ describe("Order Workflow", () => {
     cy.loginAsUser("testuser@example.com", "password123");
   });
 
-  it("builds an order using the restaurant and item selectors", () => {
-    cy.visit("/orders");
+  it("adds a menu item with a note to the cart on the Restaurants page", () => {
+    cy.visit("/restaurants");
 
-    // Select restaurant
-    cy.get("#restaurantSelect").select("Taste of Italy");
+    // Open the restaurant's menu
+    cy.contains(".accordion-header", "Taste of Italy").click();
 
-    // Menu item selector should be enabled and populated
-    cy.get("#itemSelect").should("not.be.disabled");
-    cy.get("#itemSelect").select("1");
+    cy.contains(".menu-item", "Margherita Pizza").within(() => {
+      cy.get(".note-input").type("Please deliver with extra crushed red pepper");
+      cy.get('input[type="number"]').clear().type("2");
+      cy.contains("button", "Add").click();
+    });
 
-    // Set quantity
-    cy.get("#qtyInput").clear().type("2");
-
-    // Add note
-    cy.get("#notes").type("Please deliver with extra crushed red pepper");
-
-    // Add to order
-    cy.get("#addBtn").click();
-
-    // Verify item is present in cart table
-    cy.get("#cartTable, #cartSection").should("contain.text", "Margherita Pizza");
+    // The cart shows the item and its note
+    cy.get("#cartSection").should("contain.text", "Margherita Pizza");
+    cy.get("#cartSection").should("contain.text", "Note: Please deliver with extra crushed red pepper");
   });
 
-  it("successfully places an order via POST /order API and verifies it in profile", () => {
+  it("successfully places an order via POST /order API and verifies it in My Orders", () => {
     const today = new Date().toISOString().split("T")[0];
 
     cy.request({
@@ -52,8 +46,9 @@ describe("Order Workflow", () => {
 
       const newOrderId = response.body.ord_id;
 
-      // Visit profile to verify newly placed order appears
-      cy.visit("/profile");
+      // My Orders lists the newly placed order
+      cy.visit(`/orders?ordered=${newOrderId}`);
+      cy.contains(`Order #${newOrderId} placed.`).should("be.visible");
       cy.contains("Taste of Italy").should("be.visible");
       cy.contains("Ordered").should("be.visible");
     });

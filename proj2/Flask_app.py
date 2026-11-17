@@ -775,7 +775,7 @@ def restaurant_login():
     Args:
         None
     Returns:
-        Response: Renders restaurant login page or redirects to dashboard on success.
+        Response: Renders restaurant login page or redirects to the Orders page on success.
     """
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
@@ -797,7 +797,7 @@ def restaurant_login():
             session.permanent = True
             app.permanent_session_lifetime = timedelta(minutes=30)
 
-            return redirect(url_for("restaurant_dashboard"))
+            return redirect(url_for("restaurant_orders"))
 
         return render_template("restaurant_login.html", error="Invalid credentials")
 
@@ -824,65 +824,46 @@ def restaurant_logout():
 @restaurant_required
 def restaurant_dashboard():
     """
-    Main dashboard landing page with module cards.
-    Args:
-        None
+    Old landing page for owners, kept so saved links still work.
+    Owners now land on the Orders page; the banner's tabs reach Analytics and Reviews.
     Returns:
-        Response: Renders restaurant dashboard home with quick stats.
+        Response: Redirect to the Orders page.
     """
+    return redirect(url_for("restaurant_orders"))
+
+
+# Order statuses still in progress, counted on the banner's Orders tab
+ACTIVE_ORDER_STATUSES = ("Ordered", "Accepted", "Preparing", "Ready")
+
+
+@app.context_processor
+def inject_owner_nav():
+    """
+    Give the owner banner (templates/_owner_header.html) its tab notes: how many
+    orders are in progress and the restaurant's review rating.
+    Returns:
+        dict: {"owner_nav": {...}} on restaurant-owner pages, else {"owner_nav": None}.
+    """
+    if not session.get("restaurant_mode") or not session.get("rtr_id"):
+        return {"owner_nav": None}
+    if request.endpoint not in ("restaurant_orders", "restaurant_analytics", "restaurant_owner_reviews"):
+        return {"owner_nav": None}
     rtr_id = session.get("rtr_id")
-    restaurant_name = session.get("RestaurantName", "Restaurant")
-    restaurant_email = session.get("RestaurantEmail", "")
-
-    # Get quick stats for dashboard cards
     conn = get_db()
-    orders = fetch_all(
+    marks = ",".join("?" for _ in ACTIVE_ORDER_STATUSES)
+    active = fetch_one(
         conn,
-        """
-        SELECT status FROM "Order"
-        WHERE rtr_id = ?
-    """,
-        (rtr_id,),
+        f'SELECT COUNT(*) FROM "Order" WHERE rtr_id = ? AND status IN ({marks})',
+        (rtr_id, *ACTIVE_ORDER_STATUSES),
     )
-        
-    # Get review stats
-    review_stats = fetch_one(
-        conn,
-        """
-        SELECT COUNT(*), AVG(rating)
-        FROM "Review"
-        WHERE rtr_id = ?
-        """,
-        (rtr_id,),
-    )
-
-    # Calculate status counts for badge
-    status_counts = {
-        "Ordered": 0,
-        "Accepted": 0,
-        "Preparing": 0,
-        "Ready": 0,
-        "Delivered": 0,
-        "Cancelled": 0,
+    stats = fetch_one(conn, 'SELECT COUNT(*), AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,))
+    return {
+        "owner_nav": {
+            "active_orders": active[0] if active else 0,
+            "total_reviews": stats[0] if stats else 0,
+            "average_rating": float(stats[1]) if stats and stats[1] else 0.0,
+        }
     }
-
-    for (status,) in orders:
-        if status in status_counts:
-            status_counts[status] += 1
-    
-    # Review stats
-    total_reviews = review_stats[0] if review_stats else 0
-    average_rating = float(review_stats[1]) if review_stats and review_stats[1] else 0.0
-
-    return render_template(
-        "restaurant_dashboard_home.html",
-        restaurant_name=restaurant_name,
-        restaurant_email=restaurant_email,
-        status_counts=status_counts,
-        total_reviews=total_reviews,
-        average_rating=average_rating,
-        rtr_id=rtr_id,
-    )
 
 
 @app.route("/restaurant/orders")
@@ -1205,6 +1186,7 @@ def restaurant_analytics():
     return render_template(
         "restaurant_analytics.html",
         restaurant_name=restaurant_name,
+        restaurant_email=session.get("RestaurantEmail", ""),
         total_orders=total_orders,
         total_revenue=total_revenue,
         avg_order_value=avg_order_value,
@@ -1456,7 +1438,7 @@ def register():
 @app.route("/profile")
 def profile():
     """
-    Show the logged-in user's profile, including recent orders.
+    Show the logged-in user's account: details, allergies, preferences and password.
     Args:
         None
     Returns:
@@ -1470,25 +1452,6 @@ def profile():
     email = session.get("Email")
     if not email:
         return redirect(url_for("logout"))
-
-    import json
-    from datetime import datetime
-
-    def _fmt_date(iso_str: str) -> str:
-        if not iso_str:
-            return ""
-        try:
-            # Handles "2025-10-18T18:22:00-04:00" style strings
-            dt = datetime.fromisoformat(iso_str)
-            return dt.strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            return iso_str  # if it’s not ISO, show raw
-
-    def _fmt_total(val) -> str:
-        try:
-            return f"${float(val):.2f}"
-        except Exception:
-            return ""
 
     conn = get_db()
     row = fetch_one(
@@ -1513,59 +1476,11 @@ def profile():
 
     session["usr_id"] = user["usr_id"]
 
-    # Pull orders for this user; details is JSON we will parse
-    order_rows = fetch_all(
-        conn,
-        """
-        SELECT o.ord_id, o.details, o.status, r.name
-        FROM "Order" o
-        JOIN "Restaurant" r ON o.rtr_id = r.rtr_id
-        WHERE o.usr_id = ?
-        ORDER BY o.ord_id DESC
-        """,
-        (user["usr_id"],),
-    )
-
-    orders = []
-    for ord_id, details, status, r_name in order_rows:
-        placed = ""
-        total = ""
-        if details:
-            try:
-                j = json.loads(details)
-                placed = _fmt_date(j.get("placed_at") or j.get("time"))
-                charges = j.get("charges") or {}
-                total_val = (
-                    charges.get("total") or charges.get("grand_total") or charges.get("amount")
-                )
-                total = _fmt_total(total_val) if total_val is not None else ""
-            except Exception:
-                pass
-
-        # Check if this order has a review
-        has_review = fetch_one(
-            conn,
-            'SELECT 1 FROM "Review" WHERE ord_id = ?',
-            (ord_id,),
-        ) is not None
-
-        orders.append(
-            {
-                "id": ord_id,
-                "date": placed,
-                "status": status or "",
-                "progress": order_progress(status),
-                "restaurant": r_name,
-                "total": total,
-                "has_review": has_review,
-            }
-        )
-
     pw_updated = request.args.get("pw_updated")
     pw_error = request.args.get("pw_error")
 
     return render_template(
-        "profile.html", user=user, orders=orders, pw_updated=pw_updated, pw_error=pw_error,
+        "profile.html", user=user, pw_updated=pw_updated, pw_error=pw_error,
     )
 
 
@@ -1573,11 +1488,12 @@ def profile():
 @app.route("/profile/edit", methods=["GET", "POST"])
 def edit_profile():
     """
-    Display and process the profile edit form (phone, preferences, allergies).
+    Save the Profile page's edit pop-up (phone, preferences, allergies).
     Args:
         None
     Returns:
-        Response: Renders form (GET) or updates and redirects to profile (POST).
+        Response: Redirect to the profile after saving (POST), or to the profile with
+        the pop-up open (GET, for old links to the separate edit page).
     """
     if session.get("Username") is None:
         return redirect(url_for("login"))
@@ -1610,10 +1526,7 @@ def edit_profile():
         "allergies": row[7] or "",
     }
 
-    # For now just render an edit form (you can build edit_profile.html)
     if request.method == "POST":
-        # You’ll expand this with update logic later
-        # Example: update phone, preferences, allergies
         new_phone = request.form.get("phone") or user["phone"]
         new_prefs = request.form.get("preferences") or user["preferences"]
         new_allergies = request.form.get("allergies") or user["allergies"]
@@ -1636,7 +1549,7 @@ def edit_profile():
 
         return redirect(url_for("profile"))
 
-    return render_template("edit_profile.html", user=user)
+    return redirect(url_for("profile", _anchor="edit"))
 
 
 @app.route("/profile/change-password", methods=["POST"])
@@ -1705,14 +1618,43 @@ def change_password():
 # ==================== Review Routes ====================
 
 
+def user_review(conn, ord_id, usr_id):
+    """
+    The user's review of one order, with the restaurant's name.
+    Args:
+        conn: Open database connection.
+        ord_id (int): The order ID.
+        usr_id (int): The reviewing user.
+    Returns:
+        dict | None: The review's fields, or None if the user has not reviewed it.
+    """
+    row = fetch_one(
+        conn,
+        """
+        SELECT r.rev_id, r.rtr_id, r.ord_id, r.title, r.rating, r.description, r.created_at,
+               rest.name
+        FROM "Review" r
+        JOIN "Restaurant" rest ON r.rtr_id = rest.rtr_id
+        WHERE r.ord_id = ? AND r.usr_id = ?
+        """,
+        (ord_id, usr_id),
+    )
+    if not row:
+        return None
+    keys = ("rev_id", "rtr_id", "ord_id", "title", "rating", "description", "created_at",
+            "restaurant_name")
+    return dict(zip(keys, row))
+
+
 @app.route("/order/<int:ord_id>/review", methods=["GET", "POST"])
 def review_order(ord_id):
     """
-    Display review form (GET) or submit a new review (POST) for a delivered order.
+    The review page for one order: the form until the order is reviewed, then the review.
     Args:
-        ord_id (int): The order ID to review.
+        ord_id (int): The order ID.
     Returns:
-        Response: Review form HTML (GET) or redirect to profile (POST).
+        Response: The form or the written review (GET), or a redirect back to this
+        page once a review is saved (POST).
     """
     # Must be logged in
     if session.get("Username") is None:
@@ -1736,20 +1678,22 @@ def review_order(ord_id):
     )
 
     if not order_row:
-        return redirect(url_for("profile"))
+        return redirect(url_for("orders"))
 
     ord_id_db, rtr_id, details, status, r_name = order_row
 
+    # Already reviewed: show the review (a second POST changes nothing)
+    review = user_review(conn, ord_id, usr_id)
+    if review:
+        if request.method == "POST":
+            return redirect(url_for("review_order", ord_id=ord_id))
+        return render_template("review.html", review=review)
+    if fetch_one(conn, 'SELECT 1 FROM "Review" WHERE ord_id = ?', (ord_id,)):
+        return redirect(url_for("orders"))
+
     # Must be delivered to review
     if status.lower() != "delivered":
-        return redirect(url_for("profile"))
-
-    # Check if review already exists
-    existing_review = fetch_one(
-        conn, 'SELECT 1 FROM "Review" WHERE ord_id = ?', (ord_id,)
-    )
-    if existing_review:
-        return redirect(url_for("view_review", ord_id=ord_id))
+        return redirect(url_for("orders"))
 
     # Parse order details for display
     items = []
@@ -1796,14 +1740,14 @@ def review_order(ord_id):
 
         # Validate rating
         if not rating:
-            return render_template("review_form.html", order=order, error="Please select a rating")
+            return render_template("review.html", order=order, error="Please select a rating")
 
         try:
             rating_int = int(rating)
             if rating_int < 1 or rating_int > 5:
                 raise ValueError
         except ValueError:
-            return render_template("review_form.html", order=order, error="Invalid rating value")
+            return render_template("review.html", order=order, error="Invalid rating value")
 
         # Insert review
         created_at = datetime.now().isoformat()
@@ -1816,60 +1760,23 @@ def review_order(ord_id):
             (rtr_id, usr_id, title, rating_int, description, ord_id, created_at),
         )
 
-        return redirect(url_for("profile"))
+        return redirect(url_for("review_order", ord_id=ord_id))
 
     # GET - Show form
-    return render_template("review_form.html", order=order)
+    return render_template("review.html", order=order)
 
 
 
 @app.route("/order/<int:ord_id>/review/view")
 def view_review(ord_id):
     """
-    View an existing review for an order.
+    Old address of a written review, kept so saved links still work.
     Args:
         ord_id (int): The order ID.
     Returns:
-        Response: Renders the user's individual review.
+        Response: Redirect to the order's review page.
     """
-    # Must be logged in
-    if session.get("Username") is None:
-        return redirect(url_for("login"))
-
-    usr_id = session.get("usr_id")
-    if not usr_id:
-        return redirect(url_for("logout"))
-
-    conn = get_db()
-    # Get review details with restaurant info
-    review_row = fetch_one(
-        conn,
-        """
-        SELECT r.rev_id, r.rtr_id, r.ord_id, r.title, r.rating, r.description, r.created_at,
-               rest.name as restaurant_name
-        FROM "Review" r
-        JOIN "Restaurant" rest ON r.rtr_id = rest.rtr_id
-        WHERE r.ord_id = ? AND r.usr_id = ?
-        """,
-        (ord_id, usr_id),
-    )
-
-    if not review_row:
-        return redirect(url_for("profile"))
-
-    review = {
-        "rev_id": review_row[0],
-        "rtr_id": review_row[1],
-        "ord_id": review_row[2],
-        "title": review_row[3],
-        "rating": review_row[4],
-        "description": review_row[5],
-        "created_at": review_row[6],
-        "restaurant_name": review_row[7],
-    }
-
-    return render_template("view_review.html", review=review)
-
+    return redirect(url_for("review_order", ord_id=ord_id))
 
 
 @app.route("/restaurant/<int:rtr_id>/reviews")
@@ -2139,7 +2046,7 @@ def order():
     # Expect query: itm_id, qty, notes, delivery, tip, eta, date, meal
     itm_id = int(request.args.get("itm_id") or 0)
     if itm_id <= 0:
-        return redirect(url_for("orders"))
+        return redirect(url_for("restaurants"))
 
     try:
         qty = max(1, int(request.args.get("qty", "1")))
@@ -2220,85 +2127,95 @@ def order():
         (rtr_id, usr_id, json.dumps(details), "Ordered"),
     ).lastrowid
 
-    return redirect(url_for("profile") + (f"?ordered={new_ord_id}" if new_ord_id else ""))
+    return redirect(url_for("orders", ordered=new_ord_id) if new_ord_id else url_for("orders"))
 
 
 # Orders route
+def _order_date(iso_str: str) -> str:
+    """Show an order's ISO timestamp as "YYYY-MM-DD HH:MM" (or as stored, if not ISO)."""
+    if not iso_str:
+        return ""
+    try:
+        return datetime.fromisoformat(iso_str).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return iso_str
+
+
+def user_orders(conn, usr_id):
+    """
+    The user's orders, newest first, as the My Orders page shows them.
+    Args:
+        conn: Open database connection.
+        usr_id (int): The customer.
+    Returns:
+        list[dict]: id, date, status, progress, restaurant, total and has_review per order.
+    """
+    rows = fetch_all(
+        conn,
+        """
+        SELECT o.ord_id, o.details, o.status, r.name,
+               EXISTS (SELECT 1 FROM "Review" v WHERE v.ord_id = o.ord_id)
+        FROM "Order" o
+        JOIN "Restaurant" r ON o.rtr_id = r.rtr_id
+        WHERE o.usr_id = ?
+        ORDER BY o.ord_id DESC
+        """,
+        (usr_id,),
+    )
+    orders = []
+    for ord_id, details, status, r_name, has_review in rows:
+        placed = ""
+        total = ""
+        if details:
+            try:
+                j = json.loads(details)
+                placed = _order_date(j.get("placed_at") or j.get("time"))
+                charges = j.get("charges") or {}
+                total_val = (
+                    charges.get("total") or charges.get("grand_total") or charges.get("amount")
+                )
+                if total_val is not None:
+                    total = f"${float(total_val):.2f}"
+            except Exception:
+                pass
+        orders.append(
+            {
+                "id": ord_id,
+                "date": placed,
+                "status": status or "",
+                "progress": order_progress(status),
+                "restaurant": r_name,
+                "total": total,
+                "has_review": bool(has_review),
+            }
+        )
+    return orders
+
+
 @app.route("/orders")
 def orders():
     """
-    List restaurants and in-stock menu items for browsing.
+    My Orders: the user's orders with their progress, receipts, totals and reviews.
+    Browsing menus and the cart live on the Restaurants page.
     Args:
         None
     Returns:
-        Response: HTML page showing restaurants and items (requires login).
+        Response: HTML page listing the user's orders (requires login).
     """
     if session.get("Username") is None:
         return redirect(url_for("login"))
+    email = session.get("Email")
+    if not email:
+        return redirect(url_for("logout"))
 
     conn = get_db()
-    # Pull address fields too
-    restaurants = fetch_all(
-        conn, 'SELECT rtr_id, name, address, city, state, zip FROM "Restaurant"'
-    )
-    menu_items = fetch_all(
-        conn,
-        """
-        SELECT itm_id, rtr_id, name, price, calories, allergens, description
-        FROM "MenuItem"
-        WHERE instock IS NULL OR instock = 1
-    """,
-    )
+    row = fetch_one(conn, 'SELECT usr_id FROM "User" WHERE email = ?', (email,))
+    if not row:
+        return redirect(url_for("logout"))
+    session["usr_id"] = row[0]
 
-    def _addr(a, c, s, z) -> str:
-        """
-        Safely join address parts that might be None/ints.
-        Args:
-            a (Any): Street address.
-            c (Any): City.
-            s (Any): State/region.
-            z (Any): Zip/postal code.
-        Returns:
-            str: A single formatted address string.
-        """
-        parts_raw = [a, c, s, z]
-        parts = []
-        for p in parts_raw:
-            if p is None:
-                continue
-            # Coerce to string and strip
-            sp = str(p).strip()
-            if sp:
-                parts.append(sp)
-        return ", ".join(parts)
-
-    rest_list = [
-        {
-            "rtr_id": r[0],
-            "name": r[1],
-            "address": r[2] or "",
-            "city": r[3] or "",
-            "state": r[4] or "",
-            "zip": r[5] if r[5] is not None else "",
-            "address_full": _addr(r[2], r[3], r[4], r[5]),
-        }
-        for r in restaurants
-    ]
-
-    item_list = [
-        {
-            "itm_id": m[0],
-            "rtr_id": m[1],
-            "name": m[2],
-            "price_cents": m[3] or 0,
-            "calories": m[4] or 0,
-            "allergens": m[5] or "",
-            "description": m[6] or "",
-        }
-        for m in menu_items
-    ]
-
-    return render_template("orders.html", restaurants=rest_list, items=item_list)
+    placed = request.args.get("ordered", type=int)
+    return render_template("orders.html", orders=user_orders(conn, row[0]), placed=placed)
 
 
 # Restaurants browse route

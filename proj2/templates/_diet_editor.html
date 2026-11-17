@@ -1,0 +1,163 @@
+{# Allergy checkboxes and preference bubbles, shared by Register and the Profile edit pop-up.
+   Include inside a <form> with:
+     {% with diet_allergies="Peanuts,Milk", diet_prefs="Vegan,Spicy" %}{% include "_diet_editor.html" %}{% endwith %}
+   It submits two comma-separated fields, "allergies" and "preferences". #}
+{% set chosen_allergies = [] %}
+{% for a in (diet_allergies or '').split(',') %}{% if a.strip() %}{% set _ = chosen_allergies.append(a.strip()|lower) %}{% endif %}{% endfor %}
+<div class="diet-editor">
+  <div class="diet-section">
+    <h3 class="section-title">Allergies</h3>
+    <p class="muted">Select any allergens that apply.</p>
+    <div class="allergen-grid" id="allergenGrid">
+      {% for a in ['Peanuts','Tree Nuts','Milk','Eggs','Wheat','Soy','Fish','Shellfish','Sesame','Gluten','Lactose','Sulphites'] %}
+      <label class="allergen">
+        <input type="checkbox" name="allergies[]" value="{{ a }}"{% if a|lower in chosen_allergies %} checked{% endif %}>
+        <span>{{ a }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="diet-section">
+    <h3 class="section-title">Preferences</h3>
+    <p class="muted">Tap bubbles to select, or search to add/filter.</p>
+    <div class="pref-toolbar">
+      <input class="input" id="prefSearch" type="search" placeholder="Search or add a preference… (press Enter)">
+      <button class="btn btn-outline" type="button" id="clearPrefsBtn">Clear</button>
+    </div>
+    <div class="bubbles" id="bubbles" data-existing="{{ diet_prefs or '' }}"></div>
+  </div>
+
+  <!-- Serialized for the server -->
+  <input type="hidden" name="allergies" id="allergiesField" value="">
+  <input type="hidden" name="preferences" id="preferencesField" value="">
+</div>
+
+<style>
+  .diet-editor .diet-section { margin-bottom: 20px; }
+  .diet-editor .section-title { margin: 0 0 6px; font-size: 18px; }
+  .diet-editor .muted { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  .diet-editor .allergen-grid { display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (min-width: 720px) { .diet-editor .allergen-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  .diet-editor .allergen { display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background: var(--surface); }
+  .diet-editor .pref-toolbar { display:flex; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .diet-editor .pref-toolbar .input { max-width: 380px; }
+  .diet-editor .bubbles { display:flex; flex-wrap:wrap; gap:12px; }
+  .diet-editor .bubble {
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:999px; border:2px solid var(--border);
+    background: color-mix(in srgb, var(--shade) 5%, transparent); color: var(--text);
+    padding: 8px 14px; cursor:pointer; user-select:none;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    opacity: .5;
+  }
+  .diet-editor .bubble:hover { transform: translateY(-1px); opacity: .7; }
+  .diet-editor .bubble.selected { border-color: currentColor; box-shadow: 0 0 6px currentColor; opacity: 1; }
+</style>
+
+<script>
+  (function () {
+    const DEFAULT_PREFS = [
+      'Vegan','Vegetarian','Keto','Paleo','Halal','Kosher','Low Sodium','High Protein',
+      'Dairy-Free','Gluten-Free','Spicy','Mild','Sweet','Savory','Quick Meals','Budget',
+      'Organic','Local','Seasonal','Meal Prep','Breakfast','Lunch','Dinner','Snacks',
+      'High Fiber','Low Carb','Low Fat','Sugar-Free','Nut-Free','Shellfish-Free','Soy-Free',
+      'Comfort Food','Exotic','Street Food','Fine Dining','Fast Food','Slow Cooked','Grilled',
+      'Baked','Fried','Raw','Sushi','Salads','Soups','Sandwiches','Wraps','Smoothies',
+      'Juicing','Energy Boost','Post-Workout','Pre-Workout','Family Friendly','Kid Friendly',
+      'Romantic','Entertaining','Travel Friendly','Picnic','Camping','Holiday Meals',
+      'Desserts','Cakes','Cookies','Pastries','Ice Cream','Chocolate','Coffee','Tea',
+      'Wine Pairing','Beer Pairing','Cocktails','Non-Alcoholic','Hydration','Low Caffeine'
+    ];
+
+    const bubblesEl = document.getElementById('bubbles');
+    const searchEl  = document.getElementById('prefSearch');
+    const clearBtn  = document.getElementById('clearPrefsBtn');
+    const prefsField = document.getElementById('preferencesField');
+    const allergiesField = document.getElementById('allergiesField');
+    const form = bubblesEl.closest('form');
+
+    // Readable on both light and dark themes (colour themes in static/style.css)
+    function randomColor() {
+      const h = Math.floor(Math.random()*360);
+      const s = 65 + Math.random()*25;
+      const light = getComputedStyle(document.documentElement).colorScheme === "light";
+      const l = (light ? 28 : 55) + Math.random()*15;
+      return `hsl(${h} ${s}% ${l}%)`;
+    }
+
+    const state = { all: new Map(), selected: new Set() };  // key -> { el, label }; selected keys
+    const keyOf = (label) => (label || '').toLowerCase().trim();
+
+    function syncFields() {
+      prefsField.value = Array.from(state.selected).map(k => state.all.get(k)?.label).filter(Boolean).join(',');
+      const checks = Array.from(form.querySelectorAll('input[name="allergies[]"]:checked')).map(i => i.value);
+      allergiesField.value = checks.join(',');
+    }
+
+    function select(key, on) {
+      const item = state.all.get(key);
+      if (on) state.selected.add(key); else state.selected.delete(key);
+      if (item) item.el.classList.toggle('selected', on);
+    }
+
+    function createBubble(label) {
+      const key = keyOf(label);
+      if (!key) return null;
+      if (state.all.has(key)) return state.all.get(key).el;
+      const color = randomColor();
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'bubble';
+      el.textContent = label;
+      el.style.borderColor = color;
+      el.style.color = color;  // currentColor for the glow
+      el.style.fontSize = Math.random() < 0.5 ? '14px' : '16px';
+      el.addEventListener('click', () => { select(key, !state.selected.has(key)); syncFields(); });
+      state.all.set(key, { el, label });
+      return el;
+    }
+
+    function renderList(labels) {
+      bubblesEl.replaceChildren();
+      labels.slice(0, 24).forEach(label => { const n = createBubble(label); if (n) bubblesEl.appendChild(n); });
+      for (const key of state.selected) state.all.get(key)?.el.classList.add('selected');
+    }
+
+    function filterList(q) {
+      const query = keyOf(q);
+      const labels = Array.from(state.all.values()).map(v => v.label);
+      renderList(query ? labels.filter(l => l.toLowerCase().includes(query)) : labels);
+    }
+
+    function addFromInput() {
+      searchEl.value.split(',').map(s => s.trim()).filter(Boolean).forEach(p => {
+        if (createBubble(p)) select(keyOf(p), true);
+      });
+      searchEl.value = '';
+      filterList('');
+      syncFields();
+    }
+
+    DEFAULT_PREFS.forEach(createBubble);
+    (bubblesEl.dataset.existing || '').split(',').map(s => s.trim()).filter(Boolean).forEach(label => {
+      if (createBubble(label)) select(keyOf(label), true);
+    });
+    // Chosen ones first, so they show without searching
+    const all = Array.from(state.all.values()).map(v => v.label);
+    renderList(all.filter(l => state.selected.has(keyOf(l))).concat(all.filter(l => !state.selected.has(keyOf(l)))));
+
+    searchEl.addEventListener('input', (e) => filterList(e.target.value));
+    searchEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFromInput(); } });
+    clearBtn.addEventListener('click', () => {
+      for (const key of Array.from(state.selected)) select(key, false);
+      searchEl.value = '';
+      filterList('');
+      syncFields();
+      searchEl.focus();
+    });
+    form.addEventListener('change', (e) => { if (e.target.name === 'allergies[]') syncFields(); });
+    form.addEventListener('submit', syncFields);
+    syncFields();
+  })();
+</script>

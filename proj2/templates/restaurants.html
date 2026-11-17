@@ -176,6 +176,12 @@
       font-weight: 600;
       transition: all 0.2s ease;
     }
+    .menu-item .note-input {
+      width: 150px; padding: 8px; border-radius: 8px;
+      background: var(--surface); color: var(--text);
+      border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+    }
+    @media (max-width: 640px) { .menu-item .add-controls { flex-wrap: wrap; } .menu-item .note-input { width: 100%; } }
     .menu-item input[type="number"]:focus {
       border-color: color-mix(in srgb, var(--primary) 50%, transparent);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
@@ -321,9 +327,9 @@
     <nav>
       <a href="{{ url_for('index') }}">Home</a>
       <a href="{{ url_for('insights') }}">Insights</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
       <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">Order</a>
+      <a href="{{ url_for('orders') }}">My Orders</a>
+      <a href="{{ url_for('profile') }}">Profile</a>
       {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
       <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
@@ -394,6 +400,7 @@
 
   // ---------- UI helpers ----------
   function showToast(msg){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1200); }
+  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function toMoney(n){ return Number.parseFloat(n).toFixed(2); }
   function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
   const ORDER_FEES = {{ order_fees|tojson }};  // from proj2/config.py via inject_order_fees
@@ -491,15 +498,18 @@
             <div class="right">
               <div class="price">$${toMoney((it.price_cents||0)/100)}</div>
               <div class="add-controls">
+                <input class="note-input" type="text" maxlength="200" placeholder="Note (optional)" aria-label="Note for ${esc(it.name)}">
                 <input type="number" min="1" step="1" value="1" aria-label="Quantity">
                 <button class="btn" type="button">Add</button>
               </div>
             </div>
           `;
-          const qtyEl = row.querySelector('input');
+          const qtyEl = row.querySelector('input[type="number"]');
+          const noteEl = row.querySelector('.note-input');
           row.querySelector('button').addEventListener('click', () => {
             const qty = Math.max(1, Number(qtyEl.value||1));
-            addToCart(r, it, qty, '');
+            addToCart(r, it, qty, (noteEl.value || '').trim());
+            noteEl.value = '';
           });
           content.appendChild(row);
         }
@@ -576,7 +586,7 @@
       showToast('Order placed!');
       const cart = readCart().filter(l => Number(l.restaurant_id) !== Number(rtrId));
       writeCart(cart);
-      window.location.href = "{{ url_for('profile') }}";
+      window.location.href = "{{ url_for('orders') }}" + (data && data.ord_id ? ('?ordered=' + data.ord_id) : '');
     } catch (e) {
       console.error(e);
       showToast('Could not place order');
@@ -642,7 +652,7 @@
         row.style.padding = '6px 0';
         row.style.borderBottom = '1px solid var(--border, #232638)';
         const left = document.createElement('div');
-        left.innerHTML = `<div><strong>${l.item.name}</strong> &nbsp; <span class=\"meta\">($${toMoney(l.item.unit_price)})</span></div>${l.notes ? `<div class=\"meta\" style=\"font-size:.9rem;\">Note: ${l.notes}</div>` : ''}`;
+        left.innerHTML = `<div><strong>${l.item.name}</strong> &nbsp; <span class=\"meta\">($${toMoney(l.item.unit_price)})</span></div>${l.notes ? `<div class=\"meta\" style=\"font-size:.9rem;\">Note: ${esc(l.notes)}</div>` : ''}`;
         const right = document.createElement('div');
         right.className = 'inline';
         right.innerHTML = `<input type=\"number\" min=\"1\" step=\"1\" value=\"${l.qty||1}\" class=\"cart-input\" style=\"width:80px\" aria-label=\"Quantity\"><div style=\"width:90px; text-align:right;\">$${toMoney((l.qty||1)*Number(l.item.unit_price||0))}</div><button class=\"btn secondary\" type=\"button\" aria-label=\"Remove\">Remove</button>`;
