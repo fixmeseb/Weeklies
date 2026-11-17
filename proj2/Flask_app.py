@@ -514,6 +514,42 @@ def calendar_week_variety(conn, gen_str, year, month, items_by_id):
     return out
 
 
+def month_item_totals(gen_str, gen_map, year, month):
+    """
+    Item totals of every Monday–Sunday week that has a planned meal in a calendar month
+
+    Returns:
+        Tuple[dict, str | None]: (week start -> cents, error message or None)
+    """
+    try:
+        visible_weeks = sorted({
+            week_start(day) for day in gen_map
+            if day.startswith(f"{year:04d}-{month:02d}-")
+        })
+        visible_week_item_ids = {
+            item_id
+            for day, item_id, _ in plan_entries(gen_str)
+            if week_start(day) in visible_weeks
+        }
+        totals_by_item = fetch_menu_items_by_ids(sorted(visible_week_item_ids))
+        totals = weekly_item_totals(
+            gen_str,
+            {item: data["price"] for item, data in totals_by_item.items()},
+            visible_weeks,
+        )
+        return totals, None
+    except ValueError:
+        return {}, "Item totals are unavailable because a planned meal or its price is missing."
+
+
+def month_nav(year, month):
+    """(prev_year, prev_month, next_year, next_month) around a calendar month."""
+    cur = date(year, month, 15)
+    prev_m = (cur.replace(day=1) - timedelta(days=1)).replace(day=1)
+    next_m = (cur.replace(day=28) + timedelta(days=10)).replace(day=1)
+    return prev_m.year, prev_m.month, next_m.year, next_m.month
+
+
 @app.route("/", defaults={"year": None, "month": None})
 @app.route("/<int:year>/<int:month>")
 def index(year, month):
@@ -548,30 +584,6 @@ def index(year, month):
     all_item_ids = sorted({e["itm_id"] for entries in gen_map.values() for e in entries})
     items_by_id = fetch_menu_items_by_ids(all_item_ids)
 
-    # Show item totals for weeks represented in this calendar month.
-    item_totals = {}
-    item_total_error = None
-    try:
-        visible_weeks = sorted({
-            week_start(day) for day in gen_map
-            if day.startswith(f"{year:04d}-{month:02d}-")
-        })
-        visible_week_item_ids = {
-            item_id
-            for day, item_id, _ in plan_entries(gen_str)
-            if week_start(day) in visible_weeks
-        }
-        totals_by_item = fetch_menu_items_by_ids(sorted(visible_week_item_ids))
-        item_totals = weekly_item_totals(
-            gen_str,
-            {item: data["price"] for item, data in totals_by_item.items()},
-            visible_weeks,
-        )
-    except ValueError:
-        item_total_error = "Item totals are unavailable because a planned meal or its price is missing."
-
-    weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
-
     # Build cells for the month
     cells = build_calendar_cells(gen_map, year, month, items_by_id)
 
@@ -585,10 +597,7 @@ def index(year, month):
             # expose 'meal' and the full item dict to the template
             today_menu.append(type("TodayEntry", (), {"meal": e["meal"], "item": item}))
 
-    # prev/next month nav (unchanged)
-    cur = date(year, month, 15)
-    prev_m = (cur.replace(day=1) - timedelta(days=1)).replace(day=1)
-    next_m = (cur.replace(day=28) + timedelta(days=10)).replace(day=1)
+    prev_year, prev_month, next_year, next_month = month_nav(year, month)
 
     swap_notice = None
     if request.args.get("swapped"):
@@ -605,18 +614,62 @@ def index(year, month):
         month_name=calendar.month_name[month],
         month=month,
         year=year,
-        prev_month=prev_m.month,
-        prev_year=prev_m.year,
-        next_month=next_m.month,
-        next_year=next_m.year,
+        prev_month=prev_month,
+        prev_year=prev_year,
+        next_month=next_month,
+        next_year=next_year,
         calendar_cells=cells,
         today_year=today.year,
         today_month=today.month,
         today_day=today.day,
         today_menu=today_menu,
+        generation_error=session.pop("menu_generation_error", None),
+    )
+
+
+@app.route("/insights", defaults={"year": None, "month": None})
+@app.route("/insights/<int:year>/<int:month>")
+def insights(year, month):
+    """
+    The Insights tab: item totals and variety of the weeks planned in a month.
+    Args:
+        year (int | None): Optional year path parameter.
+        month (int | None): Optional month path parameter (1–12).
+    Returns:
+        Response: HTML page (requires login).
+    """
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
+    today = date.today()
+    if not year or not month:
+        year, month = today.year, today.month
+    if not 1 <= month <= 12:
+        abort(404)
+
+    conn = get_db()
+    user = fetch_one(
+        conn, 'SELECT generated_menu FROM "User" WHERE email = ?', (session.get("Email"),)
+    )
+    if not user:
+        return redirect(url_for("logout"))
+    gen_str = user["generated_menu"] or ""
+    gen_map = parse_generated_menu(gen_str)
+    item_ids = sorted({e["itm_id"] for entries in gen_map.values() for e in entries})
+    items_by_id = fetch_menu_items_by_ids(item_ids)
+    item_totals, item_total_error = month_item_totals(gen_str, gen_map, year, month)
+    prev_year, prev_month, next_year, next_month = month_nav(year, month)
+    return render_template(
+        "insights.html",
+        month_name=calendar.month_name[month],
+        year=year,
+        month=month,
+        prev_year=prev_year,
+        prev_month=prev_month,
+        next_year=next_year,
+        next_month=next_month,
         weekly_item_totals=item_totals,
         item_total_error=item_total_error,
-        weekly_variety=weekly_variety,
+        weekly_variety=calendar_week_variety(conn, gen_str, year, month, items_by_id),
     )
 
 
@@ -1513,7 +1566,6 @@ def profile():
 
     return render_template(
         "profile.html", user=user, orders=orders, pw_updated=pw_updated, pw_error=pw_error,
-        generation_error=session.pop("menu_generation_error", None),
     )
 
 
@@ -2544,7 +2596,7 @@ def generate_menu():
         if want_json:
             return jsonify({"ok": False, "error": message}), status
         session['menu_generation_error'] = message
-        return redirect(url_for('profile'))
+        return redirect(url_for('index', _anchor='new-plan'))
 
     try:
         cap_value = payload.get('weekly_cap') if request.is_json else request.form.get('weekly_cap')

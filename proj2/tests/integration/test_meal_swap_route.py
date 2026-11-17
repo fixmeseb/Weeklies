@@ -6,6 +6,7 @@ expected plan contents are known exactly.
 """
 
 import json
+import re
 import uuid
 
 import pytest
@@ -322,7 +323,9 @@ def test_calendar_unknown_error_code_is_generic(logged_in, plan):
 
 def test_calendar_without_swap_params_has_no_banner(logged_in, plan):
     html = logged_in.get("/2025/11").get_data(as_text=True)
-    assert 'class="flash' not in html
+    # The generate form's error box is always there, but hidden until it has an error
+    shown = [tag for tag in re.findall(r'<div[^>]*class="flash[^>]*>', html) if " hidden" not in tag]
+    assert shown == []
 
 
 # ---- Variety ----
@@ -338,8 +341,8 @@ def test_options_are_ranked_by_variety(logged_in, plan):
         assert order.index(plan["ids"]["safe"]) < order.index(plan["ids"][repeat])
 
 
-def test_calendar_shows_weekly_variety(logged_in, plan):
-    html = logged_in.get("/2025/11").get_data(as_text=True)
+def test_insights_show_weekly_variety(logged_in, plan):
+    html = logged_in.get("/insights/2025/11").get_data(as_text=True)
     card = html.split('aria-label="Plan variety"')[1].split("</section>")[0]
     assert "2025-11-03" in card
     # Four different dishes from one restaurant, with no other tags: 60% varied
@@ -351,3 +354,37 @@ def test_calendar_shows_readable_hours(logged_in, plan):
     html = logged_in.get("/2025/11").get_data(as_text=True)
     assert "Daily 8 am–10 pm" in html
     assert '{"Mon"' not in html
+
+
+def test_insights_tab_holds_the_weekly_cards(logged_in, plan):
+    html = logged_in.get("/insights/2025/11").get_data(as_text=True)
+    assert "Plan Insights" in html
+    assert 'aria-label="Weekly item totals"' in html and 'aria-label="Plan variety"' in html
+    assert "<td>2025-11-03</td><td>$40.00</td>" in html
+    assert 'href="/insights/2025/10"' in html and 'href="/insights/2025/12"' in html
+    assert 'href="/2025/11"' in html  # back to the same month on the calendar
+
+
+def test_calendar_no_longer_shows_the_weekly_cards(logged_in, plan):
+    html = logged_in.get("/2025/11").get_data(as_text=True)
+    assert 'aria-label="Weekly item totals"' not in html
+    assert 'aria-label="Plan variety"' not in html
+    assert '<a href="/insights">Insights</a>' in html
+
+
+def test_generate_form_sits_below_the_calendar(logged_in, plan):
+    html = logged_in.get("/2025/11").get_data(as_text=True)
+    assert html.index('class="cal-grid"') < html.index('id="new-plan"')
+    form = html.split('id="new-plan"')[1]
+    assert 'action="/menu/generate"' in form and 'name="weekly_cap"' in form
+    profile = logged_in.get("/profile").get_data(as_text=True)
+    assert 'action="/menu/generate"' not in profile
+    assert "Generate Meal Plan" not in profile
+
+
+def test_insights_needs_login_and_a_real_month(client, logged_in, plan):
+    assert logged_in.get("/insights/2025/13").status_code == 404
+    assert logged_in.get("/insights").status_code == 200
+    logged_in.get("/logout")
+    response = client.get("/insights")
+    assert response.status_code == 302 and "/login" in response.headers["Location"]

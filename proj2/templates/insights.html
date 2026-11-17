@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insights · Weeklies</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <nav>
+      <a href="{{ url_for('index') }}">Home</a>
+      <a href="{{ url_for('insights') }}">Insights</a>
+      <a href="{{ url_for('profile') }}">Profile</a>
+      <a href="{{ url_for('restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('orders') }}">Order</a>
+      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+    </nav>
+  </div>
+</header>
+
+<main class="main">
+  <div class="container">
+    <div class="page-title" style="align-items:center; justify-content:space-between;">
+      <h1 class="mb-0">Plan Insights</h1>
+      <div class="btnrow">
+        <a class="btn" href="{{ url_for('insights', year=prev_year, month=prev_month) }}">&larr; Prev</a>
+        <a class="btn btn-outline" href="{{ url_for('insights') }}">This month</a>
+        <a class="btn" href="{{ url_for('insights', year=next_year, month=next_month) }}">Next &rarr;</a>
+      </div>
+    </div>
+    <p class="muted">The weeks planned in <strong>{{ month_name }} {{ year }}</strong>.
+      <a href="{{ url_for('index', year=year, month=month) }}">See them on the calendar</a>.</p>
+
+    <section class="card" aria-label="Weekly item totals" style="margin-bottom: 20px;">
+      <div class="card-body">
+        <h2>Weekly item totals</h2>
+        <p class="muted">Monday–Sunday, including planned meals outside the displayed month.
+          One serving per meal. Taxes, delivery fees, and tips are extra.</p>
+        {% if item_total_error %}
+          <p class="flash danger">{{ item_total_error }}</p>
+        {% elif weekly_item_totals %}
+          <table class="table">
+            <thead><tr><th scope="col">Week starting</th><th scope="col">Item total</th></tr></thead>
+            <tbody>
+              {% for week, cents in weekly_item_totals.items() %}
+                <tr><td>{{ week }}</td><td>${{ '%.2f'|format(cents / 100) }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">Generate a meal plan to see its weekly item totals.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card" aria-label="Plan variety" style="margin-bottom: 20px;">
+      <div class="card-body">
+        <h2>Plan variety</h2>
+        <p class="muted">How different each week's meals are from each other, from 0% (the same
+          meal every time) to 100%. Meals close together in time count the most.</p>
+        {% if weekly_variety %}
+          <table class="table">
+            <thead><tr><th scope="col">Week starting</th><th scope="col">Variety</th>
+              <th scope="col">Most similar nearby meals</th></tr></thead>
+            <tbody>
+              {% for week, info in weekly_variety.items() %}
+                <tr>
+                  <td>{{ week }}</td>
+                  <td>{% if info.score is not none %}{{ info.score }}%{% else %}&mdash;{% endif %}</td>
+                  <td>{% if info.similar %}{{ info.similar | join('<br>' | safe) }}{% else %}&mdash;{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">Generate a meal plan to see how varied it is.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">© 2026 Weeklies</div>
+</footer>
+</body>
+</html>
