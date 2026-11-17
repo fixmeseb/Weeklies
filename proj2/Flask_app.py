@@ -13,7 +13,7 @@ from datetime import timedelta, date, datetime
 from functools import wraps
 from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
-from proj2 import variety
+from proj2 import almanac, variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
@@ -584,6 +584,16 @@ def index(year, month):
     all_item_ids = sorted({e["itm_id"] for entries in gen_map.values() for e in entries})
     items_by_id = fetch_menu_items_by_ids(all_item_ids)
 
+    weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
+    # The same weeks drawn as almanac pages, for the "Seed Catalog & Almanac" style
+    almanac_weeks = (
+        almanac.build_weeks(
+            plan_entries(gen_str), items_by_id, variety.catalog_rows(conn), weekly_variety
+        )
+        if weekly_variety
+        else []
+    )
+
     # Build cells for the month
     cells = build_calendar_cells(gen_map, year, month, items_by_id)
 
@@ -624,6 +634,7 @@ def index(year, month):
         today_day=today.day,
         today_menu=today_menu,
         generation_error=session.pop("menu_generation_error", None),
+        almanac_weeks=almanac_weeks,
     )
 
 
