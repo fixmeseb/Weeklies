@@ -38,17 +38,30 @@ ALLERGEN_ALIASES = {
     "soybeans": "soy",
 }
 
+## A broad allergen and the specific ones it includes. The relation runs both ways: a
+## user allergic to gluten must avoid items listing wheat, and a user allergic to
+## wheat must avoid items listing only "gluten", since that item may be wheat.
+## Pairs do not chain: barley and wheat share "gluten" but do not rule each other out.
+_INCLUDES = {
+    "gluten": {"wheat", "barley", "rye"},
+    "shellfish": {"crustaceans", "shrimp", "crab", "lobster", "mollusks"},
+    "crustaceans": {"shrimp", "crab", "lobster"},
+    "nuts": {"peanuts", "tree-nuts"},
+}
+
+
+def _both_ways(includes: dict) -> dict:
+    covers = {}
+    for broad, members in includes.items():
+        for member in members:
+            covers.setdefault(broad, set()).add(member)
+            covers.setdefault(member, set()).add(broad)
+    return covers
+
+
 ## A user allergic to the key must also avoid items listing any of these, because
 ## those items contain (or, for a vague label, may contain) the allergen.
-ALLERGY_COVERS = {
-    "gluten": {"wheat", "barley", "rye"},
-    "wheat": {"gluten"},
-    "shellfish": {"crustaceans", "shrimp", "crab", "lobster", "mollusks"},
-    "crustaceans": {"shellfish", "shrimp", "crab", "lobster"},
-    "nuts": {"peanuts", "tree-nuts"},
-    "tree-nuts": {"nuts"},
-    "peanuts": {"nuts"},
-}
+ALLERGY_COVERS = _both_ways(_INCLUDES)
 
 
 def normalize_allergen(value) -> str:

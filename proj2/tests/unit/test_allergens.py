@@ -59,6 +59,13 @@ def test_parse_allergens_drops_placeholders_and_merges_spellings():
         ("Wheat", "gluten"),  # a "gluten" label may be wheat: fail closed
         ("Shellfish", "shrimp"),
         ("Peanuts", "nuts"),  # a vague "nuts" label may be peanuts
+        # A specific allergy also rules out the broad label that may hide it
+        ("Barley", "gluten"),
+        ("Rye", "gluten"),
+        ("Shrimp", "shellfish"),
+        ("Crab", "shellfish"),
+        ("Mollusks", "shellfish"),
+        ("Lobster", "crustaceans"),
     ],
 )
 def test_allergy_rules_out_every_spelling_and_covered_allergen(allergy, item_allergens):
@@ -77,7 +84,16 @@ def test_allergy_rules_out_every_spelling_and_covered_allergen(allergy, item_all
 
 @pytest.mark.parametrize(
     "allergy, item_allergens",
-    [("Fish", "shellfish"), ("Shellfish", "fish"), ("Gluten", "soy"), ("Milk", "eggs")],
+    [
+        ("Fish", "shellfish"),
+        ("Shellfish", "fish"),
+        ("Gluten", "soy"),
+        ("Milk", "eggs"),
+        # Siblings under one broad label do not rule each other out
+        ("Barley", "wheat"),
+        ("Peanuts", "tree nuts"),
+        ("Mollusks", "shrimp"),
+    ],
 )
 def test_unrelated_allergens_do_not_conflict(allergy, item_allergens):
     assert not allergen_conflicts(item_allergens, allergy)
