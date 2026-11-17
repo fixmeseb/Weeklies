@@ -1,10 +1,14 @@
 # How good is the variety planner?
 
 `MenuGenerator.update_menu` fills each slot with the best-scoring candidate next to what is
-already planned, then makes one improvement pass. That is a heuristic. It is fast and it is
-deterministic, but nothing in the repository said how close its weeks are to the best week
-that was actually available, and a heuristic nobody has measured is a heuristic nobody can
-defend in a review.
+already planned, then improves it. That is a heuristic. It is fast and it is deterministic,
+but nothing in the repository said how close its weeks are to the best week that was
+actually available, and a heuristic nobody has measured is a heuristic nobody can defend in
+a review.
+
+Measuring it turned out to be worth the trouble: the planner was losing 4% of its variety
+*and* several dollars a week to one arbitrary first pick. Both are fixed below, and the
+harness is what proves it.
 
 [`scripts/eval_optimality.py`](../../scripts/eval_optimality.py) measures it: for each
 scenario it runs the real planner, then solves the same week exactly with CP-SAT over the
@@ -34,31 +38,57 @@ model, so the true optimum never sits below it.
 ## Results
 
 Demo catalog (11 restaurants, 76 tagged dishes), week of 2026-11-23, 90 s solver limit.
+"Before" is the planner as it was: one greedy pass plus a single improvement pass.
 
-| scenario | slots | greedy | optimum | gap | proven |
-|---|---|---|---|---|---|
-| dinners, 3 days | 3 | 0.9286 | 0.9667 | **0.0381** (4.1%) | yes |
-| dinners, 5 days | 5 | 0.9337 | 0.9402 | 0.0065 (0.7%) | yes |
-| dinners, 5d, vegetarian | 5 | 0.9127 | 0.9127 | 0.0001 | yes |
-| dinners, 5d, nut+dairy allergy | 5 | 0.9340 | 0.9402 | 0.0062 | yes |
-| all meals, 3 days | 9 | 0.9069 | ≤ 0.9733 | ≤ 0.0665 | bound only |
+| scenario | slots | before | after | optimum | gap now | proven |
+|---|---|---|---|---|---|---|
+| dinners, 3 days | 3 | 0.9286 | **0.9614** | 0.9667 | 0.0054 | yes |
+| dinners, 5 days | 5 | 0.9337 | **0.9402** | 0.9402 | 0.0001 | yes |
+| dinners, 5d, vegetarian | 5 | 0.9127 | 0.9127 | 0.9127 | 0.0001 | yes |
+| dinners, 5d, nut+dairy allergy | 5 | 0.9340 | **0.9402** | 0.9402 | 0.0001 | yes |
+| all meals, 3 days | 9 | 0.9069 | **0.9115** | ≤ 0.9682 | ≤ 0.0567 | bound only |
 
-**The better plan is also the cheaper plan**, every time it exists:
+Three of the four scenarios that solve to proven optimality now **sit on the optimum**
+(0.0001 is the integer scaling, not a real difference), and the worst proven shortfall
+fell from 4.1% to 0.6%.
 
-| scenario | planner | optimum | |
-|---|---|---|---|
-| dinners, 3 days | $40.27 | $33.97 | $6.30 cheaper **and** more varied |
-| dinners, 5 days | $64.95 | $56.45 | $8.50 cheaper **and** more varied |
-| dinners, 5d, nut+dairy allergy | $62.95 | $56.45 | $6.50 cheaper **and** more varied |
+### What the gap was
 
-That is the finding worth acting on. The planner's tie-break is `(-score, price, itm_id)`,
-so price only decides a tie — yet in every proven case there was a plan that was better on
-both axes at once. The shortfall is not the planner trading variety for thrift; it is
-myopia, and it costs the user money as well as variety.
+The first slot has nothing planned around it, so every candidate scored the same zero
+gain and the tie-break handed the slot to the cheapest item. That arbitrary pick shaped
+the rest of the week, and re-picking one slot at a time could not undo it: the plan was
+already a local optimum. Two changes, both in `proj2/menu_generation.py`:
 
-Where the pools are small the greedy is already optimal: the vegetarian week has 9
-candidates per slot and the gap is 0.0001. The gap opens up when there is more to choose
-from, which is the case the catalog is growing towards.
+- **Improve until nothing changes.** Re-picking a slot changes what its neighbours should
+  be, so one pass leaves stale picks behind. Each accepted move strictly raises that
+  slot's gain and leaves every pair not touching it alone, so the total rises monotonically
+  and the loop settles on its own.
+- **Restart from a spread of openings.** The whole fill-and-improve runs once per opening
+  for the first slot, sampled evenly across its candidates, and the best plan wins. The
+  default opening is tried first, so a restart can only improve on what the planner would
+  have produced anyway.
+
+### What it cost
+
+Planning a full week, 21 slots, went from about 30 ms to **0.94 s** — against a 5 s target,
+so there is headroom, but it is a real thirty-fold increase and worth knowing before the
+catalog grows much further.
+
+### What it exposed
+
+Measuring harder found a rule nobody had written down. With 10 items over 7 dinners, the
+improved search produced a plan that repeated one dish three days apart and *scored
+higher* for it: `closeness` has decayed to 0.16 at a nine-slot gap, so the objective barely
+penalises a distant repeat. The old planner avoided repeats by accident, not by rule, and
+`test_no_repeats_while_there_are_enough_different_meals` had been passing on that accident.
+
+So "do not repeat a meal while an unused one is available" is now an explicit rule in the
+ranking, ahead of the score, and the solver carries the same `AllDifferent` constraint so
+the comparison stays fair. When no all-different plan exists the harness drops the rule on
+both sides rather than calling the week impossible.
+
+This is the useful kind of result: a better optimiser is also a test of whether the
+objective says what the team meant.
 
 ## Running it
 
