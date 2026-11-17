@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architecture</title>
+<link rel="stylesheet" href="../assets/custom.css">
+</head><body class="pdoc"><main class="pdoc">
+<article><p>﻿# Architecture (Overview)</p>
+<ul>
+<li><strong>Framework</strong>: Flask  </li>
+<li><strong>Entrypoint</strong>: Flask_app.py  </li>
+<li><strong>Database</strong>: SQLite (<code>CSC510_DB.db</code>)</li>
+<li><strong>Database helpers</strong>: sqlQueries.py (use only provided helpers)  </li>
+<li><strong>Templates / Static</strong>: templates/, static/  </li>
+<li><strong>Meal planning</strong>: menu_generation.py (planner), plan_rules.py (shared rules), variety.py (variety score), meal_tags.py (tags)</li>
+</ul>
+<p>This document intentionally focuses on what's present today.</p>
+<hr />
+<h2>Database Schema</h2>
+<p>The application uses SQLite with 5 main tables. Current data: 103 users, 19 restaurants, 269 menu items, 17 orders, and 50 reviews.</p>
+<h3>1. User Table</h3>
+<p>Stores customer account information, preferences, and AI-generated meal plans.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>usr_id</code></td>
+<td>INTEGER</td>
+<td>PRIMARY KEY, AUTOINCREMENT, UNIQUE, NOT NULL</td>
+<td>Unique user identifier</td>
+</tr>
+<tr>
+<td><code>first_name</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>User's first name</td>
+</tr>
+<tr>
+<td><code>last_name</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>User's last name</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>TEXT</td>
+<td>UNIQUE, NOT NULL</td>
+<td>User's email (used for login)</td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td>TEXT</td>
+<td>UNIQUE, NOT NULL</td>
+<td>User's phone number</td>
+</tr>
+<tr>
+<td><code>password_HS</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Hashed password (scrypt format)</td>
+</tr>
+<tr>
+<td><code>wallet</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>User's wallet balance in <strong>cents</strong></td>
+</tr>
+<tr>
+<td><code>preferences</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Comma-separated food preferences (e.g., "vegetarian, spicy")</td>
+</tr>
+<tr>
+<td><code>allergies</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Comma-separated allergens to avoid</td>
+</tr>
+<tr>
+<td><code>generated_menu</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Serialized AI-generated meal plan: <code>[YYYY-MM-DD,itm_id,meal_number]</code> format</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Notes:</strong>
+- Wallet is stored in <strong>cents</strong> (e.g., 7816 = $78.16)
+- <code>generated_menu</code> format: <code>[2025-11-15,42,1],[2025-11-15,58,2]</code> where meal_number is 1=breakfast, 2=lunch, 3=dinner
+- Password uses scrypt hashing: <code>scrypt:32768:8:1$salt$hash</code></p>
+<p><strong>Sample Data:</strong></p>
+<pre><code>usr_id: 1
+name: Loralyn Kernermann
+email: lkernermann0@rambler.ru
+wallet: 7816 (= $78.16)
+preferences: &quot;adipiscing&quot;
+allergies: (empty)
+</code></pre>
+<hr />
+<h3>2. Restaurant Table</h3>
+<p>Stores restaurant information including authentication credentials and operating hours.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rtr_id</code></td>
+<td>INTEGER</td>
+<td>PRIMARY KEY, AUTOINCREMENT, UNIQUE, NOT NULL</td>
+<td>Unique restaurant identifier</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Restaurant name</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Restaurant description/bio</td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td>TEXT</td>
+<td>UNIQUE, NOT NULL</td>
+<td>Contact phone number</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>TEXT</td>
+<td>UNIQUE, NOT NULL</td>
+<td>Restaurant email (for login)</td>
+</tr>
+<tr>
+<td><code>password_HS</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Hashed password (scrypt format)</td>
+</tr>
+<tr>
+<td><code>address</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Street address</td>
+</tr>
+<tr>
+<td><code>city</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>City name</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>State abbreviation</td>
+</tr>
+<tr>
+<td><code>zip</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>ZIP code</td>
+</tr>
+<tr>
+<td><code>hours</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>JSON object with operating hours by day</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Restaurant status (e.g., "Open", "Closed")</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Notes:</strong>
+- <code>hours</code> is a JSON string with format:
+  <code>json
+  {
+    "Mon": [start_time, end_time],
+    "Tue": [1700, 2100],
+    ...
+  }</code>
+  - Times in 24-hour HHMM format (e.g., 1700 = 5:00 PM)
+  - Empty array <code>[]</code> means closed that day
+- <code>password_HS</code> enables restaurant owner login (<strong>not currently implemented in UI</strong>)
+- <code>status</code> values observed: "Open", "Closed"</p>
+<p><strong>Sample Data:</strong></p>
+<pre><code>rtr_id: 1
+name: Bida Manda
+hours: {&quot;Mon&quot;: [], &quot;Tue&quot;: [1700, 2100], &quot;Wed&quot;: [1700, 2100], ...}
+status: Open
+</code></pre>
+<hr />
+<h3>3. MenuItem Table</h3>
+<p>Stores individual food items offered by restaurants.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>itm_id</code></td>
+<td>INTEGER</td>
+<td>PRIMARY KEY, AUTOINCREMENT, UNIQUE, NOT NULL</td>
+<td>Unique item identifier</td>
+</tr>
+<tr>
+<td><code>rtr_id</code></td>
+<td>INTEGER</td>
+<td>NOT NULL, FOREIGN KEY → Restaurant(rtr_id)</td>
+<td>Restaurant that offers this item</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Item name</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Item description</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>Price in <strong>cents</strong></td>
+</tr>
+<tr>
+<td><code>calories</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>Calorie count</td>
+</tr>
+<tr>
+<td><code>instock</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>Boolean: 1 = in stock, 0 = out of stock</td>
+</tr>
+<tr>
+<td><code>restock</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Restock date/info (format not strictly defined)</td>
+</tr>
+<tr>
+<td><code>allergens</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Comma-separated list of allergens</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Notes:</strong>
+- Price is stored in <strong>cents</strong> (e.g., 1650 = $16.50)
+- <code>instock</code> is used as boolean: 1 (true) or 0 (false)
+- Common allergens: "Gluten", "Soy", "Dairy", "Nuts", "Sesame", "Shellfish", etc.</p>
+<p><strong>Sample Data:</strong></p>
+<pre><code>itm_id: 1
+rtr_id: 1 (Bida Manda)
+name: Laotian Beef Stir Fry
+price: 1650 (= $16.50)
+calories: 450
+instock: 1
+allergens: &quot;Gluten, Soy&quot;
+</code></pre>
+<hr />
+<h3>4. Order Table</h3>
+<p>Stores customer orders with detailed JSON information.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ord_id</code></td>
+<td>INTEGER</td>
+<td>PRIMARY KEY, AUTOINCREMENT, UNIQUE, NOT NULL</td>
+<td>Unique order identifier</td>
+</tr>
+<tr>
+<td><code>rtr_id</code></td>
+<td>INTEGER</td>
+<td>NOT NULL, FOREIGN KEY → Restaurant(rtr_id)</td>
+<td>Restaurant fulfilling the order</td>
+</tr>
+<tr>
+<td><code>usr_id</code></td>
+<td>INTEGER</td>
+<td>NOT NULL, FOREIGN KEY → User(usr_id)</td>
+<td>Customer who placed the order</td>
+</tr>
+<tr>
+<td><code>details</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>JSON object with complete order information</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Current order status</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Notes:</strong>
+- <code>status</code> values observed: "Ordered", "Accepted", "Preparing", "Ready", "Delivered", "Cancelled"
+- <strong>Current Implementation Gap</strong>: Orders are created with status "Ordered" but <strong>never updated</strong> (no restaurant dashboard exists)
+- <code>details</code> is a JSON string with structure:
+  <code>json
+  {
+    "placed_at": "2025-10-18T18:22:00-04:00",
+    "restaurant_id": 2,
+    "items": [
+      {
+        "itm_id": 25,
+        "name": "Margherita Pizza",
+        "qty": 1,
+        "unit_price": 16.00,
+        "line_total": 16.00,
+        "notes": "Extra cheese"
+      }
+    ],
+    "charges": {
+      "subtotal": 34.00,
+      "tax": 2.47,
+      "delivery_fee": 3.99,
+      "service_fee": 1.49,
+      "tip": 5.00,
+      "total": 46.95
+    },
+    "delivery_type": "delivery",  // or "pickup"
+    "eta_minutes": 40,
+    "date": "2025-11-15",
+    "meal": 3  // 1=breakfast, 2=lunch, 3=dinner
+  }</code></p>
+<p><strong>Sample Data:</strong></p>
+<pre><code>ord_id: 125
+rtr_id: 2 (Poole'side Pies)
+usr_id: 101
+status: Delivered
+details: {JSON with 2 pizza items, total $46.95}
+</code></pre>
+<hr />
+<h3>5. Review Table</h3>
+<p>Stores user reviews for restaurants.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev_id</code></td>
+<td>INTEGER</td>
+<td>PRIMARY KEY, AUTOINCREMENT, UNIQUE, NOT NULL</td>
+<td>Unique review identifier</td>
+</tr>
+<tr>
+<td><code>rtr_id</code></td>
+<td>INTEGER</td>
+<td>NOT NULL, FOREIGN KEY → Restaurant(rtr_id)</td>
+<td>Restaurant being reviewed</td>
+</tr>
+<tr>
+<td><code>usr_id</code></td>
+<td>INTEGER</td>
+<td>NOT NULL, FOREIGN KEY → User(usr_id)</td>
+<td>User who wrote the review</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Review title/headline</td>
+</tr>
+<tr>
+<td><code>rating</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>Rating value (typically 1-5 stars)</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>TEXT</td>
+<td>NULL</td>
+<td>Review text content</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Notes:</strong>
+- <code>rating</code> appears to use 1-5 scale
+- Review functionality exists in schema but <strong>UI implementation status unknown</strong></p>
+<p><strong>Sample Data:</strong></p>
+<pre><code>rev_id: 1
+rtr_id: 17
+usr_id: 24
+title: &quot;Amazing Pizza!&quot;
+rating: 5
+description: &quot;Best pizza in Raleigh. Crust was perfectly crispy...&quot;
+</code></pre>
+<hr />
+<h2>Data Relationships</h2>
+<pre><code>User (usr_id)
+  ├─→ Order (usr_id)           [One user → Many orders]
+  └─→ Review (usr_id)          [One user → Many reviews]
+
+Restaurant (rtr_id)
+  ├─→ MenuItem (rtr_id)        [One restaurant → Many menu items]
+  ├─→ Order (rtr_id)           [One restaurant → Many orders]
+  └─→ Review (rtr_id)          [One restaurant → Many reviews]
+
+MenuItem (itm_id)
+  └─→ Referenced in Order.details JSON (not FK)
+
+Order (ord_id)
+  └─→ No child tables
+</code></pre>
+<hr />
+<h2>Current Implementation Status</h2>
+<h3>✅ Fully Implemented</h3>
+<ul>
+<li>User registration, login, logout, profile management</li>
+<li>Restaurant and menu item browsing</li>
+<li>Order placement (creates orders with status "Ordered")</li>
+<li>Order history viewing (users can see their past orders)</li>
+<li>PDF receipt generation</li>
+<li>Calendar-based menu display (reads <code>generated_menu</code> from User table)</li>
+<li>Wallet balance tracking</li>
+</ul>
+<h3>⚠️ Partially Implemented</h3>
+<ul>
+<li><strong>Restaurant Authentication</strong>: Table has <code>password_HS</code> field but <strong>no login system</strong></li>
+<li><strong>Review System</strong>: Table exists but UI implementation unclear</li>
+</ul>
+<h3>❌ Not Implemented</h3>
+<ul>
+<li><strong>Order Status Updates</strong>: Orders remain "Ordered" forever; no workflow for Accepted → Preparing → Ready → Delivered</li>
+<li><strong>Restaurant/Admin Dashboard</strong>: No way for restaurants to view or manage orders</li>
+<li><strong>Order Status Transitions</strong>: No routes to update order status</li>
+<li><strong>Real-time Order Management</strong>: No interface for restaurant owners</li>
+</ul>
+<hr />
+<h2>Potential Extensions</h2>
+<p>Based on the schema analysis, these features are database-ready but need implementation:</p>
+<ol>
+<li><strong>Restaurant Dashboard</strong></li>
+<li>Login system using <code>Restaurant.email</code> and <code>Restaurant.password_HS</code></li>
+<li>View incoming orders filtered by <code>rtr_id</code></li>
+<li>Update order status through workflow</li>
+<li>
+<p>Manage menu items (add/edit/disable items)</p>
+</li>
+<li>
+<p><strong>Review System</strong></p>
+</li>
+<li>UI for users to leave reviews after order delivery</li>
+<li>Display reviews on restaurant pages</li>
+<li>
+<p>Average rating calculation</p>
+</li>
+<li>
+<p><strong>Enhanced Order Management</strong></p>
+</li>
+<li>Order status tracking for customers</li>
+<li>Estimated delivery time updates</li>
+<li>Order cancellation (by user or restaurant)</li>
+<li>
+<p>Refund processing (update <code>User.wallet</code>)</p>
+</li>
+<li>
+<p><strong>Inventory Management</strong></p>
+</li>
+<li>Update <code>MenuItem.instock</code> when items sell out</li>
+<li>Set <code>MenuItem.restock</code> dates</li>
+<li>Automatic menu filtering based on stock</li>
+</ol>
+<hr />
+<h2>Database Access Patterns</h2>
+<p>All database operations <strong>must</strong> use the helper functions in <code>sqlQueries.py</code>:
+- <code>create_connection(db_path)</code> - Open database connection
+- <code>close_connection(conn)</code> - Close database connection
+- <code>fetch_one(conn, query, params)</code> - Fetch single row
+- <code>fetch_all(conn, query, params)</code> - Fetch multiple rows
+- <code>execute_query(conn, query, params)</code> - Execute INSERT/UPDATE/DELETE</p>
+<p><strong>Never</strong> use raw SQLite connections outside these helpers.</p></article>
+<p><a href="../proj2.html">← Back to API Reference</a></p>
+</main></body></html>
