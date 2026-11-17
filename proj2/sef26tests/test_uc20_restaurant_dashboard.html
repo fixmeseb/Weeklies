@@ -47,6 +47,12 @@
             <li>
                     <a class="function" href="#test_dashboard_own_restaurant">test_dashboard_own_restaurant</a>
             </li>
+            <li>
+                    <a class="function" href="#test_dashboard_tabs_show_counts_and_rating">test_dashboard_tabs_show_counts_and_rating</a>
+            </li>
+            <li>
+                    <a class="function" href="#test_old_dashboard_address_redirects_to_orders">test_old_dashboard_address_redirects_to_orders</a>
+            </li>
     </ul>
 
 
@@ -65,9 +71,10 @@
 
                         <div class="docstring"><p>UC20: View Restaurant Dashboard — tests.</p>
 
-<p>Verified against Flask_app.py:577-642. /restaurant/dashboard is protected by
-@restaurant_required. Renders order-status counts + review summary for the
-signed-in restaurant.</p>
+<p>The owner's home is the Orders page, /restaurant/orders (the separate dashboard
+page was merged into it). It is protected by @restaurant_required and shows the
+order-status counts, with the active-order count and review summary on the
+banner's tabs. /restaurant/dashboard still redirects there for old links.</p>
 </div>
 
                 
@@ -145,6 +152,36 @@ signed-in restaurant.</p>
     <a class="headerlink" href="#test_dashboard_own_restaurant"></a>
     
             <div class="docstring"><p>UC20 variant: dashboard uses session rtr_id only.</p>
+</div>
+
+
+                </section>
+                <section id="test_dashboard_tabs_show_counts_and_rating">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">test_dashboard_tabs_show_counts_and_rating</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">client</span>, </span><span class="param"><span class="n">seed_restaurant</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#test_dashboard_tabs_show_counts_and_rating"></a>
+    
+            <div class="docstring"><p>UC20: the banner tabs carry the active-order count and the review summary.</p>
+</div>
+
+
+                </section>
+                <section id="test_old_dashboard_address_redirects_to_orders">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">test_old_dashboard_address_redirects_to_orders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">client</span>, </span><span class="param"><span class="n">seed_restaurant</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#test_old_dashboard_address_redirects_to_orders"></a>
+    
+            <div class="docstring"><p>UC20: /restaurant/dashboard is kept for old links and forwards to the Orders page.</p>
 </div>
 
 

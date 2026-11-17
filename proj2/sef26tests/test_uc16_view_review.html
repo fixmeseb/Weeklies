@@ -41,6 +41,9 @@
             <li>
                     <a class="function" href="#test_view_review_unauthorized">test_view_review_unauthorized</a>
             </li>
+            <li>
+                    <a class="function" href="#test_old_view_address_redirects_to_the_review_page">test_old_view_address_redirects_to_the_review_page</a>
+            </li>
     </ul>
 
 
@@ -59,9 +62,9 @@
 
                         <div class="docstring"><p>UC16: View Submitted Review — tests.</p>
 
-<p>Verified against Flask_app.py:1626-1675. /order/<int:ord_id>/review/view
+<p>One page per order, /order/<int:ord_id>/review (the old /review/view redirects there)
 requires login, and the review must belong to the current user.
-Missing/foreign review → redirect to /profile.</p>
+Missing/foreign review → redirect to /orders (My Orders).</p>
 </div>
 
                 
@@ -109,6 +112,21 @@ Missing/foreign review → redirect to /profile.</p>
     <a class="headerlink" href="#test_view_review_unauthorized"></a>
     
             <div class="docstring"><p>UC16 ext 1b: review belongs to another user → redirect to /profile (not disclosed).</p>
+</div>
+
+
+                </section>
+                <section id="test_old_view_address_redirects_to_the_review_page">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">test_old_view_address_redirects_to_the_review_page</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">client</span>, </span><span class="param"><span class="n">seed_user</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#test_old_view_address_redirects_to_the_review_page"></a>
+    
+            <div class="docstring"><p>The separate /review/view page was merged into /order/<id>/review.</p>
 </div>
 
 

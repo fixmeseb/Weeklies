@@ -107,7 +107,7 @@
 
                         <div class="docstring"><p>UC13: Track Order History — tests.</p>
 
-<p>The order history is shown on /profile (Flask_app.py:1239-1354), which
+<p>The order history is shown on /orders, My Orders (user_orders in Flask_app.py), which
 queries the user's orders sorted newest-first with review-status flags.</p>
 </div>
 
@@ -125,7 +125,7 @@ queries the user's orders sorted newest-first with review-status flags.</p>
     </div>
     <a class="headerlink" href="#test_track_orders_valid"></a>
     
-            <div class="docstring"><p>UC13 main: /profile lists user's orders.</p>
+            <div class="docstring"><p>UC13 main: /orders lists the user's orders.</p>
 </div>
 
 
@@ -140,7 +140,7 @@ queries the user's orders sorted newest-first with review-status flags.</p>
     </div>
     <a class="headerlink" href="#test_track_orders_none"></a>
     
-            <div class="docstring"><p>UC13 ext 1a: user with no orders still gets /profile 200.</p>
+            <div class="docstring"><p>UC13 ext 1a: user with no orders still gets /orders 200.</p>
 </div>
 
 
@@ -173,7 +173,7 @@ queries the user's orders sorted newest-first with review-status flags.</p>
             <div class="docstring"><p>UC13 ext 4a: order references restaurant that no longer exists.</p>
 
 <p>Current query INNER JOINs Restaurant, so an orphan order will not appear —
-/profile still renders 200 (documents behavior).</p>
+/orders still renders 200 (documents behavior).</p>
 </div>
 
 
@@ -218,7 +218,7 @@ queries the user's orders sorted newest-first with review-status flags.</p>
     </div>
     <a class="headerlink" href="#test_track_orders_filter_status"></a>
     
-            <div class="docstring"><p>UC13 variant: /profile currently returns all statuses (no server-side filter),
+            <div class="docstring"><p>UC13 variant: /orders currently returns all statuses (no server-side filter),
 but response is still 200. Documents current behavior.</p>
 </div>
 

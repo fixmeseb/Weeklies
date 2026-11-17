@@ -75,7 +75,16 @@
                     <a class="function" href="#calendar_week_variety">calendar_week_variety</a>
             </li>
             <li>
+                    <a class="function" href="#month_item_totals">month_item_totals</a>
+            </li>
+            <li>
+                    <a class="function" href="#month_nav">month_nav</a>
+            </li>
+            <li>
                     <a class="function" href="#index">index</a>
+            </li>
+            <li>
+                    <a class="function" href="#insights">insights</a>
             </li>
             <li>
                     <a class="function" href="#login">login</a>
@@ -94,6 +103,12 @@
             </li>
             <li>
                     <a class="function" href="#restaurant_dashboard">restaurant_dashboard</a>
+            </li>
+            <li>
+                    <a class="variable" href="#ACTIVE_ORDER_STATUSES">ACTIVE_ORDER_STATUSES</a>
+            </li>
+            <li>
+                    <a class="function" href="#inject_owner_nav">inject_owner_nav</a>
             </li>
             <li>
                     <a class="function" href="#restaurant_orders">restaurant_orders</a>
@@ -132,6 +147,9 @@
                     <a class="function" href="#change_password">change_password</a>
             </li>
             <li>
+                    <a class="function" href="#user_review">user_review</a>
+            </li>
+            <li>
                     <a class="function" href="#review_order">review_order</a>
             </li>
             <li>
@@ -142,6 +160,9 @@
             </li>
             <li>
                     <a class="function" href="#order">order</a>
+            </li>
+            <li>
+                    <a class="function" href="#user_orders">user_orders</a>
             </li>
             <li>
                     <a class="function" href="#orders">orders</a>
@@ -454,6 +475,39 @@ Returns:
 
 
                 </section>
+                <section id="month_item_totals">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">month_item_totals</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">gen_str</span>, </span><span class="param"><span class="n">gen_map</span>, </span><span class="param"><span class="n">year</span>, </span><span class="param"><span class="n">month</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#month_item_totals"></a>
+    
+            <div class="docstring"><p>Item totals of every Monday–Sunday week that has a planned meal in a calendar month</p>
+
+<p>Returns:
+    Tuple[dict, str | None]: (week start -> cents, error message or None)</p>
+</div>
+
+
+                </section>
+                <section id="month_nav">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">month_nav</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">year</span>, </span><span class="param"><span class="n">month</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#month_nav"></a>
+    
+            <div class="docstring"><p>(prev_year, prev_month, next_year, next_month) around a calendar month.</p>
+</div>
+
+
+                </section>
                 <section id="index">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/&#39;, defaults={&#39;year&#39;: None, &#39;month&#39;: None})</div>
@@ -472,6 +526,28 @@ Args:
     month (int | None): Optional month path parameter (1–12).
 Returns:
     Response: HTML page showing the monthly plan and today's meals (requires login).</p>
+</div>
+
+
+                </section>
+                <section id="insights">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/insights&#39;, defaults={&#39;year&#39;: None, &#39;month&#39;: None})</div>
+        <div class="decorator">@app.route(&#39;/insights/&lt;int:year&gt;/&lt;int:month&gt;&#39;)</div>
+
+        <span class="def">def</span>
+        <span class="name">insights</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">year</span>, </span><span class="param"><span class="n">month</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#insights"></a>
+    
+            <div class="docstring"><p>The Insights tab: item totals and variety of the weeks planned in a month.
+Args:
+    year (int | None): Optional year path parameter.
+    month (int | None): Optional month path parameter (1–12).
+Returns:
+    Response: HTML page (requires login).</p>
 </div>
 
 
@@ -548,7 +624,7 @@ Also adds cache-control headers to prevent browser caching.</p>
 Args:
     None
 Returns:
-    Response: Renders restaurant login page or redirects to dashboard on success.</p>
+    Response: Renders restaurant login page or redirects to the Orders page on success.</p>
 </div>
 
 
@@ -585,11 +661,41 @@ Returns:
     </div>
     <a class="headerlink" href="#restaurant_dashboard"></a>
     
-            <div class="docstring"><p>Main dashboard landing page with module cards.
-Args:
-    None
+            <div class="docstring"><p>Old landing page for owners, kept so saved links still work.
+Owners now land on the Orders page; the banner's tabs reach Analytics and Reviews.
 Returns:
-    Response: Renders restaurant dashboard home with quick stats.</p>
+    Response: Redirect to the Orders page.</p>
+</div>
+
+
+                </section>
+                <section id="ACTIVE_ORDER_STATUSES">
+                    <div class="attr variable">
+            <span class="name">ACTIVE_ORDER_STATUSES</span>        =
+<span class="default_value">(&#39;Ordered&#39;, &#39;Accepted&#39;, &#39;Preparing&#39;, &#39;Ready&#39;)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ACTIVE_ORDER_STATUSES"></a>
+    
+    
+
+                </section>
+                <section id="inject_owner_nav">
+                    <div class="attr function">
+                    <div class="decorator">@app.context_processor</div>
+
+        <span class="def">def</span>
+        <span class="name">inject_owner_nav</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#inject_owner_nav"></a>
+    
+            <div class="docstring"><p>Give the owner banner (templates/_owner_header.html) its tab notes: how many
+orders are in progress and the restaurant's review rating.
+Returns:
+    dict: {"owner_nav": {...}} on restaurant-owner pages, else {"owner_nav": None}.</p>
 </div>
 
 
@@ -775,7 +881,7 @@ Returns:
     </div>
     <a class="headerlink" href="#profile"></a>
     
-            <div class="docstring"><p>Show the logged-in user's profile, including recent orders.
+            <div class="docstring"><p>Show the logged-in user's account: details, allergies, preferences and password.
 Args:
     None
 Returns:
@@ -795,11 +901,12 @@ Returns:
     </div>
     <a class="headerlink" href="#edit_profile"></a>
     
-            <div class="docstring"><p>Display and process the profile edit form (phone, preferences, allergies).
+            <div class="docstring"><p>Save the Profile page's edit pop-up (phone, preferences, allergies).
 Args:
     None
 Returns:
-    Response: Renders form (GET) or updates and redirects to profile (POST).</p>
+    Response: Redirect to the profile after saving (POST), or to the profile with
+    the pop-up open (GET, for old links to the separate edit page).</p>
 </div>
 
 
@@ -824,6 +931,27 @@ Returns:
 
 
                 </section>
+                <section id="user_review">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">user_review</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">ord_id</span>, </span><span class="param"><span class="n">usr_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#user_review"></a>
+    
+            <div class="docstring"><p>The user's review of one order, with the restaurant's name.
+Args:
+    conn: Open database connection.
+    ord_id (int): The order ID.
+    usr_id (int): The reviewing user.
+Returns:
+    dict | None: The review's fields, or None if the user has not reviewed it.</p>
+</div>
+
+
+                </section>
                 <section id="review_order">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/order/&lt;int:ord_id&gt;/review&#39;, methods=[&#39;GET&#39;, &#39;POST&#39;])</div>
@@ -835,11 +963,12 @@ Returns:
     </div>
     <a class="headerlink" href="#review_order"></a>
     
-            <div class="docstring"><p>Display review form (GET) or submit a new review (POST) for a delivered order.
+            <div class="docstring"><p>The review page for one order: the form until the order is reviewed, then the review.
 Args:
-    ord_id (int): The order ID to review.
+    ord_id (int): The order ID.
 Returns:
-    Response: Review form HTML (GET) or redirect to profile (POST).</p>
+    Response: The form or the written review (GET), or a redirect back to this
+    page once a review is saved (POST).</p>
 </div>
 
 
@@ -855,11 +984,11 @@ Returns:
     </div>
     <a class="headerlink" href="#view_review"></a>
     
-            <div class="docstring"><p>View an existing review for an order.
+            <div class="docstring"><p>Old address of a written review, kept so saved links still work.
 Args:
     ord_id (int): The order ID.
 Returns:
-    Response: Renders the user's individual review.</p>
+    Response: Redirect to the order's review page.</p>
 </div>
 
 
@@ -904,6 +1033,26 @@ Returns:
 
 
                 </section>
+                <section id="user_orders">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">user_orders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">usr_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#user_orders"></a>
+    
+            <div class="docstring"><p>The user's orders, newest first, as the My Orders page shows them.
+Args:
+    conn: Open database connection.
+    usr_id (int): The customer.
+Returns:
+    list[dict]: id, date, status, progress, restaurant, total and has_review per order.</p>
+</div>
+
+
+                </section>
                 <section id="orders">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/orders&#39;)</div>
@@ -915,11 +1064,12 @@ Returns:
     </div>
     <a class="headerlink" href="#orders"></a>
     
-            <div class="docstring"><p>List restaurants and in-stock menu items for browsing.
+            <div class="docstring"><p>My Orders: the user's orders with their progress, receipts, totals and reviews.
+Browsing menus and the cart live on the Restaurants page.
 Args:
     None
 Returns:
-    Response: HTML page showing restaurants and items (requires login).</p>
+    Response: HTML page listing the user's orders (requires login).</p>
 </div>
 
 
