@@ -26,6 +26,7 @@ from proj2.meal_budget import (
     week_start,
     weekly_item_totals,
 )
+from proj2.allergens import avoided_allergens, parse_allergens
 from proj2.db import connect
 from proj2.dietary import DietaryConstraintError, filter_diets, required_diets
 from proj2.plan_rules import (
@@ -33,7 +34,6 @@ from proj2.plan_rules import (
     PlanRuleError,
     is_restaurant_open,
     item_rejection,
-    parse_allergens,
     slot_rejection,
 )
 
@@ -117,7 +117,7 @@ def filter_allergens(menu_items: pd.DataFrame, allergens: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The filtered DataFrame with menu items containing the specified allergens removed
     """
-    prohibited = parse_allergens(allergens)
+    prohibited = avoided_allergens(allergens)
 
     def allowed(value):
         return not prohibited.intersection(parse_allergens(value))

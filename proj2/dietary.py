@@ -157,7 +157,8 @@ def with_account_allergies(allergies, account_allergies) -> str:
     Adds the allergies on the user's account to allergens supplied with a request
 
     A request may add allergens to avoid, but it cannot drop one the account lists.
-    Matching ignores case and surrounding spaces, like menu_generation.filter_allergens.
+    Matching uses proj2.allergens spellings, so "Milk" on the request keeps "dairy"
+    from the account from being added again.
 
     Args:
         allergies (str | None): Comma-separated allergens sent with the request
@@ -166,11 +167,13 @@ def with_account_allergies(allergies, account_allergies) -> str:
     Returns:
         str: The request allergens followed by any account allergies they did not name
     """
+    from proj2.allergens import normalize_allergen  # proj2.allergens imports this module
+
     parts = [tag.strip() for tag in (allergies or "").split(",") if tag.strip()]
-    named = {tag.casefold() for tag in parts}
+    named = {normalize_allergen(tag) for tag in parts}
     for tag in (account_allergies or "").split(","):
         tag = tag.strip()
-        if tag and tag.casefold() not in named:
+        if tag and normalize_allergen(tag) not in named:
             parts.append(tag)
-            named.add(tag.casefold())
+            named.add(normalize_allergen(tag))
     return ", ".join(parts)

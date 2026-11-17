@@ -6,14 +6,13 @@ against item_rejection before the plan is saved; meal swaps check the replacemen
 with the same function. A new way of choosing meals (another model, a manual editor)
 should also call item_rejection before saving.
 
-Imports only pandas, proj2.dietary and proj2.meal_tags so menu_generation and meal_swap
+Imports only proj2.allergens, proj2.dietary and proj2.meal_tags so menu_generation and meal_swap
 can both use it.
 """
 
 import json
 
-import pandas as pd
-
+from proj2.allergens import NO_ALLERGENS, allergen_conflicts, parse_allergens  # noqa: F401
 from proj2.dietary import missing_diets, required_diets
 from proj2.meal_tags import parse_tags
 
@@ -28,26 +27,6 @@ SLOT_NAMES = {1: "breakfast", 2: "lunch", 3: "dinner"}
 
 ## The course an item must be to fill a meal slot on its own
 SLOT_COURSE = "main"
-
-## Values people write to mean "no allergens"; they are not allergens themselves
-NO_ALLERGENS = frozenset({"none", "n/a", "-"})
-
-
-def parse_allergens(allergens) -> set:
-    """
-    Normalizes a comma-separated allergen string into a set of casefolded tags
-
-    Args:
-        allergens (str | None): A comma-separated string such as "Gluten, Soy" (None/NaN allowed)
-
-    Returns:
-        set: The allergen tags, stripped and casefolded, without empty entries or
-            placeholders such as "none" (see NO_ALLERGENS)
-    """
-    if allergens is None or (not isinstance(allergens, str) and pd.isna(allergens)):
-        return set()
-    tags = {tag.strip().casefold() for tag in str(allergens).split(",") if tag.strip()}
-    return tags - NO_ALLERGENS
 
 
 def is_restaurant_open(hours: str, weekday: str, time: int) -> bool:
@@ -136,7 +115,7 @@ def item_rejection(
     if not is_restaurant_open(item["hours"], weekday, order_time):
         return "restaurant_closed", f"That restaurant is closed at that meal time on {weekday}."
 
-    conflicts = parse_allergens(item["allergens"]) & parse_allergens(user_allergies)
+    conflicts = allergen_conflicts(item["allergens"], user_allergies)
     if conflicts:
         return (
             "allergen",
