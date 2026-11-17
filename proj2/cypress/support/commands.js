@@ -27,8 +27,8 @@ Cypress.Commands.add("loginAsRestaurant", (email = "owner@tasteofitaly.com", pas
   cy.get('input[name="email"]').clear().type(email);
   cy.get('input[name="password"]').clear().type(password);
   cy.get('input[type="submit"], button[type="submit"]').click();
-  // Ensure we are redirected to the dashboard
-  cy.location("pathname").should("include", "/restaurant/dashboard");
+  // Owners land on the Orders page
+  cy.location("pathname").should("eq", "/restaurant/orders");
 });
 
 /**

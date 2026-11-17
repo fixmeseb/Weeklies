@@ -4,13 +4,14 @@ describe("Restaurant Dashboard & Order Lifecycle", () => {
     cy.loginAsRestaurant("owner@tasteofitaly.com", "password123");
   });
 
-  it("displays dashboard home with module cards and active stats", () => {
+  it("sends the old dashboard address to Orders, with tabs for every owner page", () => {
     cy.visit("/restaurant/dashboard");
+    cy.location("pathname").should("eq", "/restaurant/orders");
 
     cy.get(".restaurant-info").should("contain.text", "Taste of Italy");
-    cy.get(".card-orders").should("be.visible");
-    cy.get(".card-analytics").should("be.visible");
-    cy.get(".card-reviews").should("be.visible");
+    cy.get(".owner-tabs .nav-btn.active").should("contain.text", "Orders").and("contain.text", "active");
+    cy.get(".owner-tabs").should("contain.text", "Analytics");
+    cy.get(".owner-tabs").should("contain.text", "Reviews");
   });
 
   it("navigates to order management and displays orders grouped by status", () => {

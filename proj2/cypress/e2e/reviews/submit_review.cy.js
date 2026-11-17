@@ -22,8 +22,10 @@ describe("Review Submission", () => {
     // Submit
     cy.get('button[type="submit"]').click();
 
-    // After submission, redirected to profile
-    cy.location("pathname").should("eq", "/profile");
+    // After submission, the same page shows the review
+    cy.location("pathname").should("eq", "/order/4/review");
+    cy.get("h1").should("contain.text", "Your Review");
+    cy.contains("Absolutely phenomenal meal!").should("be.visible");
   });
 
   it("keeps submit button disabled until a rating is selected", () => {
@@ -37,9 +39,10 @@ describe("Review Submission", () => {
     cy.get("#submitBtn").should("not.be.disabled");
   });
 
-  it("redirects to view review if the order was already reviewed", () => {
+  it("shows the written review if the order was already reviewed", () => {
     // Order 1 was already reviewed in seeded data
     cy.visit("/order/1/review");
-    cy.location("pathname").should("include", "/order/1/review/view");
+    cy.get("h1").should("contain.text", "Your Review");
+    cy.get("#reviewForm").should("not.exist");
   });
 });

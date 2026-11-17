@@ -153,23 +153,8 @@
   </style>
 </head>
 <body>
-  <div class="analytics-header">
-    <div class="container">
-      <div class="analytics-header-content">
-        <div class="restaurant-info">
-          <h1 style="margin: 0; font-size: 1.8rem; display: flex; align-items: center; gap: 0.5rem;">
-            📊 Analytics
-          </h1>
-          <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.95rem;">{{ restaurant_name }}</p>
-        </div>
-        <div class="analytics-nav">
-          <a href="{{ url_for('restaurant_dashboard') }}" class="nav-btn">← Dashboard</a>
-          <a href="{{ url_for('restaurant_logout') }}" class="nav-btn">Logout</a>
-        </div>
-      </div>
-    </div>
-  </div>
-  
+  {% include "_owner_header.html" %}
+
   <div class="container">
     <!-- Key Metrics Section -->
     <div class="analytics-grid">
