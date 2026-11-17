@@ -11,17 +11,23 @@ from flask import jsonify
 from sqlite3 import IntegrityError
 from datetime import timedelta, date, datetime
 from functools import wraps
+from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
+from proj2 import variety
+from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
+from proj2.plan_rules import SLOT_NAMES
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
 from proj2.order_progress import order_progress
+from proj2.dietary import with_account_allergies, with_account_diets
 from proj2.meal_swap import (
     SlotNotFoundError,
     find_slot_item,
     list_swap_options,
     load_swap_item,
+    rank_swap_options,
     replace_menu_slot,
     slot_weekday_and_time,
     swap_rejection,
@@ -29,14 +35,10 @@ from proj2.meal_swap import (
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask import Flask, render_template, url_for, redirect, request, session, send_file, abort
 
-# Use ONLY these helpers for DB access
-from proj2.sqlQueries import (
-    create_connection,
-    close_connection,
-    fetch_one,
-    fetch_all,
-    execute_query,
-)
+# Use ONLY these helpers for DB access: get_db() for the connection, then the
+# sqlQueries helpers (which raise on SQL errors) to run statements.
+from proj2.db import DatabaseNotInitialisedError, connect, get_db, init_app as init_db_support
+from proj2.sqlQueries import fetch_one, fetch_all, execute_query
 
 SECRET_KEY_ENV = "WEEKLIES_SECRET_KEY"
 
@@ -99,9 +101,34 @@ def load_secret_key(environ=None, key_file=None) -> str:
 SECRET_KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "secret_key")
 
 app = Flask(__name__)
+# Restaurant hours for display: {{ r.hours | hours_display }} (see proj2/hours.py)
+app.add_template_filter(format_hours, "hours_display")
 app.config["SECRET_KEY"] = load_secret_key(key_file=SECRET_KEY_FILE)
 
-db_file = os.path.join(os.path.dirname(__file__), "CSC510_DB.db")
+init_db_support(app)  # app.config["DATABASE"], connection teardown, `flask init-db` etc.
+
+
+def db_path() -> str:
+    """Path of the configured database, for code that opens its own connection."""
+    return app.config["DATABASE"]
+
+
+@app.errorhandler(DatabaseNotInitialisedError)
+def _database_not_initialised(exc):
+    app.logger.error("%s", exc)
+    return (
+        "<h1>Database not initialised</h1><p>The server's database is missing or empty. "
+        "Run <code>flask --app proj2.Flask_app init-db</code> and "
+        "<code>flask --app proj2.Flask_app seed</code>.</p>",
+        500,
+    )
+
+
+@app.errorhandler(500)
+def _internal_error(exc):
+    original = getattr(exc, "original_exception", None) or exc
+    app.logger.error("Unhandled error on %s %s", request.method, request.path, exc_info=original)
+    return "<h1>Internal Server Error</h1><p>Something went wrong. It has been logged.</p>", 500
 
 # ---------------------- Helpers ----------------------
 
@@ -118,6 +145,23 @@ def _money(x: float) -> float:
         return round(float(x) + 1e-9, 2)
     except Exception:
         return 0.0
+
+
+def _order_charges(subtotal: float, delivery_type: str, tip: float) -> dict:
+    """
+    Tax, fees and total for an order, from the fee schedule in proj2/config.py.
+    Args:
+        subtotal (float): Sum of line totals in dollars.
+        delivery_type (str): "delivery" or "pickup"; only delivery pays the delivery fee.
+        tip (float): Tip in dollars.
+    Returns:
+        dict: tax, delivery_fee, service_fee and total, each rounded to cents.
+    """
+    tax = _money(subtotal * config.TAX_RATE)
+    delivery_fee = config.DELIVERY_FEE if delivery_type == "delivery" else 0.00
+    service_fee = config.SERVICE_FEE
+    total = _money(subtotal + tax + delivery_fee + service_fee + tip)
+    return {"tax": tax, "delivery_fee": delivery_fee, "service_fee": service_fee, "total": total}
 
 
 def _cents_to_dollars(cents) -> float:
@@ -174,9 +218,7 @@ def record_analytics_snapshot(rtr_id):
     Returns:
         bool: True if snapshot was recorded successfully, False otherwise.
     """
-    conn = create_connection(db_file)
-    if conn is None:
-        return False
+    conn = get_db()
 
     try:
         # Get all orders for this restaurant
@@ -280,8 +322,6 @@ def record_analytics_snapshot(rtr_id):
 
         traceback.print_exc()
         return False
-    finally:
-        close_connection(conn)
 
 
 def update_analytics_safe(rtr_id):
@@ -331,20 +371,17 @@ def fetch_menu_items_by_ids(ids):
     """
     if not ids:
         return {}
-    conn = create_connection(db_file)
-    try:
-        qmarks = ",".join(["?"] * len(ids))
-        sql = f"""
-          SELECT m.itm_id, m.rtr_id, m.name, m.description, m.price, m.calories,
-                 m.allergens, r.name AS restaurant_name, r.address, r.city, r.state, r.zip,
-                 r.hours, r.phone
-          FROM MenuItem m
-          JOIN Restaurant r ON r.rtr_id = m.rtr_id
-          WHERE m.itm_id IN ({qmarks})
-        """
-        rows = fetch_all(conn, sql, tuple(ids))
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    qmarks = ",".join(["?"] * len(ids))
+    sql = f"""
+      SELECT m.itm_id, m.rtr_id, m.name, m.description, m.price, m.calories,
+             m.allergens, r.name AS restaurant_name, r.address, r.city, r.state, r.zip,
+             r.hours, r.phone
+      FROM MenuItem m
+      JOIN Restaurant r ON r.rtr_id = m.rtr_id
+      WHERE m.itm_id IN ({qmarks})
+    """
+    rows = fetch_all(conn, sql, tuple(ids))
 
     def _addr(a, c, s, z) -> str:
         parts_raw = [a, c, s, z]
@@ -440,6 +477,43 @@ SWAP_ERROR_MESSAGES = {
 
 
 # Home route (supports /<year>/<month> for nav)
+def describe_similar_pair(pair, items_by_id) -> str:
+    """One similar pair from proj2.variety as a sentence for the calendar."""
+
+    def label(entry):
+        day = date.fromisoformat(entry["date"])
+        name = items_by_id.get(entry["itm_id"], {}).get("name", f"item {entry['itm_id']}")
+        return f"{name} ({day.strftime('%a')} {SLOT_NAMES.get(entry['meal'], 'meal')})"
+
+    shared = "; ".join(pair["shared"]) or "similar tags"
+    return f"{label(pair['a'])} and {label(pair['b'])}: {shared}"
+
+
+def calendar_week_variety(conn, gen_str, year, month, items_by_id):
+    """
+    Variety of each Monday–Sunday week shown in a calendar month (see proj2.variety)
+
+    Returns:
+        dict: week start -> {"score": percent or None, "similar": [sentence, ...]}
+    """
+    prefix = f"{year:04d}-{month:02d}-"
+    entries = list(plan_entries(gen_str))
+    weeks = sorted({week_start(day) for day, _, _ in entries if day.startswith(prefix)})
+    if not weeks:
+        return {}
+    catalog = variety.catalog_rows(conn)
+    out = {}
+    for week in weeks:
+        report = variety.plan_variety(
+            [e for e in entries if week_start(e[0]) == week], catalog
+        )
+        out[week] = {
+            "score": None if report.score is None else round(report.score * 100),
+            "similar": [describe_similar_pair(p, items_by_id) for p in report.similar_pairs(2)],
+        }
+    return out
+
+
 @app.route("/", defaults={"year": None, "month": None})
 @app.route("/<int:year>/<int:month>")
 def index(year, month):
@@ -459,16 +533,15 @@ def index(year, month):
         year, month = today.year, today.month
 
     # Load current user's generated_menu
-    conn = create_connection(db_file)
-    try:
-        user = fetch_one(conn, 'SELECT * FROM "User" WHERE email = ?', (session.get("Email"),))
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    user = fetch_one(
+        conn, 'SELECT generated_menu FROM "User" WHERE email = ?', (session.get("Email"),)
+    )
 
     if not user:
         return redirect(url_for("logout"))
 
-    gen_str = user[9] if len(user) > 9 else ""
+    gen_str = user["generated_menu"] or ""
     gen_map = parse_generated_menu(gen_str)
 
     # All item ids referenced (for the whole plan)
@@ -496,6 +569,8 @@ def index(year, month):
         )
     except ValueError:
         item_total_error = "Item totals are unavailable because a planned meal or its price is missing."
+
+    weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
 
     # Build cells for the month
     cells = build_calendar_cells(gen_map, year, month, items_by_id)
@@ -541,6 +616,7 @@ def index(year, month):
         today_menu=today_menu,
         weekly_item_totals=item_totals,
         item_total_error=item_total_error,
+        weekly_variety=weekly_variety,
     )
 
 
@@ -558,23 +634,25 @@ def login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        conn = create_connection(db_file)
-        try:
-            user = fetch_one(conn, 'SELECT * FROM "User" WHERE email = ?', (email,))
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        user = fetch_one(
+            conn,
+            'SELECT usr_id, first_name, last_name, phone, password_HS, wallet, preferences, '
+            'allergies, generated_menu FROM "User" WHERE email = ?',
+            (email,),
+        )
 
-        if user and check_password_hash(user[5], password):
-            session["usr_id"] = user[0]
-            session["Fname"] = user[1]
-            session["Lname"] = user[2]
-            session["Username"] = user[1] + " " + user[2]
+        if user and check_password_hash(user["password_HS"], password):
+            session["usr_id"] = user["usr_id"]
+            session["Fname"] = user["first_name"]
+            session["Lname"] = user["last_name"]
+            session["Username"] = user["first_name"] + " " + user["last_name"]
             session["Email"] = email
-            session["Phone"] = user[4]
-            session["Wallet"] = user[6]
-            session["Preferences"] = user[7] if len(user) > 7 else ""
-            session["Allergies"] = user[8] if len(user) > 8 else ""
-            session["GeneratedMenu"] = user[9] if len(user) > 9 else ""
+            session["Phone"] = user["phone"]
+            session["Wallet"] = user["wallet"]
+            session["Preferences"] = user["preferences"] or ""
+            session["Allergies"] = user["allergies"] or ""
+            session["GeneratedMenu"] = user["generated_menu"] or ""
             session.permanent = True
             app.permanent_session_lifetime = timedelta(minutes=30)
             return redirect(url_for("index"))
@@ -650,15 +728,12 @@ def restaurant_login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        conn = create_connection(db_file)
-        try:
-            restaurant = fetch_one(
-                conn,
-                "SELECT rtr_id, name, email, password_HS FROM Restaurant WHERE email = ?",
-                (email,),
-            )
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        restaurant = fetch_one(
+            conn,
+            "SELECT rtr_id, name, email, password_HS FROM Restaurant WHERE email = ?",
+            (email,),
+        )
 
         if restaurant and check_password_hash(restaurant[3], password):
             # Set restaurant session
@@ -707,29 +782,26 @@ def restaurant_dashboard():
     restaurant_email = session.get("RestaurantEmail", "")
 
     # Get quick stats for dashboard cards
-    conn = create_connection(db_file)
-    try:
-        orders = fetch_all(
-            conn,
-            """
-            SELECT status FROM "Order"
-            WHERE rtr_id = ?
-        """,
-            (rtr_id,),
-        )
+    conn = get_db()
+    orders = fetch_all(
+        conn,
+        """
+        SELECT status FROM "Order"
+        WHERE rtr_id = ?
+    """,
+        (rtr_id,),
+    )
         
-        # Get review stats
-        review_stats = fetch_one(
-            conn,
-            """
-            SELECT COUNT(*), AVG(rating)
-            FROM "Review"
-            WHERE rtr_id = ?
-            """,
-            (rtr_id,),
-        )
-    finally:
-        close_connection(conn)
+    # Get review stats
+    review_stats = fetch_one(
+        conn,
+        """
+        SELECT COUNT(*), AVG(rating)
+        FROM "Review"
+        WHERE rtr_id = ?
+        """,
+        (rtr_id,),
+    )
 
     # Calculate status counts for badge
     status_counts = {
@@ -774,23 +846,20 @@ def restaurant_orders():
     restaurant_name = session.get("RestaurantName", "Restaurant")
     restaurant_email = session.get("RestaurantEmail", "")
 
-    conn = create_connection(db_file)
-    try:
-        # Get all orders for this restaurant
-        orders = fetch_all(
-            conn,
-            """
-            SELECT o.ord_id, o.usr_id, o.details, o.status, 
-                   u.first_name, u.last_name, u.email, u.phone
-            FROM "Order" o
-            JOIN "User" u ON o.usr_id = u.usr_id
-            WHERE o.rtr_id = ?
-            ORDER BY o.ord_id DESC
-        """,
-            (rtr_id,),
-        )
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    # Get all orders for this restaurant
+    orders = fetch_all(
+        conn,
+        """
+        SELECT o.ord_id, o.usr_id, o.details, o.status, 
+               u.first_name, u.last_name, u.email, u.phone
+        FROM "Order" o
+        JOIN "User" u ON o.usr_id = u.usr_id
+        WHERE o.rtr_id = ?
+        ORDER BY o.ord_id DESC
+    """,
+        (rtr_id,),
+    )
 
     # Group orders by status
     orders_by_status = {
@@ -869,107 +938,104 @@ def restaurant_owner_reviews():
     restaurant_name = session.get("RestaurantName", "Restaurant")
     restaurant_email = session.get("RestaurantEmail", "")
 
-    conn = create_connection(db_file)
-    try:
-        # Get query parameters
-        page = max(1, int(request.args.get("page", 1)))
-        sort = request.args.get("sort", "recent")
-        filter_rating = request.args.get("filter", "all")
+    conn = get_db()
+    # Get query parameters
+    page = max(1, int(request.args.get("page", 1)))
+    sort = request.args.get("sort", "recent")
+    filter_rating = request.args.get("filter", "all")
 
-        per_page = 10
-        offset = (page - 1) * per_page
+    per_page = 10
+    offset = (page - 1) * per_page
 
-        # Build WHERE clause for filter
-        where_clause = "rtr_id = ?"
-        params = [rtr_id]
-        if filter_rating != "all":
+    # Build WHERE clause for filter
+    where_clause = "rtr_id = ?"
+    params = [rtr_id]
+    if filter_rating != "all":
+        try:
+            filter_int = int(filter_rating)
+            if 1 <= filter_int <= 5:
+                where_clause += " AND rating = ?"
+                params.append(filter_int)
+        except ValueError:
+            pass
+
+    # Build ORDER BY clause for sort
+    if sort == "highest":
+        order_by = "rating DESC, created_at DESC"
+    elif sort == "lowest":
+        order_by = "rating ASC, created_at DESC"
+    else:  # recent
+        order_by = "created_at DESC"
+
+    # Get total count
+    total_reviews = fetch_one(
+        conn, f'SELECT COUNT(*) FROM "Review" WHERE {where_clause}', tuple(params)
+    )[0]
+
+    # Calculate average rating
+    avg_row = fetch_one(
+        conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
+    )
+    average_rating = float(avg_row[0]) if avg_row and avg_row[0] else 0.0
+
+    # Get reviews
+    review_rows = fetch_all(
+        conn,
+        f"""
+        SELECT r.rev_id, r.title, r.rating, r.description, r.created_at, r.ord_id,
+               u.first_name, u.last_name
+        FROM "Review" r
+        JOIN "User" u ON r.usr_id = u.usr_id
+        WHERE {where_clause}
+        ORDER BY {order_by}
+        LIMIT ? OFFSET ?
+        """,
+        tuple(params + [per_page, offset]),
+    )
+
+    reviews = []
+    for rev_id, title, rating, description, created_at, ord_id, first_name, last_name in review_rows:
+        # Format date
+        date_str = ""
+        if created_at:
             try:
-                filter_int = int(filter_rating)
-                if 1 <= filter_int <= 5:
-                    where_clause += " AND rating = ?"
-                    params.append(filter_int)
-            except ValueError:
-                pass
+                dt = datetime.fromisoformat(created_at)
+                date_str = dt.strftime("%B %d, %Y")
+            except Exception:
+                date_str = created_at
 
-        # Build ORDER BY clause for sort
-        if sort == "highest":
-            order_by = "rating DESC, created_at DESC"
-        elif sort == "lowest":
-            order_by = "rating ASC, created_at DESC"
-        else:  # recent
-            order_by = "created_at DESC"
+        # Get user initial for avatar
+        user_initial = first_name[0].upper() if first_name else "?"
+        user_name = f"{first_name} {last_name}" if first_name and last_name else "Anonymous"
 
-        # Get total count
-        total_reviews = fetch_one(
-            conn, f'SELECT COUNT(*) FROM "Review" WHERE {where_clause}', tuple(params)
-        )[0]
-
-        # Calculate average rating
-        avg_row = fetch_one(
-            conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
-        )
-        average_rating = float(avg_row[0]) if avg_row and avg_row[0] else 0.0
-
-        # Get reviews
-        review_rows = fetch_all(
-            conn,
-            f"""
-            SELECT r.rev_id, r.title, r.rating, r.description, r.created_at, r.ord_id,
-                   u.first_name, u.last_name
-            FROM "Review" r
-            JOIN "User" u ON r.usr_id = u.usr_id
-            WHERE {where_clause}
-            ORDER BY {order_by}
-            LIMIT ? OFFSET ?
-            """,
-            tuple(params + [per_page, offset]),
+        reviews.append(
+            {
+                "rev_id": rev_id,
+                "title": title,
+                "rating": rating,
+                "description": description,
+                "date": date_str,
+                "ord_id": ord_id,
+                "user_name": user_name,
+                "user_initial": user_initial,
+            }
         )
 
-        reviews = []
-        for rev_id, title, rating, description, created_at, ord_id, first_name, last_name in review_rows:
-            # Format date
-            date_str = ""
-            if created_at:
-                try:
-                    dt = datetime.fromisoformat(created_at)
-                    date_str = dt.strftime("%B %d, %Y")
-                except Exception:
-                    date_str = created_at
+    total_pages = math.ceil(total_reviews / per_page) if total_reviews > 0 else 1
 
-            # Get user initial for avatar
-            user_initial = first_name[0].upper() if first_name else "?"
-            user_name = f"{first_name} {last_name}" if first_name and last_name else "Anonymous"
+    return render_template(
+        "restaurant_owner_reviews.html",
+        restaurant_name=restaurant_name,
+        restaurant_email=restaurant_email,
+        reviews=reviews,
+        total_reviews=total_reviews,
+        average_rating=average_rating,
+        page=page,
+        total_pages=total_pages,
+        sort=sort,
+        filter=filter_rating,
+    )
 
-            reviews.append(
-                {
-                    "rev_id": rev_id,
-                    "title": title,
-                    "rating": rating,
-                    "description": description,
-                    "date": date_str,
-                    "ord_id": ord_id,
-                    "user_name": user_name,
-                    "user_initial": user_initial,
-                }
-            )
-
-        total_pages = math.ceil(total_reviews / per_page) if total_reviews > 0 else 1
-
-        return render_template(
-            "restaurant_owner_reviews.html",
-            restaurant_name=restaurant_name,
-            restaurant_email=restaurant_email,
-            reviews=reviews,
-            total_reviews=total_reviews,
-            average_rating=average_rating,
-            page=page,
-            total_pages=total_pages,
-            sort=sort,
-            filter=filter_rating,
-        )
-
-    finally:
-        close_connection(conn)
 
 
 @app.route("/restaurant/analytics")
@@ -990,115 +1056,112 @@ def restaurant_analytics():
     # Record a fresh analytics snapshot from current order data
     record_analytics_snapshot(rtr_id)
 
-    conn = create_connection(db_file)
-    try:
-        # Get the latest snapshot for current metrics
-        latest_snapshot = fetch_one(
-            conn,
-            """
-            SELECT total_orders, total_revenue_cents, avg_order_value_cents, 
-                   order_completion_rate
-            FROM Analytics
-            WHERE rtr_id = ?
-            ORDER BY analytics_id DESC
-            LIMIT 1
-            """,
-            (rtr_id,),
+    conn = get_db()
+    # Get the latest snapshot for current metrics
+    latest_snapshot = fetch_one(
+        conn,
+        """
+        SELECT total_orders, total_revenue_cents, avg_order_value_cents, 
+               order_completion_rate
+        FROM Analytics
+        WHERE rtr_id = ?
+        ORDER BY analytics_id DESC
+        LIMIT 1
+        """,
+        (rtr_id,),
+    )
+
+    if latest_snapshot:
+        total_orders, total_revenue_cents, avg_order_value_cents, completion_rate = (
+            latest_snapshot
         )
+        total_revenue = total_revenue_cents / 100.0
+        avg_order_value = avg_order_value_cents / 100.0
+    else:
+        total_orders = 0
+        total_revenue = 0.0
+        avg_order_value = 0.0
+        completion_rate = 0.0
 
-        if latest_snapshot:
-            total_orders, total_revenue_cents, avg_order_value_cents, completion_rate = (
-                latest_snapshot
-            )
-            total_revenue = total_revenue_cents / 100.0
-            avg_order_value = avg_order_value_cents / 100.0
-        else:
-            total_orders = 0
-            total_revenue = 0.0
-            avg_order_value = 0.0
-            completion_rate = 0.0
+    # Get order status distribution from actual orders
+    status_data = fetch_all(
+        conn,
+        """
+        SELECT status, COUNT(*) as count
+        FROM "Order"
+        WHERE rtr_id = ?
+        GROUP BY status
+        ORDER BY count DESC
+        """,
+        (rtr_id,),
+    )
 
-        # Get order status distribution from actual orders
-        status_data = fetch_all(
-            conn,
-            """
-            SELECT status, COUNT(*) as count
-            FROM "Order"
-            WHERE rtr_id = ?
-            GROUP BY status
-            ORDER BY count DESC
-            """,
-            (rtr_id,),
-        )
+    status_labels = [s[0] for s in status_data] if status_data else []
+    status_counts = [s[1] for s in status_data] if status_data else []
 
-        status_labels = [s[0] for s in status_data] if status_data else []
-        status_counts = [s[1] for s in status_data] if status_data else []
+    # Get top menu items from order details JSON
+    # Since items are in JSON, we'll parse them and count
+    orders = fetch_all(
+        conn,
+        """
+        SELECT details FROM "Order"
+        WHERE rtr_id = ?
+        """,
+        (rtr_id,),
+    )
 
-        # Get top menu items from order details JSON
-        # Since items are in JSON, we'll parse them and count
-        orders = fetch_all(
-            conn,
-            """
-            SELECT details FROM "Order"
-            WHERE rtr_id = ?
-            """,
-            (rtr_id,),
-        )
+    item_frequency = {}
+    for order_row in orders:
+        if order_row[0]:
+            try:
+                details = (
+                    json.loads(order_row[0]) if isinstance(order_row[0], str) else order_row[0]
+                )
+                if "items" in details:
+                    for item in details["items"]:
+                        item_name = item.get("name", "Unknown")
+                        item_frequency[item_name] = item_frequency.get(item_name, 0) + item.get(
+                            "qty", 1
+                        )
+            except (json.JSONDecodeError, TypeError, KeyError):
+                continue
 
-        item_frequency = {}
-        for order_row in orders:
-            if order_row[0]:
-                try:
-                    details = (
-                        json.loads(order_row[0]) if isinstance(order_row[0], str) else order_row[0]
-                    )
-                    if "items" in details:
-                        for item in details["items"]:
-                            item_name = item.get("name", "Unknown")
-                            item_frequency[item_name] = item_frequency.get(item_name, 0) + item.get(
-                                "qty", 1
-                            )
-                except (json.JSONDecodeError, TypeError, KeyError):
-                    continue
+    # Sort by frequency and get top 10
+    top_items = sorted(item_frequency.items(), key=lambda x: x[1], reverse=True)[:10]
+    item_names = [item[0] for item in top_items]
+    item_counts = [item[1] for item in top_items]
 
-        # Sort by frequency and get top 10
-        top_items = sorted(item_frequency.items(), key=lambda x: x[1], reverse=True)[:10]
-        item_names = [item[0] for item in top_items]
-        item_counts = [item[1] for item in top_items]
+    # Get historical data for time series chart (last 30 days)
+    snapshots = fetch_all(
+        conn,
+        """
+        SELECT snapshot_date, total_orders
+        FROM Analytics
+        WHERE rtr_id = ?
+        ORDER BY snapshot_date DESC
+        LIMIT 30
+        """,
+        (rtr_id,),
+    )
 
-        # Get historical data for time series chart (last 30 days)
-        snapshots = fetch_all(
-            conn,
-            """
-            SELECT snapshot_date, total_orders
-            FROM Analytics
-            WHERE rtr_id = ?
-            ORDER BY snapshot_date DESC
-            LIMIT 30
-            """,
-            (rtr_id,),
-        )
+    # Reverse to show oldest to newest
+    snapshots = list(reversed(snapshots))
+    date_labels = [s[0] for s in snapshots]
+    date_counts = [s[1] for s in snapshots]
 
-        # Reverse to show oldest to newest
-        snapshots = list(reversed(snapshots))
-        date_labels = [s[0] for s in snapshots]
-        date_counts = [s[1] for s in snapshots]
-
-        return render_template(
-            "restaurant_analytics.html",
-            restaurant_name=restaurant_name,
-            total_orders=total_orders,
-            total_revenue=total_revenue,
-            avg_order_value=avg_order_value,
-            date_labels=date_labels,
-            date_counts=date_counts,
-            status_labels=status_labels,
-            status_counts=status_counts,
-            item_names=item_names,
-            item_counts=item_counts,
-        )
-    finally:
-        close_connection(conn)
+    return render_template(
+        "restaurant_analytics.html",
+        restaurant_name=restaurant_name,
+        total_orders=total_orders,
+        total_revenue=total_revenue,
+        avg_order_value=avg_order_value,
+        date_labels=date_labels,
+        date_counts=date_counts,
+        status_labels=status_labels,
+        status_counts=status_counts,
+        item_names=item_names,
+        item_counts=item_counts,
+    )
 
 
 # ---------------------- Restaurant Order Management Routes ----------------------
@@ -1112,29 +1175,26 @@ def restaurant_accept_order(ord_id):
     """
     rtr_id = session.get("rtr_id")
 
-    conn = create_connection(db_file)
-    try:
-        # Verify order belongs to this restaurant and is in 'Ordered' status
-        order = fetch_one(
-            conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    conn = get_db()
+    # Verify order belongs to this restaurant and is in 'Ordered' status
+    order = fetch_one(
+        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    )
+
+    if not order:
+        abort(404)
+
+    if order[1] != rtr_id:
+        abort(403)  # Not this restaurant's order
+
+    if order[2] != "Ordered":
+        return (
+            jsonify({"ok": False, "error": "Order not in pending state"}),
+            400,
         )
 
-        if not order:
-            abort(404)
-
-        if order[1] != rtr_id:
-            abort(403)  # Not this restaurant's order
-
-        if order[2] != "Ordered":
-            return (
-                jsonify({"ok": False, "error": "Order not in pending state"}),
-                400,
-            )
-
-        # Update status
-        execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Accepted", ord_id))
-    finally:
-        close_connection(conn)
+    # Update status
+    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Accepted", ord_id))
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1154,24 +1214,21 @@ def restaurant_reject_order(ord_id):
     """
     rtr_id = session.get("rtr_id")
 
-    conn = create_connection(db_file)
-    try:
-        order = fetch_one(
-            conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    conn = get_db()
+    order = fetch_one(
+        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    )
+
+    if not order or order[1] != rtr_id:
+        abort(403)
+
+    if order[2] not in ["Ordered", "Accepted", "Preparing"]:
+        return (
+            jsonify({"ok": False, "error": "Cannot cancel at this stage"}),
+            400,
         )
 
-        if not order or order[1] != rtr_id:
-            abort(403)
-
-        if order[2] not in ["Ordered", "Accepted", "Preparing"]:
-            return (
-                jsonify({"ok": False, "error": "Cannot cancel at this stage"}),
-                400,
-            )
-
-        execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Cancelled", ord_id))
-    finally:
-        close_connection(conn)
+    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Cancelled", ord_id))
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1190,24 +1247,21 @@ def restaurant_prepare_order(ord_id):
     """
     rtr_id = session.get("rtr_id")
 
-    conn = create_connection(db_file)
-    try:
-        order = fetch_one(
-            conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    conn = get_db()
+    order = fetch_one(
+        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    )
+
+    if not order or order[1] != rtr_id:
+        abort(403)
+
+    if order[2] != "Accepted":
+        return (
+            jsonify({"ok": False, "error": "Order must be accepted first"}),
+            400,
         )
 
-        if not order or order[1] != rtr_id:
-            abort(403)
-
-        if order[2] != "Accepted":
-            return (
-                jsonify({"ok": False, "error": "Order must be accepted first"}),
-                400,
-            )
-
-        execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Preparing", ord_id))
-    finally:
-        close_connection(conn)
+    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Preparing", ord_id))
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1226,24 +1280,21 @@ def restaurant_ready_order(ord_id):
     """
     rtr_id = session.get("rtr_id")
 
-    conn = create_connection(db_file)
-    try:
-        order = fetch_one(
-            conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    conn = get_db()
+    order = fetch_one(
+        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    )
+
+    if not order or order[1] != rtr_id:
+        abort(403)
+
+    if order[2] != "Preparing":
+        return (
+            jsonify({"ok": False, "error": "Order must be preparing first"}),
+            400,
         )
 
-        if not order or order[1] != rtr_id:
-            abort(403)
-
-        if order[2] != "Preparing":
-            return (
-                jsonify({"ok": False, "error": "Order must be preparing first"}),
-                400,
-            )
-
-        execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Ready", ord_id))
-    finally:
-        close_connection(conn)
+    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Ready", ord_id))
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1262,24 +1313,21 @@ def restaurant_deliver_order(ord_id):
     """
     rtr_id = session.get("rtr_id")
 
-    conn = create_connection(db_file)
-    try:
-        order = fetch_one(
-            conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    conn = get_db()
+    order = fetch_one(
+        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+    )
+
+    if not order or order[1] != rtr_id:
+        abort(403)
+
+    if order[2] != "Ready":
+        return (
+            jsonify({"ok": False, "error": "Order must be ready first"}),
+            400,
         )
 
-        if not order or order[1] != rtr_id:
-            abort(403)
-
-        if order[2] != "Ready":
-            return (
-                jsonify({"ok": False, "error": "Order must be ready first"}),
-                400,
-            )
-
-        execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Delivered", ord_id))
-    finally:
-        close_connection(conn)
+    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Delivered", ord_id))
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1324,7 +1372,7 @@ def register():
         if len(digits_only) < 7:
             return render_template("register.html", error="Please enter a valid phone number")
 
-        conn = create_connection(db_file)
+        conn = get_db()
         try:
             exists = fetch_one(conn, 'SELECT 1 FROM "User" WHERE email = ?', (email,))
             if exists:
@@ -1332,7 +1380,7 @@ def register():
 
             password_hashed = generate_password_hash(password)
 
-            # Insert WITHOUT generated_menu (your LLM will populate it later)
+            # Insert WITHOUT generated_menu (meal planning fills it later)
             execute_query(
                 conn,
                 """
@@ -1345,8 +1393,6 @@ def register():
             )
         except IntegrityError:
             return render_template("register.html", error="Email already registered")
-        finally:
-            close_connection(conn)
 
         return redirect(url_for("login"))
 
@@ -1391,79 +1437,76 @@ def profile():
         except Exception:
             return ""
 
-    conn = create_connection(db_file)
-    try:
-        row = fetch_one(
+    conn = get_db()
+    row = fetch_one(
+        conn,
+        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies FROM "User" WHERE email = ?',
+        (email,),
+    )
+    if not row:
+        return redirect(url_for("logout"))
+
+    user = {
+        "usr_id": row[0],
+        "first_name": row[1],
+        "last_name": row[2],
+        "email": row[3],
+        "phone": row[4],
+        "password_HS": row[5],
+        "wallet": (row[6] or 0) / 100.0,
+        "preferences": row[7] or "",
+        "allergies": row[8] or "",
+    }
+
+    session["usr_id"] = user["usr_id"]
+
+    # Pull orders for this user; details is JSON we will parse
+    order_rows = fetch_all(
+        conn,
+        """
+        SELECT o.ord_id, o.details, o.status, r.name
+        FROM "Order" o
+        JOIN "Restaurant" r ON o.rtr_id = r.rtr_id
+        WHERE o.usr_id = ?
+        ORDER BY o.ord_id DESC
+        """,
+        (user["usr_id"],),
+    )
+
+    orders = []
+    for ord_id, details, status, r_name in order_rows:
+        placed = ""
+        total = ""
+        if details:
+            try:
+                j = json.loads(details)
+                placed = _fmt_date(j.get("placed_at") or j.get("time"))
+                charges = j.get("charges") or {}
+                total_val = (
+                    charges.get("total") or charges.get("grand_total") or charges.get("amount")
+                )
+                total = _fmt_total(total_val) if total_val is not None else ""
+            except Exception:
+                pass
+
+        # Check if this order has a review
+        has_review = fetch_one(
             conn,
-            'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies FROM "User" WHERE email = ?',
-            (email,),
+            'SELECT 1 FROM "Review" WHERE ord_id = ?',
+            (ord_id,),
+        ) is not None
+
+        orders.append(
+            {
+                "id": ord_id,
+                "date": placed,
+                "status": status or "",
+                "progress": order_progress(status),
+                "restaurant": r_name,
+                "total": total,
+                "has_review": has_review,
+            }
         )
-        if not row:
-            return redirect(url_for("logout"))
-
-        user = {
-            "usr_id": row[0],
-            "first_name": row[1],
-            "last_name": row[2],
-            "email": row[3],
-            "phone": row[4],
-            "password_HS": row[5],
-            "wallet": (row[6] or 0) / 100.0,
-            "preferences": row[7] or "",
-            "allergies": row[8] or "",
-        }
-
-        session["usr_id"] = user["usr_id"]
-
-        # Pull orders for this user; details is JSON we will parse
-        order_rows = fetch_all(
-            conn,
-            """
-            SELECT o.ord_id, o.details, o.status, r.name
-            FROM "Order" o
-            JOIN "Restaurant" r ON o.rtr_id = r.rtr_id
-            WHERE o.usr_id = ?
-            ORDER BY o.ord_id DESC
-            """,
-            (user["usr_id"],),
-        )
-
-        orders = []
-        for ord_id, details, status, r_name in order_rows:
-            placed = ""
-            total = ""
-            if details:
-                try:
-                    j = json.loads(details)
-                    placed = _fmt_date(j.get("placed_at") or j.get("time"))
-                    charges = j.get("charges") or {}
-                    total_val = (
-                        charges.get("total") or charges.get("grand_total") or charges.get("amount")
-                    )
-                    total = _fmt_total(total_val) if total_val is not None else ""
-                except Exception:
-                    pass
-
-            # Check if this order has a review
-            has_review = fetch_one(
-                conn,
-                'SELECT 1 FROM "Review" WHERE ord_id = ?',
-                (ord_id,),
-            ) is not None
-
-            orders.append(
-                {
-                    "id": ord_id,
-                    "date": placed,
-                    "status": status or "",
-                    "progress": order_progress(status),
-                    "restaurant": r_name,
-                    "total": total,
-                    "has_review": has_review,
-                }
-            )
-    finally:
-        close_connection(conn)
 
     pw_updated = request.args.get("pw_updated")
     pw_error = request.args.get("pw_error")
@@ -1491,18 +1534,15 @@ def edit_profile():
     if not usr_id:
         return redirect(url_for("logout"))
 
-    conn = create_connection(db_file)
-    try:
-        row = fetch_one(
-            conn,
-            """
-            SELECT usr_id, first_name, last_name, email, phone, wallet, preferences, allergies
-            FROM "User" WHERE usr_id = ?
-        """,
-            (usr_id,),
-        )
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    row = fetch_one(
+        conn,
+        """
+        SELECT usr_id, first_name, last_name, email, phone, wallet, preferences, allergies
+        FROM "User" WHERE usr_id = ?
+    """,
+        (usr_id,),
+    )
 
     if not row:
         return redirect(url_for("logout"))
@@ -1526,19 +1566,16 @@ def edit_profile():
         new_prefs = request.form.get("preferences") or user["preferences"]
         new_allergies = request.form.get("allergies") or user["allergies"]
 
-        conn = create_connection(db_file)
-        try:
-            execute_query(
-                conn,
-                """
-                UPDATE "User"
-                SET phone = ?, preferences = ?, allergies = ?
-                WHERE usr_id = ?
-            """,
-                (new_phone, new_prefs, new_allergies, usr_id),
-            )
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        execute_query(
+            conn,
+            """
+            UPDATE "User"
+            SET phone = ?, preferences = ?, allergies = ?
+            WHERE usr_id = ?
+        """,
+            (new_phone, new_prefs, new_allergies, usr_id),
+        )
 
         # Refresh session values
         session["Phone"] = new_phone
@@ -1569,15 +1606,12 @@ def change_password():
         email = session.get("Email")
         if not email:
             return redirect(url_for("logout"))
-        conn = create_connection(db_file)
-        try:
-            row = fetch_one(conn, 'SELECT usr_id FROM "User" WHERE email = ?', (email,))
-            if not row:
-                return redirect(url_for("logout"))
-            usr_id = row[0]
-            session["usr_id"] = usr_id
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        row = fetch_one(conn, 'SELECT usr_id FROM "User" WHERE email = ?', (email,))
+        if not row:
+            return redirect(url_for("logout"))
+        usr_id = row[0]
+        session["usr_id"] = usr_id
 
     # Read form fields
     current_password = (request.form.get("current_password") or "").strip()
@@ -1595,25 +1629,22 @@ def change_password():
         return redirect(url_for("profile", pw_error="same_as_current"))
 
     # Verify current hash & update to new hash
-    conn = create_connection(db_file)
-    try:
-        row = fetch_one(conn, 'SELECT password_HS FROM "User" WHERE usr_id = ?', (usr_id,))
-        if not row:
-            return redirect(url_for("logout"))
+    conn = get_db()
+    row = fetch_one(conn, 'SELECT password_HS FROM "User" WHERE usr_id = ?', (usr_id,))
+    if not row:
+        return redirect(url_for("logout"))
 
-        stored_hash = row[0]
-        if not check_password_hash(stored_hash, current_password):
-            # wrong current password
-            return redirect(url_for("profile", pw_error="incorrect_current"))
+    stored_hash = row[0]
+    if not check_password_hash(stored_hash, current_password):
+        # wrong current password
+        return redirect(url_for("profile", pw_error="incorrect_current"))
 
-        # All good → update
-        new_hash = generate_password_hash(new_password)
-        execute_query(
-            conn, 'UPDATE "User" SET password_HS = ? WHERE usr_id = ?', (new_hash, usr_id)
-        )
+    # All good → update
+    new_hash = generate_password_hash(new_password)
+    execute_query(
+        conn, 'UPDATE "User" SET password_HS = ? WHERE usr_id = ?', (new_hash, usr_id)
+    )
 
-    finally:
-        close_connection(conn)
 
     # Success
     return redirect(url_for("profile", pw_updated=1))
@@ -1639,108 +1670,105 @@ def review_order(ord_id):
     if not usr_id:
         return redirect(url_for("logout"))
 
-    conn = create_connection(db_file)
-    try:
-        # Verify order exists, belongs to user, and is delivered
-        order_row = fetch_one(
+    conn = get_db()
+    # Verify order exists, belongs to user, and is delivered
+    order_row = fetch_one(
+        conn,
+        """
+        SELECT o.ord_id, o.rtr_id, o.details, o.status, r.name
+        FROM "Order" o
+        JOIN "Restaurant" r ON o.rtr_id = r.rtr_id
+        WHERE o.ord_id = ? AND o.usr_id = ?
+        """,
+        (ord_id, usr_id),
+    )
+
+    if not order_row:
+        return redirect(url_for("profile"))
+
+    ord_id_db, rtr_id, details, status, r_name = order_row
+
+    # Must be delivered to review
+    if status.lower() != "delivered":
+        return redirect(url_for("profile"))
+
+    # Check if review already exists
+    existing_review = fetch_one(
+        conn, 'SELECT 1 FROM "Review" WHERE ord_id = ?', (ord_id,)
+    )
+    if existing_review:
+        return redirect(url_for("view_review", ord_id=ord_id))
+
+    # Parse order details for display
+    items = []
+    total = 0.0
+    order_date = ""
+    if details:
+        try:
+            j = json.loads(details)
+            order_date = j.get("placed_at") or j.get("time") or ""
+            if order_date:
+                try:
+                    dt = datetime.fromisoformat(order_date)
+                    order_date = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    pass
+
+            charges = j.get("charges") or {}
+            total = float(charges.get("total") or charges.get("grand_total") or 0)
+
+            for item in j.get("items") or []:
+                items.append(
+                    {
+                        "name": item.get("name") or "Item",
+                        "qty": item.get("qty") or 1,
+                        "line_total": float(item.get("line_total") or 0),
+                    }
+                )
+        except Exception:
+            pass
+
+    order = {
+        "ord_id": ord_id,
+        "restaurant_name": r_name,
+        "order_date": order_date,
+        "total": total,
+        "items": items,
+    }
+
+    # Handle POST - Submit review
+    if request.method == "POST":
+        rating = request.form.get("rating")
+        title = (request.form.get("title") or "").strip()
+        description = (request.form.get("description") or "").strip()
+
+        # Validate rating
+        if not rating:
+            return render_template("review_form.html", order=order, error="Please select a rating")
+
+        try:
+            rating_int = int(rating)
+            if rating_int < 1 or rating_int > 5:
+                raise ValueError
+        except ValueError:
+            return render_template("review_form.html", order=order, error="Invalid rating value")
+
+        # Insert review
+        created_at = datetime.now().isoformat()
+        execute_query(
             conn,
             """
-            SELECT o.ord_id, o.rtr_id, o.details, o.status, r.name
-            FROM "Order" o
-            JOIN "Restaurant" r ON o.rtr_id = r.rtr_id
-            WHERE o.ord_id = ? AND o.usr_id = ?
+            INSERT INTO "Review" (rtr_id, usr_id, title, rating, description, ord_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (ord_id, usr_id),
+            (rtr_id, usr_id, title, rating_int, description, ord_id, created_at),
         )
 
-        if not order_row:
-            return redirect(url_for("profile"))
+        return redirect(url_for("profile"))
 
-        ord_id_db, rtr_id, details, status, r_name = order_row
+    # GET - Show form
+    return render_template("review_form.html", order=order)
 
-        # Must be delivered to review
-        if status.lower() != "delivered":
-            return redirect(url_for("profile"))
-
-        # Check if review already exists
-        existing_review = fetch_one(
-            conn, 'SELECT 1 FROM "Review" WHERE ord_id = ?', (ord_id,)
-        )
-        if existing_review:
-            return redirect(url_for("view_review", ord_id=ord_id))
-
-        # Parse order details for display
-        items = []
-        total = 0.0
-        order_date = ""
-        if details:
-            try:
-                j = json.loads(details)
-                order_date = j.get("placed_at") or j.get("time") or ""
-                if order_date:
-                    try:
-                        dt = datetime.fromisoformat(order_date)
-                        order_date = dt.strftime("%Y-%m-%d %H:%M")
-                    except Exception:
-                        pass
-
-                charges = j.get("charges") or {}
-                total = float(charges.get("total") or charges.get("grand_total") or 0)
-
-                for item in j.get("items") or []:
-                    items.append(
-                        {
-                            "name": item.get("name") or "Item",
-                            "qty": item.get("qty") or 1,
-                            "line_total": float(item.get("line_total") or 0),
-                        }
-                    )
-            except Exception:
-                pass
-
-        order = {
-            "ord_id": ord_id,
-            "restaurant_name": r_name,
-            "order_date": order_date,
-            "total": total,
-            "items": items,
-        }
-
-        # Handle POST - Submit review
-        if request.method == "POST":
-            rating = request.form.get("rating")
-            title = (request.form.get("title") or "").strip()
-            description = (request.form.get("description") or "").strip()
-
-            # Validate rating
-            if not rating:
-                return render_template("review_form.html", order=order, error="Please select a rating")
-
-            try:
-                rating_int = int(rating)
-                if rating_int < 1 or rating_int > 5:
-                    raise ValueError
-            except ValueError:
-                return render_template("review_form.html", order=order, error="Invalid rating value")
-
-            # Insert review
-            created_at = datetime.now().isoformat()
-            execute_query(
-                conn,
-                """
-                INSERT INTO "Review" (rtr_id, usr_id, title, rating, description, ord_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (rtr_id, usr_id, title, rating_int, description, ord_id, created_at),
-            )
-
-            return redirect(url_for("profile"))
-
-        # GET - Show form
-        return render_template("review_form.html", order=order)
-
-    finally:
-        close_connection(conn)
 
 
 @app.route("/order/<int:ord_id>/review/view")
@@ -1760,39 +1788,36 @@ def view_review(ord_id):
     if not usr_id:
         return redirect(url_for("logout"))
 
-    conn = create_connection(db_file)
-    try:
-        # Get review details with restaurant info
-        review_row = fetch_one(
-            conn,
-            """
-            SELECT r.rev_id, r.rtr_id, r.ord_id, r.title, r.rating, r.description, r.created_at,
-                   rest.name as restaurant_name
-            FROM "Review" r
-            JOIN "Restaurant" rest ON r.rtr_id = rest.rtr_id
-            WHERE r.ord_id = ? AND r.usr_id = ?
-            """,
-            (ord_id, usr_id),
-        )
+    conn = get_db()
+    # Get review details with restaurant info
+    review_row = fetch_one(
+        conn,
+        """
+        SELECT r.rev_id, r.rtr_id, r.ord_id, r.title, r.rating, r.description, r.created_at,
+               rest.name as restaurant_name
+        FROM "Review" r
+        JOIN "Restaurant" rest ON r.rtr_id = rest.rtr_id
+        WHERE r.ord_id = ? AND r.usr_id = ?
+        """,
+        (ord_id, usr_id),
+    )
 
-        if not review_row:
-            return redirect(url_for("profile"))
+    if not review_row:
+        return redirect(url_for("profile"))
 
-        review = {
-            "rev_id": review_row[0],
-            "rtr_id": review_row[1],
-            "ord_id": review_row[2],
-            "title": review_row[3],
-            "rating": review_row[4],
-            "description": review_row[5],
-            "created_at": review_row[6],
-            "restaurant_name": review_row[7],
-        }
+    review = {
+        "rev_id": review_row[0],
+        "rtr_id": review_row[1],
+        "ord_id": review_row[2],
+        "title": review_row[3],
+        "rating": review_row[4],
+        "description": review_row[5],
+        "created_at": review_row[6],
+        "restaurant_name": review_row[7],
+    }
 
-        return render_template("view_review.html", review=review)
+    return render_template("view_review.html", review=review)
 
-    finally:
-        close_connection(conn)
 
 
 @app.route("/restaurant/<int:rtr_id>/reviews")
@@ -1804,117 +1829,114 @@ def restaurant_reviews(rtr_id):
     Returns:
         Response: Restaurant reviews page HTML.
     """
-    conn = create_connection(db_file)
-    try:
-        # Get restaurant info
-        restaurant_row = fetch_one(
-            conn, 'SELECT name FROM "Restaurant" WHERE rtr_id = ?', (rtr_id,)
-        )
-        if not restaurant_row:
-            abort(404)
+    conn = get_db()
+    # Get restaurant info
+    restaurant_row = fetch_one(
+        conn, 'SELECT name FROM "Restaurant" WHERE rtr_id = ?', (rtr_id,)
+    )
+    if not restaurant_row:
+        abort(404)
 
-        restaurant = {"name": restaurant_row[0]}
+    restaurant = {"name": restaurant_row[0]}
 
-        # Get query parameters
-        page = max(1, int(request.args.get("page", 1)))
-        sort = request.args.get("sort", "recent")
-        filter_rating = request.args.get("filter", "all")
-        highlight = request.args.get("highlight")  # Optional review ID to highlight
+    # Get query parameters
+    page = max(1, int(request.args.get("page", 1)))
+    sort = request.args.get("sort", "recent")
+    filter_rating = request.args.get("filter", "all")
+    highlight = request.args.get("highlight")  # Optional review ID to highlight
 
-        per_page = 10
-        offset = (page - 1) * per_page
+    per_page = 10
+    offset = (page - 1) * per_page
 
-        # Build WHERE clause for filter
-        where_clause = "rtr_id = ?"
-        params = [rtr_id]
-        if filter_rating != "all":
+    # Build WHERE clause for filter
+    where_clause = "rtr_id = ?"
+    params = [rtr_id]
+    if filter_rating != "all":
+        try:
+            filter_int = int(filter_rating)
+            if 1 <= filter_int <= 5:
+                where_clause += " AND rating = ?"
+                params.append(filter_int)
+        except ValueError:
+            pass
+
+    # Build ORDER BY clause for sort
+    if sort == "highest":
+        order_by = "rating DESC, created_at DESC"
+    elif sort == "lowest":
+        order_by = "rating ASC, created_at DESC"
+    else:  # recent
+        order_by = "created_at DESC"
+
+    # Get total count
+    total_reviews = fetch_one(
+        conn, f'SELECT COUNT(*) FROM "Review" WHERE {where_clause}', tuple(params)
+    )[0]
+
+    # Calculate average rating
+    avg_row = fetch_one(
+        conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
+    )
+    average_rating = float(avg_row[0]) if avg_row and avg_row[0] else 0.0
+
+    # Get reviews
+    review_rows = fetch_all(
+        conn,
+        f"""
+        SELECT r.rev_id, r.title, r.rating, r.description, r.created_at, r.ord_id,
+               u.first_name, u.last_name
+        FROM "Review" r
+        JOIN "User" u ON r.usr_id = u.usr_id
+        WHERE {where_clause}
+        ORDER BY {order_by}
+        LIMIT ? OFFSET ?
+        """,
+        tuple(params + [per_page, offset]),
+    )
+
+    reviews = []
+    for rev_id, title, rating, description, created_at, ord_id, first_name, last_name in review_rows:
+        # Format date
+        date_str = ""
+        if created_at:
             try:
-                filter_int = int(filter_rating)
-                if 1 <= filter_int <= 5:
-                    where_clause += " AND rating = ?"
-                    params.append(filter_int)
-            except ValueError:
-                pass
+                dt = datetime.fromisoformat(created_at)
+                date_str = dt.strftime("%B %d, %Y")
+            except Exception:
+                date_str = created_at
 
-        # Build ORDER BY clause for sort
-        if sort == "highest":
-            order_by = "rating DESC, created_at DESC"
-        elif sort == "lowest":
-            order_by = "rating ASC, created_at DESC"
-        else:  # recent
-            order_by = "created_at DESC"
+        # Get user initial for avatar
+        user_initial = first_name[0].upper() if first_name else "?"
+        user_name = f"{first_name} {last_name}" if first_name and last_name else "Anonymous"
 
-        # Get total count
-        total_reviews = fetch_one(
-            conn, f'SELECT COUNT(*) FROM "Review" WHERE {where_clause}', tuple(params)
-        )[0]
-
-        # Calculate average rating
-        avg_row = fetch_one(
-            conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
-        )
-        average_rating = float(avg_row[0]) if avg_row and avg_row[0] else 0.0
-
-        # Get reviews
-        review_rows = fetch_all(
-            conn,
-            f"""
-            SELECT r.rev_id, r.title, r.rating, r.description, r.created_at, r.ord_id,
-                   u.first_name, u.last_name
-            FROM "Review" r
-            JOIN "User" u ON r.usr_id = u.usr_id
-            WHERE {where_clause}
-            ORDER BY {order_by}
-            LIMIT ? OFFSET ?
-            """,
-            tuple(params + [per_page, offset]),
+        reviews.append(
+            {
+                "rev_id": rev_id,
+                "title": title,
+                "rating": rating,
+                "description": description,
+                "date": date_str,
+                "ord_id": ord_id,
+                "user_name": user_name,
+                "user_initial": user_initial,
+                "is_highlighted": str(rev_id) == highlight,
+            }
         )
 
-        reviews = []
-        for rev_id, title, rating, description, created_at, ord_id, first_name, last_name in review_rows:
-            # Format date
-            date_str = ""
-            if created_at:
-                try:
-                    dt = datetime.fromisoformat(created_at)
-                    date_str = dt.strftime("%B %d, %Y")
-                except Exception:
-                    date_str = created_at
+    total_pages = math.ceil(total_reviews / per_page) if total_reviews > 0 else 1
 
-            # Get user initial for avatar
-            user_initial = first_name[0].upper() if first_name else "?"
-            user_name = f"{first_name} {last_name}" if first_name and last_name else "Anonymous"
+    return render_template(
+        "restaurant_reviews.html",
+        restaurant=restaurant,
+        reviews=reviews,
+        total_reviews=total_reviews,
+        average_rating=average_rating,
+        page=page,
+        total_pages=total_pages,
+        sort=sort,
+        filter=filter_rating,
+    )
 
-            reviews.append(
-                {
-                    "rev_id": rev_id,
-                    "title": title,
-                    "rating": rating,
-                    "description": description,
-                    "date": date_str,
-                    "ord_id": ord_id,
-                    "user_name": user_name,
-                    "user_initial": user_initial,
-                    "is_highlighted": str(rev_id) == highlight,
-                }
-            )
-
-        total_pages = math.ceil(total_reviews / per_page) if total_reviews > 0 else 1
-
-        return render_template(
-            "restaurant_reviews.html",
-            restaurant=restaurant,
-            reviews=reviews,
-            total_reviews=total_reviews,
-            average_rating=average_rating,
-            page=page,
-            total_pages=total_pages,
-            sort=sort,
-            filter=filter_rating,
-        )
-
-    finally:
-        close_connection(conn)
 
 
 # Order route (Calendar "Order" button target)
@@ -1934,17 +1956,14 @@ def order():
     # Resolve usr_id strictly
     usr_id = session.get("usr_id")
     if not usr_id:
-        conn = create_connection(db_file)
-        try:
-            row = fetch_one(
-                conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),)
-            )
-            if not row:
-                return redirect(url_for("logout"))
-            usr_id = row[0]
-            session["usr_id"] = usr_id
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        row = fetch_one(
+            conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),)
+        )
+        if not row:
+            return redirect(url_for("logout"))
+        usr_id = row[0]
+        session["usr_id"] = usr_id
 
     # ---- POST JSON: place a single order containing ALL items in the restaurant group ----
     if request.method == "POST" and request.is_json:
@@ -1970,21 +1989,18 @@ def order():
         if not itm_ids:
             return jsonify({"ok": False, "error": "no_items"}), 400
 
-        conn = create_connection(db_file)
-        try:
-            qmarks = ",".join(["?"] * len(itm_ids))
-            rows = fetch_all(
-                conn,
-                f"""
-                SELECT m.itm_id, m.rtr_id, m.name, m.price, r.name
-                FROM "MenuItem" m
-                JOIN "Restaurant" r ON r.rtr_id = m.rtr_id
-                WHERE m.itm_id IN ({qmarks})
-            """,
-                tuple(itm_ids),
-            )
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        qmarks = ",".join(["?"] * len(itm_ids))
+        rows = fetch_all(
+            conn,
+            f"""
+            SELECT m.itm_id, m.rtr_id, m.name, m.price, r.name
+            FROM "MenuItem" m
+            JOIN "Restaurant" r ON r.rtr_id = m.rtr_id
+            WHERE m.itm_id IN ({qmarks})
+        """,
+            tuple(itm_ids),
+        )
 
         # Validate that all items belong to the same restaurant
         if not rows:
@@ -2029,10 +2045,9 @@ def order():
                 }
             )
 
-        tax = _money(subtotal * 0.0725)
-        delivery_fee = 3.99 if delivery_type == "delivery" else 0.00
-        service_fee = 1.49
-        total = _money(subtotal + tax + delivery_fee + service_fee + tip_dollars)
+        charges = _order_charges(subtotal, delivery_type, tip_dollars)
+        tax, delivery_fee = charges["tax"], charges["delivery_fee"]
+        service_fee, total = charges["service_fee"], charges["total"]
 
         placed_iso = datetime.now().astimezone().isoformat()
 
@@ -2055,20 +2070,12 @@ def order():
         }
 
         # Insert the single order row with status "Ordered"
-        conn = create_connection(db_file)
-        try:
-            execute_query(
-                conn,
-                """
-                INSERT INTO "Order" (rtr_id, usr_id, details, status)
-                VALUES (?, ?, ?, ?)
-            """,
-                (rtr_id, usr_id, json.dumps(details), "Ordered"),
-            )
-            row = fetch_one(conn, "SELECT last_insert_rowid()")
-            new_ord_id = row[0] if row else None
-        finally:
-            close_connection(conn)
+        conn = get_db()
+        new_ord_id = execute_query(
+            conn,
+            'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
+            (rtr_id, usr_id, json.dumps(details), "Ordered"),
+        ).lastrowid
 
         # Update analytics for this restaurant
         update_analytics_safe(rtr_id)
@@ -2105,20 +2112,17 @@ def order():
     notes = (request.args.get("notes") or "").strip()
 
     # Look up item & restaurant strictly
-    conn = create_connection(db_file)
-    try:
-        mi = fetch_one(
-            conn,
-            """
-            SELECT m.itm_id, m.rtr_id, m.name, m.price, r.name
-            FROM "MenuItem" m
-            JOIN "Restaurant" r ON r.rtr_id = m.rtr_id
-            WHERE m.itm_id = ?
-        """,
-            (itm_id,),
-        )
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    mi = fetch_one(
+        conn,
+        """
+        SELECT m.itm_id, m.rtr_id, m.name, m.price, r.name
+        FROM "MenuItem" m
+        JOIN "Restaurant" r ON r.rtr_id = m.rtr_id
+        WHERE m.itm_id = ?
+    """,
+        (itm_id,),
+    )
     if not mi:
         return redirect(url_for("orders"))
 
@@ -2126,10 +2130,9 @@ def order():
     unit_price = _cents_to_dollars(price_cents)
     line_total = _money(unit_price * qty)
 
-    tax = _money(line_total * 0.0725)
-    delivery_fee = 3.99 if delivery_type == "delivery" else 0.00
-    service_fee = 1.49
-    total = _money(line_total + tax + delivery_fee + service_fee + tip_dollars)
+    charges = _order_charges(line_total, delivery_type, tip_dollars)
+    tax, delivery_fee = charges["tax"], charges["delivery_fee"]
+    service_fee, total = charges["service_fee"], charges["total"]
 
     details = {
         "placed_at": datetime.now().astimezone().isoformat(),
@@ -2158,20 +2161,12 @@ def order():
         "meal": meal,
     }
 
-    conn = create_connection(db_file)
-    try:
-        execute_query(
-            conn,
-            """
-            INSERT INTO "Order" (rtr_id, usr_id, details, status)
-            VALUES (?, ?, ?, ?)
-        """,
-            (rtr_id, usr_id, json.dumps(details), "Ordered"),
-        )
-        row = fetch_one(conn, "SELECT last_insert_rowid()")
-        new_ord_id = row[0] if row else None
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    new_ord_id = execute_query(
+        conn,
+        'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
+        (rtr_id, usr_id, json.dumps(details), "Ordered"),
+    ).lastrowid
 
     return redirect(url_for("profile") + (f"?ordered={new_ord_id}" if new_ord_id else ""))
 
@@ -2189,22 +2184,19 @@ def orders():
     if session.get("Username") is None:
         return redirect(url_for("login"))
 
-    conn = create_connection(db_file)
-    try:
-        # Pull address fields too
-        restaurants = fetch_all(
-            conn, 'SELECT rtr_id, name, address, city, state, zip FROM "Restaurant"'
-        )
-        menu_items = fetch_all(
-            conn,
-            """
-            SELECT itm_id, rtr_id, name, price, calories, allergens, description
-            FROM "MenuItem"
-            WHERE instock IS NULL OR instock = 1
-        """,
-        )
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    # Pull address fields too
+    restaurants = fetch_all(
+        conn, 'SELECT rtr_id, name, address, city, state, zip FROM "Restaurant"'
+    )
+    menu_items = fetch_all(
+        conn,
+        """
+        SELECT itm_id, rtr_id, name, price, calories, allergens, description
+        FROM "MenuItem"
+        WHERE instock IS NULL OR instock = 1
+    """,
+    )
 
     def _addr(a, c, s, z) -> str:
         """
@@ -2270,22 +2262,19 @@ def restaurants():
     if session.get("Username") is None:
         return redirect(url_for("login"))
 
-    conn = create_connection(db_file)
-    try:
-        restaurants = fetch_all(
-            conn,
-            'SELECT rtr_id, name, description, phone, email, address, city, state, zip, hours, status FROM "Restaurant"',
-        )
-        menu_items = fetch_all(
-            conn,
-            """
-            SELECT itm_id, rtr_id, name, price, calories, allergens, description
-            FROM "MenuItem"
-            WHERE instock IS NULL OR instock = 1
-        """,
-        )
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    restaurants = fetch_all(
+        conn,
+        'SELECT rtr_id, name, description, phone, email, address, city, state, zip, hours, status FROM "Restaurant"',
+    )
+    menu_items = fetch_all(
+        conn,
+        """
+        SELECT itm_id, rtr_id, name, price, calories, allergens, description
+        FROM "MenuItem"
+        WHERE instock IS NULL OR instock = 1
+    """,
+    )
 
     def _addr(a, c, s, z) -> str:
         parts_raw = [a, c, s, z]
@@ -2310,6 +2299,7 @@ def restaurants():
             "state": r[7] or "",
             "zip": r[8] if r[8] is not None else "",
             "hours": r[9] or "",
+            "hours_display": format_hours(r[9]),
             "status": r[10] or "",
             "address_full": _addr(r[5], r[6], r[7], r[8]),
         }
@@ -2347,25 +2337,22 @@ def order_receipt(ord_id: int):
         return redirect(url_for("login"))
 
     # Ensure the order belongs to the logged-in user
-    conn = create_connection(db_file)
-    try:
-        row = fetch_one(conn, 'SELECT usr_id FROM "Order" WHERE ord_id = ?', (ord_id,))
-        if not row:
-            abort(404)
-        if session.get("usr_id") and row[0] != session["usr_id"]:
+    conn = get_db()
+    row = fetch_one(conn, 'SELECT usr_id FROM "Order" WHERE ord_id = ?', (ord_id,))
+    if not row:
+        abort(404)
+    if session.get("usr_id") and row[0] != session["usr_id"]:
+        abort(403)
+    # If usr_id not in session (older sessions), compare via email
+    if not session.get("usr_id"):
+        # Resolve current user's usr_id by email
+        urow = fetch_one(
+            conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),)
+        )
+        if not urow or urow[0] != row[0]:
             abort(403)
-        # If usr_id not in session (older sessions), compare via email
-        if not session.get("usr_id"):
-            # Resolve current user's usr_id by email
-            urow = fetch_one(
-                conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),)
-            )
-            if not urow or urow[0] != row[0]:
-                abort(403)
 
-        pdf_bytes = generate_order_receipt_pdf(db_file, ord_id)  # returns bytes
-    finally:
-        close_connection(conn)
+    pdf_bytes = generate_order_receipt_pdf(db_path(), ord_id)  # returns bytes
 
     return send_file(
         BytesIO(pdf_bytes),
@@ -2421,6 +2408,12 @@ def inject_db_view_enabled():
     return {"db_view_enabled": db_view_enabled()}
 
 
+@app.context_processor
+def inject_order_fees():
+    """Expose the fee schedule so cart previews compute the same totals the server bills."""
+    return {"order_fees": config.order_fees()}
+
+
 # Database viewer route (uses helpers only)
 @app.route("/db")
 def db_view():
@@ -2449,28 +2442,25 @@ def db_view():
     page = max(page, 1)
     per_page = 10
 
-    conn = create_connection(db_file)
-    try:
-        total_row = fetch_one(conn, f'SELECT COUNT(*) FROM "{table}"')
-        total = (total_row[0] if total_row else 0) or 0
+    conn = get_db()
+    total_row = fetch_one(conn, f'SELECT COUNT(*) FROM "{table}"')
+    total = (total_row[0] if total_row else 0) or 0
 
-        pages = max(math.ceil(total / per_page), 1)
-        page = min(page, pages)
-        offset = (page - 1) * per_page
+    pages = max(math.ceil(total / per_page), 1)
+    page = min(page, pages)
+    offset = (page - 1) * per_page
 
-        col_rows = fetch_all(conn, f'PRAGMA table_info("{table}")')
-        columns = [r[1] for r in col_rows or [] if r[1] not in DB_VIEW_HIDDEN_COLUMNS]
+    col_rows = fetch_all(conn, f'PRAGMA table_info("{table}")')
+    columns = [r[1] for r in col_rows or [] if r[1] not in DB_VIEW_HIDDEN_COLUMNS]
 
-        # Select only the visible columns, so hidden values never leave the database.
-        if columns:
-            select_list = ", ".join(_quote_ident(c) for c in columns)
-            rows = fetch_all(
-                conn, f'SELECT {select_list} FROM "{table}" LIMIT ? OFFSET ?', (per_page, offset)
-            )
-        else:
-            rows = []
-    finally:
-        close_connection(conn)
+    # Select only the visible columns, so hidden values never leave the database.
+    if columns:
+        select_list = ", ".join(_quote_ident(c) for c in columns)
+        rows = fetch_all(
+            conn, f'SELECT {select_list} FROM "{table}" LIMIT ? OFFSET ?', (per_page, offset)
+        )
+    else:
+        rows = []
 
     start = 0 if total == 0 else offset + 1
     end = min(offset + per_page, total)
@@ -2489,11 +2479,11 @@ def db_view():
     )
 
 
-# ----------- LLM Menu Generation Route -----------
+# ----------- Meal Plan Generation Route -----------
 @app.route('/menu/generate', methods=['POST'])
 def generate_menu():
     """
-    Generate or extend the logged-in user's AI menu plan and persist it.
+    Generate or extend the logged-in user's meal plan and persist it.
 
     Supports application/json and HTML form submissions.
     """
@@ -2501,15 +2491,12 @@ def generate_menu():
         return redirect(url_for('login'))
 
     # Load user row (need preferences, allergies, existing generated_menu)
-    conn = create_connection(db_file)
-    try:
-        user = fetch_one(
-            conn,
-            'SELECT usr_id, email, preferences, allergies, generated_menu FROM "User" WHERE email = ?',
-            (session.get('Email'),)
-        )
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    user = fetch_one(
+        conn,
+        'SELECT usr_id, email, preferences, allergies, generated_menu FROM "User" WHERE email = ?',
+        (session.get('Email'),)
+    )
 
     if not user:
         return redirect(url_for('logout'))
@@ -2547,6 +2534,10 @@ def generate_menu():
         preferences = (request.form.get('preferences') or prefs_db).strip()
         allergies = (request.form.get('allergens') or allergies_db).strip()
 
+    # Diets and allergies on the account are hard rules; a request can add to them but not drop them.
+    preferences = with_account_diets(preferences, prefs_db)
+    allergies = with_account_allergies(allergies, allergies_db)
+
     want_json = request.is_json or request.accept_mimetypes.best == 'application/json'
 
     def generation_error(message, status):
@@ -2575,7 +2566,7 @@ def generate_menu():
 
     # Generate
     try:
-        gen = MenuGenerator(tokens=100, database_path=db_file)
+        gen = MenuGenerator(database_path=db_path())
         updated_menu = gen.update_menu(
             menu=existing_menu,
             preferences=preferences,
@@ -2605,11 +2596,8 @@ def generate_menu():
         return generation_error("Menu generation failed. Please try again.", 500)
 
     # Persist
-    conn = create_connection(db_file)
-    try:
-        execute_query(conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id))
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    execute_query(conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id))
 
     session['GeneratedMenu'] = updated_menu
 
@@ -2623,6 +2611,7 @@ def generate_menu():
             "weekly_cap_cents": weekly_cap_cents,
             "item_total_cents": sum(totals.values()) if totals is not None else None,
             "weekly_item_totals_cents": totals,
+            "variety": gen.variety.as_json() if gen.variety else None,
         })
     return redirect(url_for('index'))
 
@@ -2660,37 +2649,37 @@ def swap_meal():
     except (TypeError, ValueError):
         return _fail("invalid_item", "Provide the itm_id of the replacement item.", 400)
 
-    conn = create_connection(db_file)
+    conn = get_db()
+    user = fetch_one(
+        conn,
+        'SELECT usr_id, allergies, generated_menu, preferences FROM "User" WHERE email = ?',
+        (session.get("Email"),),
+    )
+    if not user:
+        return redirect(url_for("logout"))
+    usr_id, allergies, menu = user[0], user[1] or "", user[2] or ""
+    preferences = user[3] or ""
+
+    current_itm_id = find_slot_item(menu, slot_date, meal)
+    if current_itm_id is None:
+        return _fail("slot_not_found", "There is no planned meal in that slot.", 404)
+    if current_itm_id == itm_id:
+        return _fail("same_item", "That item is already planned for this slot.", 400)
+
+    rejection = swap_rejection(
+        load_swap_item(conn, itm_id), allergies, slot_date, meal, preferences
+    )
+    if rejection:
+        code, message = rejection
+        return _fail(code, message, 404 if code == "item_not_found" else 409)
+
     try:
-        user = fetch_one(
-            conn,
-            'SELECT usr_id, allergies, generated_menu FROM "User" WHERE email = ?',
-            (session.get("Email"),),
-        )
-        if not user:
-            return redirect(url_for("logout"))
-        usr_id, allergies, menu = user[0], user[1] or "", user[2] or ""
-
-        current_itm_id = find_slot_item(menu, slot_date, meal)
-        if current_itm_id is None:
-            return _fail("slot_not_found", "There is no planned meal in that slot.", 404)
-        if current_itm_id == itm_id:
-            return _fail("same_item", "That item is already planned for this slot.", 400)
-
-        rejection = swap_rejection(load_swap_item(conn, itm_id), allergies, slot_date, meal)
-        if rejection:
-            code, message = rejection
-            return _fail(code, message, 404 if code == "item_not_found" else 409)
-
-        try:
-            updated_menu = replace_menu_slot(menu, slot_date, meal, itm_id)
-        except SlotNotFoundError:
-            return _fail("slot_not_found", "There is no planned meal in that slot.", 404)
-        execute_query(
-            conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id)
-        )
-    finally:
-        close_connection(conn)
+        updated_menu = replace_menu_slot(menu, slot_date, meal, itm_id)
+    except SlotNotFoundError:
+        return _fail("slot_not_found", "There is no planned meal in that slot.", 404)
+    execute_query(
+        conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id)
+    )
 
     session["GeneratedMenu"] = updated_menu
 
@@ -2715,7 +2704,7 @@ def swap_meal_options():
     List the items that could replace one planned slot for the logged-in user.
 
     Query args: date (YYYY-MM-DD) and meal (1|2|3). Only items that pass the same
-    availability and allergen checks as POST /menu/swap are returned.
+    availability, allergen and diet checks as POST /menu/swap are returned.
     """
     if session.get("Username") is None:
         return jsonify({"ok": False, "error": "login_required"}), 401
@@ -2727,21 +2716,24 @@ def swap_meal_options():
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "invalid_slot"}), 400
 
-    conn = create_connection(db_file)
-    try:
-        user = fetch_one(
-            conn,
-            'SELECT allergies, generated_menu FROM "User" WHERE email = ?',
-            (session.get("Email"),),
-        )
-        if not user:
-            return jsonify({"ok": False, "error": "login_required"}), 401
-        current_itm_id = find_slot_item(user[1] or "", slot_date, meal)
-        if current_itm_id is None:
-            return jsonify({"ok": False, "error": "slot_not_found"}), 404
-        eligible = list_swap_options(conn, user[0] or "", slot_date, meal, current_itm_id)
-    finally:
-        close_connection(conn)
+    conn = get_db()
+    user = fetch_one(
+        conn,
+        'SELECT allergies, generated_menu, preferences FROM "User" WHERE email = ?',
+        (session.get("Email"),),
+    )
+    if not user:
+        return jsonify({"ok": False, "error": "login_required"}), 401
+    current_itm_id = find_slot_item(user[1] or "", slot_date, meal)
+    if current_itm_id is None:
+        return jsonify({"ok": False, "error": "slot_not_found"}), 404
+    eligible = list_swap_options(
+        conn, user[0] or "", slot_date, meal, current_itm_id, user[2] or ""
+    )
+    # Most varied next to the rest of the plan first (same score as generation)
+    eligible = rank_swap_options(
+        eligible, variety.catalog_rows(conn), user[1] or "", slot_date, meal, user[2] or ""
+    )
 
     details = fetch_menu_items_by_ids([o["itm_id"] for o in eligible])
     options = [
@@ -2752,6 +2744,7 @@ def swap_meal_options():
             "price": details.get(o["itm_id"], {}).get("price"),
             "calories": details.get(o["itm_id"], {}).get("calories"),
             "allergens": o["allergens"] or "",
+            "variety": o["variety"],
         }
         for o in eligible
     ]
@@ -2790,4 +2783,8 @@ if __name__ == "__main__":
     User: usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,generated_menu
     """
     args = parse_args()
+    try:  # fail at startup, not on the first request, if the database isn't set up
+        connect(app.config["DATABASE"]).close()
+    except DatabaseNotInitialisedError as exc:
+        raise SystemExit(str(exc))
     app.run(host=args.host, port=args.port, debug=args.debug)

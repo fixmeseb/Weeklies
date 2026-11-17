@@ -163,6 +163,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     timeout-minutes: 20
+    env:
+      # The seed script and the Flask server under test must use the same database.
+      WEEKLIES_DB_PATH: ${{ github.workspace }}/proj2/instance/cypress.db
     steps:
       - uses: actions/checkout@v4
 

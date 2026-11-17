@@ -26,7 +26,7 @@
 
 **Weeklies** is a **full-stack Flask web application** developed as part of *CSC 510: Software Engineering (Fall 2026, NC State University)*.  
 It models a modern food-delivery system where users can register, browse restaurants and menus, tag preferences, and schedule future meal orders via an integrated calendar.  
-The project demonstrates **modular backend design**, **frontend interaction**, **LLM-assisted personalization**, and **continuous documentation & testing pipelines**.
+The project demonstrates **modular backend design**, **frontend interaction**, **variety-driven meal planning**, and **continuous documentation & testing pipelines**.
 
 ---
 
@@ -38,7 +38,7 @@ The project demonstrates **modular backend design**, **frontend interaction**, *
 | **Backend** | Python 3.11+, Flask 2.x | RESTful routes, modular blueprints, DB logic |
 | **Database** | SQLite | Lightweight persistence for menus, users, orders |
 | **Automation** | GitHub Actions, pdoc, pytest, ruff, black | CI/CD, linting, testing, documentation |
-| **Intelligent Module** | Hugging Face Transformers / LLM | Personalized recommendations & reasoning |
+| **Meal Planner** | pandas, tag-based variety score | Rule-checked, budget-aware plans chosen for variety |
 | **PDF Service** | ReportLab | Automated PDF receipt generation |
 | **E2E Testing** | Cypress 16 | Browser-based end-to-end UI testing |
 
@@ -51,7 +51,7 @@ The project demonstrates **modular backend design**, **frontend interaction**, *
 - 🧭 **User preference tagging** and filtering
 - 📅 **Calendar-based scheduling** (order-on-selected-date logic)
 - 🧾 **Dynamic PDF receipt generation**
-- 🤖 **LLM integration** for context-aware meal suggestions
+- 🎲 **Variety-scored meal plans**: meals are tagged (cuisine, protein, carb base, cooking method, ...) and the planner picks the most varied plan that passes every rule; the calendar shows each week's variety score
 - 🔄 **End-to-end order workflow** from cart → checkout → payment → fulfillment
 - ⭐ **Restaurant reviews & ratings** with user-generated feedback
 - 📊 **Restaurant analytics dashboard** for orders, customer behavior, and performance insights
@@ -81,8 +81,8 @@ Weeklies/
 │
 ├── 📁 proj2/                          # Main Flask Application
 │   ├── 🐍 Flask_app.py                # Core Flask app with all routes
-│   ├── 🧠 llm_toolkit.py              # LLM wrapper (GPU-enabled, CUDA/MPS/CPU)
-│   ├── 🥗 menu_generation.py          # AI-powered meal generation
+│   ├── 🥗 menu_generation.py          # Meal planner (rules + variety)
+│   ├── 🎲 variety.py                  # Variety score between meals and plans
 │   ├── 📄 pdf_receipt.py              # PDF generation service
 │   ├── 💾 sqlQueries.py               # Database helper functions
 │   │
@@ -105,7 +105,6 @@ Weeklies/
 │   │   ├── e2e/                       # End-to-end tests
 │   │   ├── integration/               # Integration tests
 │   │   ├── unit/                      # Unit tests
-│   │   ├── llm/                       # LLM-specific tests (skipped in CI)
 │   │   └── smoke/                     # Smoke tests
 │   │
 │   ├── 📁 cypress/                    # Cypress E2E UI Tests

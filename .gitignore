@@ -87,3 +87,4 @@ proj2/package-lock.json
 # Worktrees
 .worktrees/
 .claude/
+pallettes/

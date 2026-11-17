@@ -16,10 +16,7 @@ from proj2.sqlQueries import create_connection, close_connection, execute_query,
 @pytest.fixture()
 def restaurant_login_session(client, seed_minimal_data):
     """Log in as a restaurant (not a customer user)."""
-    conn = create_connection(
-        client.application.config.get("db_path")
-        or __import__("proj2.Flask_app", fromlist=["db_file"]).db_file
-    )
+    conn = create_connection(client.application.config["DATABASE"])
     try:
         # Ensure a restaurant exists with known credentials
         rtr_row = fetch_one(conn, "SELECT rtr_id FROM Restaurant LIMIT 1")
@@ -350,7 +347,7 @@ def test_analytics_snapshot_function_creates_record(
     record_analytics_snapshot(rtr_id)
 
     # Verify snapshot was created
-    conn = create_connection(__import__("proj2.Flask_app", fromlist=["db_file"]).db_file)
+    conn = create_connection(__import__("proj2.Flask_app", fromlist=["db_path"]).db_path())
     try:
         snapshot = fetch_one(
             conn,
@@ -376,13 +373,19 @@ def test_analytics_snapshot_calculates_metrics(client, restaurant_login_session,
     rtr_id = restaurant_login_session["rtr_id"]
 
     # Create some test orders
-    conn = create_connection(__import__("proj2.Flask_app", fromlist=["db_file"]).db_file)
+    conn = create_connection(__import__("proj2.Flask_app", fromlist=["db_path"]).db_path())
     try:
         import json
 
         # Get a user
         usr = fetch_one(conn, "SELECT usr_id FROM User LIMIT 1")
         usr_id = usr[0] if usr else 1
+
+        # The session DB is shared and other tests add orders to the usual restaurant,
+        # so use a fresh one: these exact counts only hold if no other orders exist.
+        rtr_id = execute_query(
+            conn, 'INSERT INTO "Restaurant"(name, status) VALUES (?, ?)', ("Metrics Bistro", "open")
+        ).lastrowid
 
         # Insert test orders
         for i in range(3):

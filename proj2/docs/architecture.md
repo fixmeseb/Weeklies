@@ -5,7 +5,7 @@
 - **Database**: SQLite (`CSC510_DB.db`)
 - **Database helpers**: sqlQueries.py (use only provided helpers)  
 - **Templates / Static**: templates/, static/  
-- **LLM Integration**: llm_toolkit.py, menu_generation.py
+- **Meal planning**: menu_generation.py (planner), plan_rules.py (shared rules), variety.py (variety score), meal_tags.py (tags)
 
 This document intentionally focuses on what's present today.
 
@@ -244,7 +244,6 @@ Order (ord_id)
 - Wallet balance tracking
 
 ### ⚠️ Partially Implemented
-- **LLM Menu Generation**: Backend exists (`MenuGenerator` class in `menu_generation.py`) but **no UI route** to trigger it
 - **Restaurant Authentication**: Table has `password_HS` field but **no login system**
 - **Review System**: Table exists but UI implementation unclear
 
@@ -265,11 +264,6 @@ Based on the schema analysis, these features are database-ready but need impleme
    - View incoming orders filtered by `rtr_id`
    - Update order status through workflow
    - Manage menu items (add/edit/disable items)
-
-2. **LLM Menu Generation UI**
-   - Button/form to trigger `MenuGenerator.update_menu()`
-   - Populate `User.generated_menu` with AI recommendations
-   - Allow regeneration based on updated preferences/allergies
 
 3. **Review System**
    - UI for users to leave reviews after order delivery

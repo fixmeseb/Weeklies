@@ -1,15 +1,14 @@
 import json
 import sqlite3
-from unittest.mock import Mock
 
 import pytest
 
-from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator, llm_toolkit
+from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator
 
 
 @pytest.fixture
-def budget_catalog(app, temp_db_path, seed_minimal_data, monkeypatch):
-    """Use a temporary catalog and fake only model output, not budget calculations."""
+def budget_catalog(app, temp_db_path, seed_minimal_data):
+    """A temporary catalog with one priced, in-stock item; yields that item's ID."""
     snapshot = sqlite3.connect(":memory:")
     with sqlite3.connect(temp_db_path) as conn:
         conn.backup(snapshot)
@@ -28,10 +27,7 @@ def budget_catalog(app, temp_db_path, seed_minimal_data, monkeypatch):
         conn.execute(
             'UPDATE MenuItem SET price=500, instock=1, allergens="" WHERE itm_id=?', (item,)
         )
-    llm = Mock()
-    llm.generate.return_value = f"<|start_of_role|>assistant<|end_of_role|>{item}<|end_of_text|>"
-    monkeypatch.setattr("proj2.menu_generation.llm_toolkit.LLM", Mock(return_value=llm))
-    yield item, llm
+    yield item
     with sqlite3.connect(temp_db_path) as conn:
         snapshot.backup(conn)
     snapshot.close()
@@ -41,8 +37,8 @@ def test_generator_uses_supplied_catalog_and_keeps_prices_for_unavailable_items(
     budget_catalog, temp_db_path
 ):
     gen = MenuGenerator(database_path=temp_db_path)
-    assert gen.menu_items.itm_id.tolist() == [budget_catalog[0]]
-    assert gen.item_prices[budget_catalog[0]] == 500
+    assert gen.menu_items.itm_id.tolist() == [budget_catalog]
+    assert gen.item_prices[budget_catalog] == 500
     assert len(gen.item_prices) > len(gen.menu_items)
 
 
@@ -75,7 +71,7 @@ def test_exact_limit_json_returns_totals_and_saves_plan(
 def test_impossible_budget_does_not_change_saved_plan(
     client, login_session, budget_catalog, temp_db_path
 ):
-    item, llm = budget_catalog
+    item = budget_catalog
     existing = f"[2026-10-11,{item},3]"
     with sqlite3.connect(temp_db_path) as conn:
         conn.execute('UPDATE "User" SET generated_menu=? WHERE email="test@x.com"', (existing,))
@@ -84,8 +80,6 @@ def test_impossible_budget_does_not_change_saved_plan(
     response = client.post("/menu/generate", json=payload(weekly_cap="14.99"))
     assert response.status_code == 422
     assert "$15.00" in response.get_json()["error"]
-    llm.generate.assert_not_called()
-    llm_toolkit.LLM.assert_not_called()
     with sqlite3.connect(temp_db_path) as conn:
         assert (
             conn.execute('SELECT generated_menu FROM "User" WHERE email="test@x.com"').fetchone()[0]
@@ -100,7 +94,6 @@ def test_invalid_cap_returns_400(client, login_session, budget_catalog, cap):
     response = client.post("/menu/generate", json=payload(weekly_cap=cap))
     assert response.status_code == 400
     assert "Weekly cap" in response.get_json()["error"]
-    budget_catalog[1].generate.assert_not_called()
 
 
 def test_form_can_request_json_and_receive_budget_errors(client, login_session, budget_catalog):
@@ -126,7 +119,7 @@ def test_omitted_cap_keeps_generation_optional(client, login_session, budget_cat
 def test_uncapped_generation_saves_plan_when_saved_meals_cannot_be_priced(
     client, login_session, budget_catalog, temp_db_path, transport, cap, problem
 ):
-    item, _ = budget_catalog
+    item = budget_catalog
     with sqlite3.connect(temp_db_path) as conn:
         saved_item = 999999
         if problem == "invalid_price":
@@ -178,7 +171,6 @@ def test_capped_generation_rejects_missing_saved_items_without_saving(
     response = client.post("/menu/generate", json=payload())
     assert response.status_code == 400
     assert "no longer in the catalog" in response.get_json()["error"]
-    budget_catalog[1].generate.assert_not_called()
     with sqlite3.connect(temp_db_path) as conn:
         assert (
             conn.execute('SELECT generated_menu FROM "User" WHERE email="test@x.com"').fetchone()[0]
@@ -190,10 +182,14 @@ def test_capped_generation_rejects_missing_saved_items_without_saving(
 
 @pytest.mark.parametrize("transport", ["json", "form"])
 def test_unexpected_generation_errors_are_logged_without_exposing_details(
-    client, login_session, budget_catalog, temp_db_path, caplog, transport
+    client, login_session, budget_catalog, temp_db_path, caplog, transport, monkeypatch
 ):
-    details = "Private model output: /internal/model/config"
-    budget_catalog[1].generate.side_effect = RuntimeError(details)
+    details = "Private planner state: /internal/planner/config"
+
+    def broken(*args, **kwargs):
+        raise RuntimeError(details)
+
+    monkeypatch.setattr(MenuGenerator, "update_menu", broken)
     with client.session_transaction() as session:
         session["GeneratedMenu"] = ""
     message = "Menu generation failed. Please try again."
@@ -270,7 +266,7 @@ def test_calendar_displays_weekly_item_total(client, login_session, budget_catal
 def test_calendar_total_includes_saved_meals_just_outside_the_month(
     client, login_session, budget_catalog, temp_db_path
 ):
-    item, _ = budget_catalog
+    item = budget_catalog
     with sqlite3.connect(temp_db_path) as conn:
         other = conn.execute(
             "SELECT itm_id FROM MenuItem WHERE itm_id != ? LIMIT 1", (item,)

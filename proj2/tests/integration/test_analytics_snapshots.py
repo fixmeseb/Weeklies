@@ -7,7 +7,7 @@ from proj2.sqlQueries import create_connection, close_connection, fetch_one, fet
 
 def test_record_analytics_snapshot_creates_record(client, seed_orders_for_analytics):
     """Analytics snapshot should create a record in Analytics table."""
-    from proj2.Flask_app import record_analytics_snapshot, db_file
+    from proj2.Flask_app import record_analytics_snapshot, db_path
 
     rtr_id = seed_orders_for_analytics["rtr_id"]
 
@@ -16,7 +16,7 @@ def test_record_analytics_snapshot_creates_record(client, seed_orders_for_analyt
     assert success, "Snapshot recording should succeed"
 
     # Verify record was created
-    conn = create_connection(db_file)
+    conn = create_connection(db_path())
     try:
         analytics = fetch_one(
             conn,
@@ -30,13 +30,13 @@ def test_record_analytics_snapshot_creates_record(client, seed_orders_for_analyt
 
 def test_analytics_snapshot_has_correct_data(client, seed_orders_for_analytics):
     """Analytics snapshot should capture correct data."""
-    from proj2.Flask_app import record_analytics_snapshot, db_file
+    from proj2.Flask_app import record_analytics_snapshot, db_path
 
     rtr_id = seed_orders_for_analytics["rtr_id"]
 
     record_analytics_snapshot(rtr_id)
 
-    conn = create_connection(db_file)
+    conn = create_connection(db_path())
     try:
         snapshot = fetch_one(
             conn,
@@ -67,13 +67,13 @@ def test_analytics_snapshot_has_correct_data(client, seed_orders_for_analytics):
 
 def test_analytics_snapshot_captures_popular_item(client, seed_orders_for_analytics):
     """Analytics snapshot should handle popular item identification."""
-    from proj2.Flask_app import record_analytics_snapshot, db_file
+    from proj2.Flask_app import record_analytics_snapshot, db_path
 
     rtr_id = seed_orders_for_analytics["rtr_id"]
 
     record_analytics_snapshot(rtr_id)
 
-    conn = create_connection(db_file)
+    conn = create_connection(db_path())
     try:
         snapshot = fetch_one(
             conn,
@@ -93,7 +93,7 @@ def test_analytics_snapshot_captures_popular_item(client, seed_orders_for_analyt
 
 def test_analytics_snapshot_multiple_records(client, seed_orders_for_analytics):
     """Multiple snapshots can be recorded for same restaurant."""
-    from proj2.Flask_app import record_analytics_snapshot, db_file
+    from proj2.Flask_app import record_analytics_snapshot, db_path
 
     rtr_id = seed_orders_for_analytics["rtr_id"]
 
@@ -103,7 +103,7 @@ def test_analytics_snapshot_multiple_records(client, seed_orders_for_analytics):
 
     assert success1 and success2, "Both snapshots should be recorded"
 
-    conn = create_connection(db_file)
+    conn = create_connection(db_path())
     try:
         snapshots = fetch_all(
             conn,
@@ -118,13 +118,13 @@ def test_analytics_snapshot_multiple_records(client, seed_orders_for_analytics):
 
 def test_analytics_snapshot_completion_rate(client, seed_orders_for_analytics):
     """Analytics snapshot should calculate order completion rate."""
-    from proj2.Flask_app import record_analytics_snapshot, db_file
+    from proj2.Flask_app import record_analytics_snapshot, db_path
 
     rtr_id = seed_orders_for_analytics["rtr_id"]
 
     record_analytics_snapshot(rtr_id)
 
-    conn = create_connection(db_file)
+    conn = create_connection(db_path())
     try:
         snapshot = fetch_one(
             conn,

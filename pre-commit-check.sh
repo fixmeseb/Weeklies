@@ -26,8 +26,8 @@ echo ""
 
 cd ..
 
-echo "3️⃣ Running tests (excluding LLM tests)..."
-pytest -m "not llm" -q --maxfail=1 || {
+echo "3️⃣ Running tests..."
+pytest -q --maxfail=1 || {
     echo "❌ Tests failed!"
     exit 1
 }

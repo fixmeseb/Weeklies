@@ -1,7 +1,7 @@
 """
 Unit tests for menu_generation.py helper functions.
-Tests for: get_meal_and_order_time, get_weekday_and_increment, format_llm_output, 
-limit_scope, filter_allergens, filter_closed_restaurants
+Tests for: get_meal_and_order_time, get_weekday_and_increment,
+filter_allergens, filter_closed_restaurants
 """
 
 import pytest
@@ -12,11 +12,8 @@ import datetime
 from proj2.menu_generation import (
     get_meal_and_order_time,
     get_weekday_and_increment,
-    format_llm_output,
-    limit_scope,
     filter_allergens,
     filter_closed_restaurants,
-    LLM_ATTRIBUTE_ERROR,
     DAYS_OF_WEEK,
 )
 
@@ -103,80 +100,6 @@ class TestGetWeekdayAndIncrement:
 
         with pytest.raises(ValueError):
             get_weekday_and_increment("2025-02-30")  # Invalid day for month
-
-
-class TestFormatLLMOutput:
-    """Tests for format_llm_output function"""
-
-    def test_valid_llm_output_extraction(self):
-        """Test extracting valid item ID from LLM output"""
-        llm_output = "<|start_of_role|>assistant<|end_of_role|>42<|end_of_text|>"
-        result = format_llm_output(llm_output)
-        assert result == 42
-
-    def test_large_item_id(self):
-        """Test extracting large item IDs"""
-        llm_output = "<|start_of_role|>assistant<|end_of_role|>9999<|end_of_text|>"
-        result = format_llm_output(llm_output)
-        assert result == 9999
-
-    def test_single_digit_item_id(self):
-        """Test extracting single digit item IDs"""
-        llm_output = "<|start_of_role|>assistant<|end_of_role|>5<|end_of_text|>"
-        result = format_llm_output(llm_output)
-        assert result == 5
-
-    def test_malformed_output_returns_error(self):
-        """Test malformed output returns LLM_ATTRIBUTE_ERROR"""
-        llm_output = "This is not the expected format"
-        result = format_llm_output(llm_output)
-        assert result == LLM_ATTRIBUTE_ERROR
-
-    def test_missing_end_tag(self):
-        """Test output missing end tag returns error"""
-        llm_output = "<|start_of_role|>assistant<|end_of_role|>42"
-        result = format_llm_output(llm_output)
-        assert result == LLM_ATTRIBUTE_ERROR
-
-    def test_missing_number(self):
-        """Test output with no number returns error"""
-        llm_output = "<|start_of_role|>assistant<|end_of_role|><|end_of_text|>"
-        result = format_llm_output(llm_output)
-        assert result == LLM_ATTRIBUTE_ERROR
-
-
-class TestLimitScope:
-    """Tests for limit_scope function"""
-
-    def test_limit_scope_within_range(self):
-        """Test that items within range are not modified"""
-        items = pd.DataFrame({"id": [1, 2, 3, 4, 5]})
-        choices = limit_scope(items, 10)
-        assert len(choices) == 5
-
-    def test_limit_scope_exceeds_range(self):
-        """Test that excessive items are randomly sampled"""
-        items = pd.DataFrame({"id": range(100)})
-        choices = limit_scope(items, 10)
-        assert len(choices) == 10
-
-    def test_limit_scope_empty_dataframe(self):
-        """Test with empty dataframe"""
-        items = pd.DataFrame()
-        choices = limit_scope(items, 10)
-        assert len(choices) == 0
-
-    def test_limit_scope_single_item(self):
-        """Test with single item"""
-        items = pd.DataFrame({"id": [1]})
-        choices = limit_scope(items, 10)
-        assert len(choices) == 1
-
-    def test_limit_scope_zero_choices(self):
-        """Test requesting zero choices"""
-        items = pd.DataFrame({"id": [1, 2, 3]})
-        choices = limit_scope(items, 0)
-        assert len(choices) == 0
 
 
 class TestFilterAllergens:
