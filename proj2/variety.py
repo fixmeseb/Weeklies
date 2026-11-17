@@ -185,13 +185,64 @@ def slot_gain(candidate: dict, position: int, neighbours, weights: dict = WEIGHT
     Returns:
         Tuple[float, float]: (sum of closeness * distance, sum of closeness)
     """
+    return _weighted_gain(position, neighbours, lambda other: distance(candidate, other, weights))
+
+
+def _weighted_gain(position: int, neighbours, distance_to) -> tuple:
+    """(sum of closeness * distance_to(other), sum of closeness) over (position, other) pairs."""
     gain = weight_sum = 0.0
     for other_position, other in neighbours:
         w = closeness(position, other_position)
         if w:
-            gain += w * distance(candidate, other, weights)
+            gain += w * distance_to(other)
             weight_sum += w
     return gain, weight_sum
+
+
+class ItemDistances:
+    """
+    distance() between catalog items by itm_id, each pair computed once
+
+    A planner compares every candidate with the same few planned meals slot after slot,
+    so features and pair distances are cached. Build a new one whenever the catalog or
+    the weights change.
+    """
+
+    def __init__(self, rows, weights: dict = WEIGHTS):
+        """
+        Args:
+            rows (Mapping[int, Mapping]): MenuItem rows by itm_id
+            weights (dict): Weight per tag kind
+        """
+        self.rows = rows
+        self.weights = weights
+        self._features = {}
+        self._distances = {}
+
+    def features(self, itm_id: int) -> dict:
+        if itm_id not in self._features:
+            self._features[itm_id] = features(self.rows[itm_id])
+        return self._features[itm_id]
+
+    def distance(self, a: int, b: int) -> float:
+        key = (a, b) if a <= b else (b, a)
+        if key not in self._distances:
+            self._distances[key] = distance(self.features(a), self.features(b), self.weights)
+        return self._distances[key]
+
+    def slot_gain(self, itm_id: int, position: int, neighbours):
+        """
+        slot_gain() for one catalog item
+
+        Args:
+            itm_id (int): The candidate item
+            position (int): slot_position() of the slot it would fill
+            neighbours (Iterable[Tuple[int, int]]): (position, itm_id) of the other planned meals
+
+        Returns:
+            Tuple[float, float]: (sum of closeness * distance, sum of closeness)
+        """
+        return _weighted_gain(position, neighbours, lambda other: self.distance(itm_id, other))
 
 
 def soft_preferences(preferences) -> set:

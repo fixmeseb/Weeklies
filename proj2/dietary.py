@@ -89,8 +89,18 @@ def filter_diets(menu_items: pd.DataFrame, preferences) -> pd.DataFrame:
         return menu_items.copy()
     if DIET_TAGS_COLUMN not in menu_items.columns:
         return menu_items.iloc[0:0].copy()
-    keep = menu_items[DIET_TAGS_COLUMN].map(lambda tags: not missing_diets(tags, required))
-    return menu_items.loc[keep.astype(bool)].copy()
+    # Many items share one tag string, so check each distinct string once
+    passes = {}
+
+    def allowed(tags):
+        if not isinstance(tags, str):
+            return not missing_diets(tags, required)
+        if tags not in passes:
+            passes[tags] = not missing_diets(tags, required)
+        return passes[tags]
+
+    keep = [allowed(tags) for tags in menu_items[DIET_TAGS_COLUMN]]
+    return menu_items.loc[keep].copy()
 
 
 def has_diet_tags_column(conn) -> bool:
