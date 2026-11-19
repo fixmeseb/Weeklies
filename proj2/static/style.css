@@ -768,31 +768,101 @@ body::before {
 @media (max-width: 640px) { .palette-picker .palette-label { display: none; } }
 .palette-group { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-/* Restaurant-owner banner with the Orders / Analytics / Reviews tabs (templates/_owner_header.html) */
-.owner-header {
-  background: linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
-  color: var(--on-hero); padding: 1.5rem 16px; margin-bottom: 2rem;
+/* =========================================================
+   Catalog look, shared by every page (it began on the Restaurants tab).
+   Sheets with a double rule, display-font headings, ruled tables with a heavy rule
+   over the column heads, italic notes and words for statuses instead of pills.
+   It uses only theme tokens, so each palette colours it and the Seed Catalog &
+   Almanac style (below) adds its paper, serif type and ornaments.
+   ========================================================= */
+.display { font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; }
+.note { margin: 0; font-style: italic; font-size: 14px; color: var(--muted); }
+.orn { display: none; margin: 0; text-align: center; color: var(--accent); letter-spacing: .6em; font-size: 14px; }
+:root[data-style="almanac"] .orn { display: block; }
+.text-link { all: unset; cursor: pointer; font-style: italic; color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.text-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Restaurant details on Home (address · hours · phone) */
+.rest-meta span + span::before { content: "·"; margin: 0 .45em; }
+
+/* Page titles */
+.page-title h1, .page-heading {
+  font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--primary);
 }
+
+/* Cards become sheets */
+.card, .sheet {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--text); outline: 1px solid var(--text); outline-offset: 4px;
+  border-radius: 0; box-shadow: none; overflow: visible;
+}
+.card + .card, .sheet + .sheet { margin-top: 28px; }
+.card-header {
+  background: transparent; border-bottom: 1px solid var(--text);
+  font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em;
+  font-size: 22px; color: var(--primary);
+}
+.card-header :is(h1, h2, h3) { font: inherit; color: inherit; margin: 0; }
+.card-footer { background: transparent; border-top: 1px solid var(--border); }
+/* A dashed box, like the order slip */
+.slip { background: var(--surface); color: var(--text); border: 1px dashed var(--text); padding: 20px; }
+
+/* Ruled tables */
+.table-wrap { border: 0; border-radius: 0; }
+.table, .ruled { width: 100%; border-collapse: collapse; background: transparent; }
+.table thead th, .ruled thead th {
+  font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--text);
+  background: transparent; border-top: 2px solid var(--text); border-bottom: 1px solid var(--text);
+}
+.table th, .table td, .ruled th, .ruled td { border-bottom: 1px solid var(--border); text-align: left; }
+.ruled th, .ruled td { padding: 8px; }
+.table tr:hover td { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+
+/* Statuses read as words, not pills */
+.badge {
+  padding: 0; border: 0; border-radius: 0; background: none;
+  font-size: 14px; font-style: italic; font-weight: 600; color: var(--muted);
+}
+.badge.success { background: none; color: var(--success); }
+.badge.warning { background: none; color: var(--warning); }
+.badge.danger { background: none; color: var(--danger); }
+.badge.info { background: none; color: var(--info); }
+
+/* Flash messages in the page's own colours */
+.flash, .flash.success, .flash.danger {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--text); border-left: 4px solid var(--primary);
+  border-radius: 0; box-shadow: none;
+}
+.flash.success { border-left-color: var(--success); }
+.flash.danger { border-left-color: var(--danger); }
+
+/* Restaurant-owner banner with the Orders / Analytics / Reviews tabs (templates/_owner_header.html):
+   a masthead over a rule, its tabs as words like the site nav */
+.owner-header { background: transparent; color: var(--text); padding: 1.5rem 0 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--text); }
 .owner-header-inner {
-  max-width: 1200px; margin: 0 auto;
-  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+  width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 var(--space-5); box-sizing: border-box;  /* lines up with .container */
+  display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem;
 }
-.owner-header .restaurant-info h1 { margin: 0; font-size: 1.8rem; display: flex; align-items: center; gap: .5rem; }
-.owner-header .restaurant-info p { margin: .4rem 0 0; opacity: .9; font-size: .95rem; }
-.owner-tabs { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+.owner-header .restaurant-info h1 {
+  margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.1; color: var(--primary);
+  font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em;
+}
+.owner-header .restaurant-info p { margin: .3rem 0 0; font-style: italic; color: var(--muted); font-size: .95rem; }
+.owner-tabs { display: flex; gap: .25rem 1rem; flex-wrap: wrap; align-items: flex-end; }
 .owner-tabs .nav-btn {
-  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--on-hero) 18%, transparent); color: var(--on-hero);
-  padding: .6rem 1.1rem; border: 2px solid transparent; border-radius: 8px;
-  text-decoration: none; font-weight: 600; font-size: .95rem; line-height: 1.2;
-  transition: background .2s;
+  display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: flex-end;
+  min-height: 44px; padding: 4px 2px; background: none; border: 0; border-radius: 0;
+  color: var(--muted); text-decoration: none; font-size: 1rem; font-weight: 500; line-height: 1.25;
 }
-.owner-tabs .nav-btn:hover { background: color-mix(in srgb, var(--on-hero) 30%, transparent); text-decoration: none; }
-.owner-tabs .nav-btn.active { background: var(--surface); color: var(--primary); border-color: var(--surface); }
-.owner-tabs .tab-note { font-size: .75rem; font-weight: 500; opacity: .85; }
+.owner-tabs .nav-btn:hover { color: var(--text); background: none; text-decoration: none; }
+.owner-tabs .nav-btn.active { color: var(--primary); font-style: italic; text-decoration: underline; text-underline-offset: 4px; background: none; }
+/* The banner is no longer a coloured band, so its theme pickers look like the site header's */
+.owner-header .palette-picker.on-hero { background: var(--hint); border-color: var(--border); color: var(--text); }
+.owner-header .palette-picker.on-hero .palette-name { color: var(--text); }
+.owner-tabs .tab-note { font-size: .78rem; font-style: italic; font-weight: 400; color: var(--muted); }
 @media (max-width: 640px) {
   .owner-tabs { width: 100%; }
-  .owner-tabs .nav-btn { flex: 1 1 auto; }
 }
 
 /* =========================================================
@@ -829,7 +899,6 @@ body::before {
   letter-spacing: 0.02em;
 }
 :root[data-style="almanac"] :is(h1, .cal-title) { color: var(--primary); }
-:root[data-style="almanac"] .card { box-shadow: none; border: 1px solid var(--text); outline: 1px solid var(--text); outline-offset: 3px; }
 :root[data-style="almanac"] .site-header { border-bottom: 1px solid var(--text); }
 :root[data-style="almanac"] .logo { background: var(--primary); border-radius: 50%; }
 

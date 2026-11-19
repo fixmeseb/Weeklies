@@ -355,6 +355,26 @@
     .restaurant-link-card a:hover {
       text-decoration: underline;
     }
+    /* Catalog look (static/style.css): every box is a sheet, headings in the display face */
+    .order-summary, .review-form, .review-header-section, .review-card, .restaurant-link-card {
+      background: var(--surface); border: 1px solid var(--text); outline: 1px solid var(--text);
+      outline-offset: 4px; border-radius: 0; box-shadow: none;
+    }
+    .order-summary, .review-header-section { margin-bottom: 2.25rem; }
+    .restaurant-link-card { margin-top: 2.25rem; }
+    .order-summary h3, .review-form h2, .review-header-section h1, .review-title {
+      font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--primary);
+    }
+    .order-summary h3, .review-form h2 { padding-bottom: 4px; border-bottom: 1px solid var(--text); }
+    .order-info-label, .items-list h4, .rating-text, .char-counter, .review-meta { font-style: italic; font-weight: 400; color: var(--muted); }
+    .items-list { border-top-color: var(--text); }
+    .item-row { border-bottom: 1px solid var(--border); }
+    .form-label { font-style: italic; font-weight: 400; color: var(--muted); }
+    .form-label.required::after { color: var(--danger); }
+    .form-input { border-radius: 0; background: var(--surface); }
+    .btn-submit, .btn-cancel { border-radius: var(--radius-xs); }
+    .error-message { background: var(--surface); color: var(--text); border: 1px solid var(--text); border-left: 4px solid var(--danger); border-radius: 0; }
+    .back-link { font-style: italic; }
   </style>
 </head>
 <body>

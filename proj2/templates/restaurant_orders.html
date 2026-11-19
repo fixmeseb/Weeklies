@@ -7,244 +7,49 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>
-    /* Dashboard-specific styles */
-    .dashboard-header {
-      background: linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
-      color: var(--on-hero);
-      padding: 2rem;
-      margin-bottom: 2rem;
-      border-radius: var(--radius);
-    }
-    
-    .dashboard-header-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    
-    .restaurant-info h1 {
-      margin: 0;
-      font-size: 1.8rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    
-    .restaurant-info p {
-      margin: 0.5rem 0 0 0;
-      opacity: 0.9;
-      font-size: 0.95rem;
-    }
-    
-    .logout-btn {
-      background: color-mix(in srgb, var(--on-hero) 20%, transparent);
-      color: var(--on-hero);
-      padding: 0.75rem 1.5rem;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-      font-weight: 500;
-      transition: background 0.2s;
-    }
-    
-    .logout-btn:hover {
-      background: color-mix(in srgb, var(--on-hero) 30%, transparent);
-      text-decoration: none;
-    }
-
-    /* Stats Grid */
+    /* The owner's Orders page in the catalog look (static/style.css): a tally of orders
+       by status, then one sheet per status with each order as a ruled entry. */
     .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      border-top: 2px solid var(--text); border-bottom: 1px solid var(--text); margin-bottom: 2.25rem;
     }
+    .stat-card { padding: .9rem .5rem; text-align: center; border-right: 1px solid var(--border); }
+    .stat-card:last-child { border-right: 0; }
+    .stat-number { font-family: var(--font-display, var(--font)); font-size: 2.1rem; line-height: 1; color: var(--primary); font-variant-numeric: oldstyle-nums; }
+    .stat-label { margin-top: .35rem; font-size: .9rem; font-style: italic; color: var(--muted); }
 
-    .stat-card {
-      background: var(--surface);
-      padding: 1.5rem;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .stat-number {
-      font-size: 2rem;
-      font-weight: bold;
-      color: var(--primary);
-    }
-
-    .stat-label {
-      font-size: 0.875rem;
-      color: var(--muted);
-      margin-top: 0.5rem;
-    }
-
-    /* Orders Section */
-    .orders-section {
-      margin-bottom: 2rem;
-    }
-
+    .orders-section { margin-bottom: 2.5rem; padding: 18px clamp(14px, 3vw, 28px) 6px; }
     .section-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--text);
+      margin: 0 0 .25rem; padding-bottom: 4px; border-bottom: 1px solid var(--text);
+      font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; font-size: 1.5rem; color: var(--primary);
     }
-
-    .order-card {
-      background: var(--surface);
-      border-radius: var(--radius-sm);
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      border: 1px solid var(--border);
+    .order-card { padding: 16px 0; border-bottom: 1px solid var(--border); }
+    .order-card:last-child { border-bottom: 0; }
+    .order-card.is-past { color: var(--muted); padding: 10px 0; }
+    .order-header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem 1rem; flex-wrap: wrap; }
+    .order-header h3 { margin: 0; font-family: var(--font); font-size: 1.1rem; font-weight: 600; color: var(--text); }
+    .customer-info { margin-top: .25rem; font-size: .9rem; font-style: italic; color: var(--muted); line-height: 1.5; }
+    .customer-info strong { font-style: normal; color: var(--text); font-weight: 600; }
+    .status-badge { font-style: italic; font-weight: 600; font-size: .95rem; }
+    .status-ordered { color: var(--warning); }
+    .status-accepted { color: var(--info); }
+    .status-preparing { color: var(--accent); }
+    .status-ready { color: var(--success); }
+    .status-delivered { color: var(--muted); }
+    .status-cancelled { color: var(--danger); }
+    .order-items { margin: .75rem 0 0; max-width: 560px; font-size: .95rem; }
+    .order-items td.num, .order-items th.num { text-align: right; white-space: nowrap; font-variant-numeric: oldstyle-nums; }
+    .order-items tfoot td { border-bottom: 0; border-top: 1px solid var(--text); font-weight: 600; }
+    .order-notes { margin-top: .6rem; }
+    .order-actions { display: flex; gap: .5rem 1rem; margin-top: .9rem; flex-wrap: wrap; align-items: center; }
+    .order-actions form { margin: 0; display: inline-block; width: auto; max-width: none; }
+    .btn-action { min-height: 40px; }
+    /* Reject and Cancel stay outlined (style.css fills every submit button) */
+    .order-actions .btn-reject, .order-actions .btn-reject:hover {
+      background: transparent; color: var(--danger); border-color: var(--danger); box-shadow: none;
     }
-
-    .order-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      margin-bottom: 1rem;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-
-    .order-header h3 {
-      margin: 0;
-      color: var(--text);
-    }
-
-    .customer-info {
-      font-size: 0.875rem;
-      color: var(--muted);
-      margin-top: 0.5rem;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 0.4rem 1rem;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .status-ordered {
-      background: #fef3c7;
-      color: #92400e;
-    }
-
-    .status-accepted {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    .status-preparing {
-      background: #fce7f3;
-      color: #9f1239;
-    }
-
-    .status-ready {
-      background: #d1fae5;
-      color: #065f46;
-    }
-
-    .status-delivered {
-      background: #d1d5db;
-      color: #1f2937;
-    }
-
-    .status-cancelled {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .order-items {
-      margin: 1rem 0;
-      padding: 1rem;
-      background: var(--hint);
-      border-radius: var(--radius-xs);
-    }
-
-    .item-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 0.5rem;
-      color: var(--text);
-    }
-
-    .order-actions {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 1rem;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .order-actions form {
-      margin: 0;
-      display: inline-block;
-    }
-
-    .btn-action {
-      padding: 0.6rem 1.2rem;
-      border: none;
-      border-radius: var(--radius-xs);
-      cursor: pointer;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: opacity 0.2s;
-      white-space: nowrap;
-    }
-
-    .btn-action:hover {
-      opacity: 0.9;
-    }
-
-    .btn-accept {
-      background: #10b981;
-      color: white;
-    }
-
-    .btn-reject {
-      background: #ef4444;
-      color: white;
-    }
-
-    .btn-preparing {
-      background: #f59e0b;
-      color: white;
-    }
-
-    .btn-ready {
-      background: #3b82f6;
-      color: white;
-    }
-
-    .btn-deliver {
-      background: #8b5cf6;
-      color: white;
-    }
-
-    .empty-state {
-      background: var(--hint);
-      padding: 3rem 2rem;
-      border-radius: var(--radius-sm);
-      text-align: center;
-      color: var(--muted);
-    }
-
-    .empty-state-icon {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-    }
+    .empty-state { text-align: center; }
+    .empty-state h3 { margin: 0 0 .4rem; font-family: var(--font-display, var(--font)); font-weight: 400; font-size: 1.4rem; color: var(--primary); }
   </style>
 </head>
 <body>
@@ -277,9 +82,9 @@
     
     <!-- Pending Orders (Ordered) -->
     {% if orders_by_status.Ordered %}
-    <div class="orders-section">
+    <section class="orders-section sheet">
       <h2 class="section-title">
-        ⏳ Pending Orders ({{ orders_by_status.Ordered|length }})
+        Pending Orders ({{ orders_by_status.Ordered|length }})
       </h2>
       {% for order in orders_by_status.Ordered %}
       <div class="order-card">
@@ -297,46 +102,40 @@
           </div>
         </div>
         
-        <div class="order-items">
-          {% for item in order["items"] %}
-          <div class="item-row">
-            <span>{{ item.qty }}× {{ item.name }}</span>
-            <span>${{ "%.2f"|format(item.line_total) }}</span>
-          </div>
-          {% endfor %}
-          <hr style="margin: 0.5rem 0; border: 0; border-top: 1px solid var(--border);">
-          <div class="item-row" style="font-weight: 600;">
-            <span>Total</span>
-            <span>${{ "%.2f"|format(order["charges"]["total"]) }}</span>
-          </div>
-        </div>
+        <table class="ruled order-items">
+          <thead><tr><th scope="col">Qty</th><th scope="col">Dish</th><th scope="col" class="num">Price</th></tr></thead>
+          <tbody>
+            {% for item in order["items"] %}
+            <tr><td>{{ item.qty }}</td><td>{{ item.name }}</td><td class="num">${{ "%.2f"|format(item.line_total) }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot><tr><td colspan="2">Total</td><td class="num">${{ "%.2f"|format(order["charges"]["total"]) }}</td></tr></tfoot>
+        </table>
         
         {% if order["notes"] %}
-        <div style="padding: 0.75rem; background: var(--hint); border-radius: var(--radius-xs); margin-top: 1rem; font-size: 0.875rem;">
-          <strong>Notes:</strong> {{ order["notes"] }}
-        </div>
+        <p class="note order-notes">Note: {{ order["notes"] }}</p>
         {% endif %}
         
         <div class="order-actions">
           <form method="POST" action="{{ url_for('restaurant_accept_order', ord_id=order.ord_id) }}">
-            <button type="submit" class="btn-action btn-accept">✓ Accept Order</button>
+            <button type="submit" class="btn btn-primary btn-action btn-accept">Accept order</button>
           </form>
           <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Are you sure you want to reject this order?');">
-            <button type="submit" class="btn-action btn-reject">✗ Reject</button>
+            <button type="submit" class="btn btn-outline btn-action btn-reject">Reject</button>
           </form>
         </div>
       </div>
       {% endfor %}
-    </div>
+    </section>
     {% endif %}
     
     <!-- Accepted Orders -->
     {% if orders_by_status.Accepted %}
-    <div class="orders-section">
+    <section class="orders-section sheet">
       <h2 class="section-title">
-        ✅ Accepted Orders ({{ orders_by_status.Accepted|length }})
+        Accepted Orders ({{ orders_by_status.Accepted|length }})
       </h2>
       {% for order in orders_by_status.Accepted %}
       <div class="order-card">
@@ -353,40 +152,36 @@
           </div>
         </div>
         
-        <div class="order-items">
-          {% for item in order["items"] %}
-          <div class="item-row">
-            <span>{{ item.qty }}× {{ item.name }}</span>
-            <span>${{ "%.2f"|format(item.line_total) }}</span>
-          </div>
-          {% endfor %}
-          <hr style="margin: 0.5rem 0; border: 0; border-top: 1px solid var(--border);">
-          <div class="item-row" style="font-weight: 600;">
-            <span>Total</span>
-            <span>${{ "%.2f"|format(order["charges"]["total"]) }}</span>
-          </div>
-        </div>
+        <table class="ruled order-items">
+          <thead><tr><th scope="col">Qty</th><th scope="col">Dish</th><th scope="col" class="num">Price</th></tr></thead>
+          <tbody>
+            {% for item in order["items"] %}
+            <tr><td>{{ item.qty }}</td><td>{{ item.name }}</td><td class="num">${{ "%.2f"|format(item.line_total) }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot><tr><td colspan="2">Total</td><td class="num">${{ "%.2f"|format(order["charges"]["total"]) }}</td></tr></tfoot>
+        </table>
         
         <div class="order-actions">
           <form method="POST" action="{{ url_for('restaurant_prepare_order', ord_id=order.ord_id) }}">
-            <button type="submit" class="btn-action btn-preparing">👨‍🍳 Start Preparing</button>
+            <button type="submit" class="btn btn-primary btn-action btn-preparing">Start preparing</button>
           </form>
           <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Cancel this order?');">
-            <button type="submit" class="btn-action btn-reject">Cancel</button>
+            <button type="submit" class="btn btn-outline btn-action btn-reject">Cancel</button>
           </form>
         </div>
       </div>
       {% endfor %}
-    </div>
+    </section>
     {% endif %}
     
     <!-- Preparing Orders -->
     {% if orders_by_status.Preparing %}
-    <div class="orders-section">
+    <section class="orders-section sheet">
       <h2 class="section-title">
-        👨‍🍳 Preparing ({{ orders_by_status.Preparing|length }})
+        Preparing ({{ orders_by_status.Preparing|length }})
       </h2>
       {% for order in orders_by_status.Preparing %}
       <div class="order-card">
@@ -402,29 +197,30 @@
           </div>
         </div>
         
-        <div class="order-items">
-          {% for item in order["items"] %}
-          <div class="item-row">
-            <span>{{ item.qty }}× {{ item.name }}</span>
-          </div>
-          {% endfor %}
-        </div>
+        <table class="ruled order-items">
+          <thead><tr><th scope="col">Qty</th><th scope="col">Dish</th></tr></thead>
+          <tbody>
+            {% for item in order["items"] %}
+            <tr><td>{{ item.qty }}</td><td>{{ item.name }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
         
         <div class="order-actions">
           <form method="POST" action="{{ url_for('restaurant_ready_order', ord_id=order.ord_id) }}">
-            <button type="submit" class="btn-action btn-ready">📦 Mark Ready</button>
+            <button type="submit" class="btn btn-primary btn-action btn-ready">Mark ready</button>
           </form>
         </div>
       </div>
       {% endfor %}
-    </div>
+    </section>
     {% endif %}
     
     <!-- Ready Orders -->
     {% if orders_by_status.Ready %}
-    <div class="orders-section">
+    <section class="orders-section sheet">
       <h2 class="section-title">
-        📦 Ready for Pickup/Delivery ({{ orders_by_status.Ready|length }})
+        Ready for Pickup/Delivery ({{ orders_by_status.Ready|length }})
       </h2>
       {% for order in orders_by_status.Ready %}
       <div class="order-card">
@@ -440,32 +236,33 @@
           </div>
         </div>
         
-        <div class="order-items">
-          {% for item in order["items"] %}
-          <div class="item-row">
-            <span>{{ item.qty }}× {{ item.name }}</span>
-          </div>
-          {% endfor %}
-        </div>
+        <table class="ruled order-items">
+          <thead><tr><th scope="col">Qty</th><th scope="col">Dish</th></tr></thead>
+          <tbody>
+            {% for item in order["items"] %}
+            <tr><td>{{ item.qty }}</td><td>{{ item.name }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
         
         <div class="order-actions">
           <form method="POST" action="{{ url_for('restaurant_deliver_order', ord_id=order.ord_id) }}">
-            <button type="submit" class="btn-action btn-deliver">✓ Mark Delivered</button>
+            <button type="submit" class="btn btn-primary btn-action btn-deliver">Mark delivered</button>
           </form>
         </div>
       </div>
       {% endfor %}
-    </div>
+    </section>
     {% endif %}
     
     <!-- Delivered Orders (Last 10) -->
     {% if orders_by_status.Delivered %}
-    <div class="orders-section">
+    <section class="orders-section sheet">
       <h2 class="section-title">
-        ✅ Recently Delivered
+        Recently Delivered
       </h2>
       {% for order in orders_by_status.Delivered[:10] %}
-      <div class="order-card" style="opacity: 0.7;">
+      <div class="order-card is-past">
         <div class="order-header">
           <div>
             <h3>Order #{{ order.ord_id }}</h3>
@@ -479,15 +276,14 @@
         </div>
       </div>
       {% endfor %}
-    </div>
+    </section>
     {% endif %}
     
     <!-- Empty State -->
     {% if status_counts.Ordered == 0 and status_counts.Accepted == 0 and status_counts.Preparing == 0 and status_counts.Ready == 0 %}
-    <div class="empty-state">
-      <div class="empty-state-icon">📭</div>
-      <h3>No Active Orders</h3>
-      <p>New orders will appear here when customers place them.</p>
+    <div class="empty-state slip">
+      <h3>No active orders</h3>
+      <p class="note">New orders will appear here when customers place them.</p>
     </div>
     {% endif %}
   </div>

@@ -7,8 +7,8 @@ describe("Order Workflow", () => {
   it("adds a menu item with a note to the cart on the Restaurants page", () => {
     cy.visit("/restaurants");
 
-    // Open the restaurant's menu
-    cy.contains(".accordion-header", "Taste of Italy").click();
+    // Open the restaurant's catalog page
+    cy.contains(".rest-entry", "Taste of Italy").click();
 
     cy.contains(".menu-item", "Margherita Pizza").within(() => {
       cy.get(".note-input").type("Please deliver with extra crushed red pepper");

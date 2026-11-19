@@ -177,10 +177,11 @@ def test_progress_all_six_statuses_distinct(client, seed_user, seed_restaurant, 
 
 @pytest.mark.parametrize("key", ["ordered", "accepted", "preparing", "ready", "delivered", "cancelled", "unknown"])
 def test_progress_badge_has_css(client, seed_user, key):
-    """Every badge class the template can emit has a colour defined."""
+    """Every status class the template can emit has a colour defined (statuses are
+    coloured words, so the colour is the text colour)."""
     _login(client, seed_user)
     html = client.get("/orders").get_data(as_text=True)
-    assert re.search(r"\.status-%s\s*\{[^}]*background-color" % key, html)
+    assert re.search(r"\.status-%s\s*\{[^}]*(?<![-\w])color\s*:\s*var\(--" % key, html)
 
 
 def test_progress_lowercase_status_from_db(client, seed_user, seed_restaurant, temp_db_path):

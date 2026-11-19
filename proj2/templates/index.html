@@ -100,15 +100,15 @@
                 {{ entry.item.name }}
                 <span class="muted"> · {{ entry.item.restaurant_name }} · ${{ '%.2f'|format(entry.item.price/100) }} · {{ entry.item.calories }} cal</span>
                 {% if entry.item.restaurant_address or entry.item.restaurant_hours or entry.item.restaurant_phone %}
-                  <div style="margin-top: 4px; font-size: 0.85rem; color: var(--muted);">
+                  <div class="rest-meta" style="margin-top: 4px; font-size: 0.85rem; color: var(--muted);">
                     {% if entry.item.restaurant_address %}
-                      <span>📍 {{ entry.item.restaurant_address }}</span>
+                      <span>{{ entry.item.restaurant_address }}</span>
                     {% endif %}
                     {% if entry.item.restaurant_hours %}
-                      <span class="rest-hours">🕐 {{ entry.item.restaurant_hours | hours_display }}</span>
+                      <span class="rest-hours">{{ entry.item.restaurant_hours | hours_display }}</span>
                     {% endif %}
                     {% if entry.item.restaurant_phone %}
-                      <span>📞 {{ entry.item.restaurant_phone }}</span>
+                      <span>{{ entry.item.restaurant_phone }}</span>
                     {% endif %}
                   </div>
                 {% endif %}
@@ -289,15 +289,15 @@
                           · {{ m.item.calories }} cal
                         </div>
                         {% if m.item.restaurant_address or m.item.restaurant_hours or m.item.restaurant_phone %}
-                          <div class="tags" style="margin-top: 4px;">
+                          <div class="tags rest-meta" style="margin-top: 4px;">
                             {% if m.item.restaurant_address %}
-                              <span>📍 {{ m.item.restaurant_address }}</span>
+                              <span>{{ m.item.restaurant_address }}</span>
                             {% endif %}
                             {% if m.item.restaurant_hours %}
-                              <span class="rest-hours" style="margin-left: 8px;">🕐 {{ m.item.restaurant_hours | hours_display }}</span>
+                              <span class="rest-hours">{{ m.item.restaurant_hours | hours_display }}</span>
                             {% endif %}
                             {% if m.item.restaurant_phone %}
-                              <span style="margin-left: 8px;">📞 {{ m.item.restaurant_phone }}</span>
+                              <span>{{ m.item.restaurant_phone }}</span>
                             {% endif %}
                           </div>
                         {% endif %}
@@ -652,6 +652,41 @@
   .order-summary .row.total { font-weight: 800; border-top: 1px dashed color-mix(in srgb, var(--text) 20%, transparent); margin-top: 6px; padding-top: 10px; }
   .order-summary .lbl { opacity: .9; }
   .order-summary hr { border: none; border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent); margin: 10px 0; }
+  /* Catalog look (static/style.css): the month as a ruled grid, meals as plain entries,
+     the pop-up and order dialog as sheets, buttons like the Restaurants page's */
+  .greet { background: none; padding: 0; border-radius: 0; font-weight: 400 !important; font-style: italic; }
+  .cal-grid { gap: 0; border-top: 2px solid var(--text); border-left: 1px solid var(--border); }
+  .cal-dow { font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .04em; border-bottom: 1px solid var(--text); border-right: 1px solid var(--border); }
+  .day-cell {
+    background: var(--surface); border: 0; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    border-radius: 0; box-shadow: none;
+  }
+  .day-cell:hover { transform: none; box-shadow: none; background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+  .day-cell.today { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); box-shadow: inset 0 0 0 2px var(--primary); }
+  .day-num { font-family: var(--font-display, var(--font)); font-weight: 400; font-variant-numeric: oldstyle-nums; }
+  .badge {
+    background: none; border: 0; border-top: 1px dotted var(--border); border-radius: 0; box-shadow: none;
+    padding: 4px 0 0; font-weight: 500; font-style: normal;
+  }
+  .badge:hover { transform: none; box-shadow: none; color: var(--primary); }
+  .badge .dot { box-shadow: none; }
+  .menu-popover, .order-modal__dialog {
+    background: var(--surface); border: 1px solid var(--text); outline: 1px solid var(--text); outline-offset: 3px;
+    border-radius: 0; box-shadow: 0 12px 28px color-mix(in srgb, var(--shade) 25%, transparent);
+  }
+  .menu-popover h4, .order-modal__title {
+    font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--primary);
+    background: none; -webkit-text-fill-color: currentColor;
+  }
+  .order-btn {
+    background: var(--primary); color: var(--on-primary); border: 1px solid color-mix(in oklab, var(--primary) 45%, #000);
+    border-radius: var(--radius-xs); box-shadow: none;
+  }
+  .order-btn:hover, .order-btn:active { transform: none; box-shadow: none; filter: brightness(1.08); }
+  .swap-btn { background: transparent; border-radius: var(--radius-xs); box-shadow: none; }
+  .swap-option { border-radius: 0; }
+  .card.compact { background: var(--surface); border: 1px solid var(--text); box-shadow: none; }
+  #menuLoading { border-radius: 0 !important; border-width: 1px !important; }
 </style>
 
 <script>

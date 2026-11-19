@@ -6,19 +6,19 @@
 <header class="owner-header">
   <div class="owner-header-inner">
     <div class="restaurant-info">
-      <h1>🍽️ {{ restaurant_name }}</h1>
+      <h1>{{ restaurant_name }}</h1>
       <p>{{ restaurant_email }}</p>
     </div>
     <nav class="dashboard-nav owner-tabs" aria-label="Restaurant pages">
       <a href="{{ url_for('restaurant_orders') }}" class="nav-btn{% if tab == 'restaurant_orders' %} active{% endif %}"{% if tab == 'restaurant_orders' %} aria-current="page"{% endif %}>
-        📦 Orders
+        Orders
         {% if owner_nav %}<span class="tab-note">{{ owner_nav.active_orders }} active</span>{% endif %}
       </a>
       <a href="{{ url_for('restaurant_analytics') }}" class="nav-btn{% if tab == 'restaurant_analytics' %} active{% endif %}"{% if tab == 'restaurant_analytics' %} aria-current="page"{% endif %}>
-        📊 Analytics
+        Analytics
       </a>
       <a href="{{ url_for('restaurant_owner_reviews') }}" class="nav-btn{% if tab == 'restaurant_owner_reviews' %} active{% endif %}"{% if tab == 'restaurant_owner_reviews' %} aria-current="page"{% endif %}>
-        ⭐ Reviews
+        Reviews
         {% if owner_nav %}
           {% if owner_nav.total_reviews %}
           <span class="tab-note">{{ '%.1f'|format(owner_nav.average_rating) }} · {{ owner_nav.total_reviews }} Review{{ 's' if owner_nav.total_reviews != 1 }}</span>

@@ -250,6 +250,39 @@
         gap: 0.5rem;
       }
     }
+    /* Catalog look (static/style.css): the summary and the reviews are sheets, each
+       review a ruled entry in one list */
+    .restaurant-header {
+      background: var(--surface); border: 1px solid var(--text); outline: 1px solid var(--text);
+      outline-offset: 4px; border-radius: 0; box-shadow: none; margin-bottom: 2.25rem;
+    }
+    .restaurant-header h1, .restaurant-header h2 {
+      font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--primary);
+    }
+    .average-rating { font-family: var(--font-display, var(--font)); font-weight: 400; color: var(--primary); }
+    .review-list {
+      background: var(--surface); border: 1px solid var(--text); outline: 1px solid var(--text);
+      outline-offset: 4px; padding: 4px clamp(14px, 3vw, 28px);
+    }
+    .review-card {
+      background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0;
+      margin: 0; padding: 18px 0; box-shadow: none;
+    }
+    .review-card:last-child { border-bottom: 0; }
+    .review-card:hover { box-shadow: none; }
+    .reviewer-avatar {
+      background: transparent; border: 1px solid var(--text); color: var(--primary);
+      font-family: var(--font-display, var(--font)); font-weight: 400;
+    }
+    .review-title { font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; font-size: 1.2rem; color: var(--primary); }
+    .review-date, .review-count, .order-reference { font-style: italic; }
+    .order-reference { border-top: 0; padding-top: 0; }
+    .no-reviews { background: var(--surface); border: 1px dashed var(--text); border-radius: 0; }
+    .no-reviews h3 { font-family: var(--font-display, var(--font)); font-weight: 400; color: var(--primary); }
+    .filter-label { font-style: italic; font-weight: 400; color: var(--muted); }
+    .filter-select, .page-btn { border-radius: 0; }
+    .page-btn { background: transparent; }
+    .back-link { font-style: italic; }
   </style>
 </head>
 <body>
@@ -311,16 +344,17 @@
           <span class="filter-label">Filter:</span>
           <select class="filter-select" id="filterSelect" onchange="updateFilter()">
             <option value="all" {% if filter == 'all' %}selected{% endif %}>All Ratings</option>
-            <option value="5" {% if filter == '5' %}selected{% endif %}>⭐⭐⭐⭐⭐ (5 stars)</option>
-            <option value="4" {% if filter == '4' %}selected{% endif %}>⭐⭐⭐⭐ (4 stars)</option>
-            <option value="3" {% if filter == '3' %}selected{% endif %}>⭐⭐⭐ (3 stars)</option>
-            <option value="2" {% if filter == '2' %}selected{% endif %}>⭐⭐ (2 stars)</option>
-            <option value="1" {% if filter == '1' %}selected{% endif %}>⭐ (1 star)</option>
+            <option value="5" {% if filter == '5' %}selected{% endif %}>5 stars</option>
+            <option value="4" {% if filter == '4' %}selected{% endif %}>4 stars</option>
+            <option value="3" {% if filter == '3' %}selected{% endif %}>3 stars</option>
+            <option value="2" {% if filter == '2' %}selected{% endif %}>2 stars</option>
+            <option value="1" {% if filter == '1' %}selected{% endif %}>1 star</option>
           </select>
         </div>
       </div>
 
       <!-- Review Cards -->
+      <div class="review-list">
       {% for review in reviews %}
       <div class="review-card">
         <div class="review-header">
@@ -349,6 +383,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
 
       <!-- Pagination -->
       {% if total_pages > 1 %}

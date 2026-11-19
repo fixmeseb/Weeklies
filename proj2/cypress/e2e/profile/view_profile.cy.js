@@ -6,7 +6,7 @@ describe("User Profile View", () => {
   });
 
   it("displays user information correctly", () => {
-    cy.get(".card-body").first().within(() => {
+    cy.get("#particulars").within(() => {
       cy.contains("John Doe").should("be.visible");
       cy.contains("testuser@example.com").should("be.visible");
       cy.contains("9195550101").should("be.visible");
@@ -14,14 +14,13 @@ describe("User Profile View", () => {
   });
 
   it("displays user allergies and preferences", () => {
-    cy.get('[aria-label="Allergies"]').should("contain.text", "Peanuts");
-    cy.get("#prefBubbles").should("be.visible");
+    cy.get("#dietSummary").should("contain.text", "Peanuts");
+    cy.get("#dietSummary").should("contain.text", "Vegetarian");
   });
 
-  it("displays order history with details and statuses", () => {
-    cy.get("table, .order-list, .meta-grid").should("exist");
-    // Verify seeded delivered order appears
-    cy.contains("Taste of Italy").should("be.visible");
+  it("names the last order in the Wallet chapter and links to My Orders", () => {
+    cy.get("#wallet").should("contain.text", "Taste of Italy");
+    cy.get('#wallet a[href="/orders"]').should("exist");
   });
 
   it("redirects unauthenticated users to login", () => {

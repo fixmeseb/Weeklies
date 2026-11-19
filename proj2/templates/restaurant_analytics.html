@@ -150,6 +150,21 @@
         font-size: 1.8rem;
       }
     }
+    /* Catalog look (static/style.css): figures and charts on sheets, labels in italic */
+    .analytics-grid { gap: 2rem; margin-bottom: 2.5rem; }
+    .metric-card, .chart-container {
+      background: var(--surface); border: 1px solid var(--text); outline: 1px solid var(--text);
+      outline-offset: 4px; border-radius: 0; box-shadow: none;
+    }
+    .chart-container { margin-bottom: 2.5rem; }
+    .metric-label { text-transform: none; letter-spacing: 0; font-style: italic; font-size: .95rem; }
+    .metric-value { font-family: var(--font-display, var(--font)); font-weight: 400; font-variant-numeric: oldstyle-nums; }
+    .metric-subtext { font-style: italic; }
+    .chart-container h3 {
+      font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--primary);
+      padding-bottom: 4px; border-bottom: 1px solid var(--text);
+    }
+    .empty-state { border: 1px dashed var(--text); border-radius: 0; font-style: italic; }
   </style>
 </head>
 <body>
@@ -262,6 +277,7 @@
     if (window.Chart) {
       Chart.defaults.color = themeColor('--muted');
       Chart.defaults.borderColor = withAlpha(themeColor('--text'), 0.1);
+      Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;  // the page's own type
     }
     // Charts are drawn once, so redraw the page when the theme changes.
     document.addEventListener('palettechange', () => location.reload());
