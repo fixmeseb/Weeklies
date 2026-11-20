@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu · {{ restaurant_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <style>
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 1rem 3rem; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.5rem;
+    }
+    .panel > summary {
+      cursor: pointer; font-weight: 600; font-size: 1.05rem; list-style: none;
+    }
+    .panel > summary::before { content: "＋ "; opacity: 0.6; }
+    .panel[open] > summary::before { content: "− "; }
+    .field-grid {
+      display: grid; gap: 0.9rem 1.1rem; margin-top: 1.1rem;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    }
+    .field label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; }
+    .field input[type="text"], .field input[type="number"], .field select, .field textarea {
+      width: 100%; padding: 0.45rem 0.55rem; border: 1px solid var(--border);
+      border-radius: 6px; background: var(--bg); color: var(--text); font: inherit;
+    }
+    .field .hint { display: block; font-size: 0.75rem; opacity: 0.7; margin-top: 0.25rem; }
+    .field .bad { display: block; font-size: 0.78rem; color: var(--danger); margin-top: 0.25rem; }
+    .field.required label::after { content: " *"; color: var(--danger); }
+    .field-wide { grid-column: 1 / -1; }
+    .alert {
+      padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem;
+      border: 1px solid var(--danger); color: var(--danger);
+      background: color-mix(in srgb, var(--danger) 8%, transparent);
+    }
+    .alert.good { border-color: var(--success); color: var(--success);
+      background: color-mix(in srgb, var(--success) 8%, transparent); }
+    table.menu { width: 100%; border-collapse: collapse; }
+    table.menu th, table.menu td {
+      text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    table.menu th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+    .dish-name { font-weight: 600; }
+    .dish-desc { font-size: 0.82rem; opacity: 0.75; margin-top: 0.15rem; }
+    .tagline { font-size: 0.78rem; opacity: 0.8; }
+    .badge {
+      display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    }
+    .badge.in { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+    .badge.out { background: color-mix(in srgb, var(--muted) 22%, transparent); opacity: 0.85; }
+    .row-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+    /* Each action is its own form, so let the forms collapse into the flex row. */
+    .row-actions form { display: contents; }
+    /* style.css styles every submit button as a filled primary button; these are row
+       actions beside a dish, so they are quieter than that. */
+    .row-actions button[type="submit"] {
+      font: inherit; font-size: 0.82rem; font-weight: 500; padding: 0.3rem 0.7rem;
+      cursor: pointer; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg); color: var(--text); box-shadow: none;
+    }
+    .row-actions button[type="submit"]:hover {
+      background: color-mix(in srgb, var(--text) 8%, var(--bg)); transform: none;
+    }
+    .row-actions button[type="submit"].danger {
+      border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger);
+      background: var(--bg);
+    }
+    .row-actions button[type="submit"].danger:hover {
+      background: color-mix(in srgb, var(--danger) 12%, var(--bg));
+    }
+    .primary {
+      font: inherit; font-weight: 600; padding: 0.55rem 1.1rem; cursor: pointer;
+      border: none; border-radius: 8px; background: var(--primary); color: var(--on-primary);
+      margin-top: 1.1rem;
+    }
+    .empty { padding: 2rem 1rem; text-align: center; opacity: 0.75; }
+    .contract { font-size: 0.82rem; opacity: 0.8; }
+    .contract code { font-size: 0.95em; }
+  </style>
+</head>
+<body>
+  {% include "_owner_header.html" %}
+
+  {#- One field, rendered from the server's own schema so the form cannot offer a value
+      the validator would reject. -#}
+  {% macro field(column, spec, value, errors, prefix="") %}
+    {% set name = column %}
+    {% set id = prefix ~ column %}
+    <div class="field{% if spec.required %} required{% endif %}">
+      <label for="{{ id }}">{{ column.replace("_", " ")|title }}</label>
+      {% if spec.kind == "tags" %}
+        {% if spec.single %}
+          <select id="{{ id }}" name="{{ name }}">
+            <option value=""{% if not value %} selected{% endif %}>—</option>
+            {% for option in spec["values"] %}
+              <option value="{{ option }}"{% if value and option in value|string %} selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input type="text" id="{{ id }}" name="{{ name }}" value="{{ value or '' }}"
+                 list="vocab-{{ column }}" autocomplete="off" placeholder="comma separated" />
+        {% endif %}
+      {% elif spec.kind == "level" %}
+        <input type="number" id="{{ id }}" name="{{ name }}" value="{{ value if value is not none else '' }}"
+               min="{{ spec.min }}" max="{{ spec.max }}" />
+      {% elif spec.kind == "flag" %}
+        <select id="{{ id }}" name="{{ name }}">
+          <option value=""{% if value is none %} selected{% endif %}>—</option>
+          <option value="1"{% if value == 1 %} selected{% endif %}>Yes</option>
+          <option value="0"{% if value == 0 %} selected{% endif %}>No</option>
+        </select>
+      {% elif spec.kind == "money" %}
+        <input type="text" id="{{ id }}" name="{{ name }}" value="{{ value or '' }}"
+               inputmode="decimal" placeholder="12.99" />
+      {% elif spec.kind == "integer" %}
+        <input type="number" id="{{ id }}" name="{{ name }}" value="{{ value if value is not none else '' }}"
+               min="0" max="{{ spec.max }}" />
+      {% else %}
+        <input type="text" id="{{ id }}" name="{{ name }}" value="{{ value or '' }}"
+               maxlength="{{ spec.max_length or 255 }}" />
+      {% endif %}
+      {% if spec.help %}<span class="hint">{{ spec.help }}</span>{% endif %}
+      {% if spec.note %}<span class="hint">{{ spec.note }}</span>{% endif %}
+      {% if errors.get(column) %}<span class="bad">{{ errors[column] }}</span>{% endif %}
+    </div>
+  {% endmacro %}
+
+  {#- The tag vocabularies, once, shared by every form on the page. -#}
+  {% for column in tag_columns %}
+    {% if schema.fields[column].kind == "tags" and not schema.fields[column].single %}
+      <datalist id="vocab-{{ column }}">
+        {% for option in schema.fields[column]["values"] %}<option value="{{ option }}"></option>{% endfor %}
+      </datalist>
+    {% endif %}
+  {% endfor %}
+
+  <div class="container">
+    {% if errors.get("_consistency") %}
+      <div class="alert">This dish contradicts itself: {{ errors["_consistency"] }}</div>
+    {% endif %}
+    {% if errors.get("_blocked") %}
+      <div class="alert">{{ errors["_blocked"] }}</div>
+    {% endif %}
+    {% if request.args.get("added") %}<div class="alert good">Dish added.</div>{% endif %}
+    {% if request.args.get("saved") %}<div class="alert good">Changes saved.</div>{% endif %}
+    {% if request.args.get("stock") %}<div class="alert good">Availability updated.</div>{% endif %}
+    {% if request.args.get("removed") %}<div class="alert good">Dish removed.</div>{% endif %}
+
+    <details class="panel" {% if errors and not editing %}open{% endif %}>
+      <summary>Add a dish</summary>
+      <form method="post" action="{{ url_for('restaurant_menu_new') }}">
+        <div class="field-grid">
+          {{ field("name", schema.fields["name"], submitted.get("name"), errors, "new-") }}
+          {{ field("price", schema.fields["price"], submitted.get("price"), errors, "new-") }}
+          {{ field("calories", schema.fields["calories"], submitted.get("calories"), errors, "new-") }}
+          {{ field("allergens", schema.fields["allergens"], submitted.get("allergens"), errors, "new-") }}
+          <div class="field field-wide">
+            <label for="new-description">Description</label>
+            <textarea id="new-description" name="description" rows="2"
+                      maxlength="{{ schema.fields['description'].max_length }}">{{ submitted.get("description") or "" }}</textarea>
+            {% if errors.get("description") %}<span class="bad">{{ errors["description"] }}</span>{% endif %}
+          </div>
+          {% for column in tag_columns %}
+            {{ field(column, schema.fields[column], submitted.get(column), errors, "new-") }}
+          {% endfor %}
+        </div>
+        <button type="submit" class="primary">Add to menu</button>
+      </form>
+    </details>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Your menu <span class="tagline">({{ items|length }} dish{{ "es" if items|length != 1 }})</span></h2>
+      {% if not items %}
+        <p class="empty">Nothing on the menu yet. Add your first dish above — diners can only be
+          offered dishes that are listed here and in stock.</p>
+      {% else %}
+      <table class="menu">
+        <thead>
+          <tr><th>Dish</th><th>Price</th><th>Tags</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+          <tr>
+            <td>
+              <div class="dish-name">{{ item["name"] }}</div>
+              {% if item["description"] %}<div class="dish-desc">{{ item["description"] }}</div>{% endif %}
+            </td>
+            <td>{% if item["price"] is not none %}${{ "%.2f"|format(item["price"] / 100) }}{% else %}—{% endif %}</td>
+            <td class="tagline">
+              {%- set shown = [] -%}
+              {%- for column in required_tags -%}
+                {%- if item[column] -%}{% set _ = shown.append(item[column]) %}{%- endif -%}
+              {%- endfor -%}
+              {{ shown|join(" · ") or "untagged" }}
+              {% if item["diet_tags"] %}<br />{{ item["diet_tags"] }}{% endif %}
+            </td>
+            <td>
+              {% if item["instock"] %}<span class="badge in">On the menu</span>
+              {% else %}<span class="badge out">Off the menu</span>{% endif %}
+            </td>
+            <td>
+              <div class="row-actions">
+                <form method="post" action="{{ url_for('restaurant_menu_stock', itm_id=item['itm_id']) }}">
+                  <input type="hidden" name="instock" value="{{ 0 if item['instock'] else 1 }}" />
+                  <button type="submit">{{ "Take off" if item["instock"] else "Put back" }}</button>
+                </form>
+                <form method="post" action="{{ url_for('restaurant_menu_delete', itm_id=item['itm_id']) }}"
+                      onsubmit="return confirm('Delete {{ item['name']|e }} permanently? Taking it off the menu is usually what you want.');">
+                  <button type="submit" class="danger">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="5" style="border-bottom:1px solid var(--border);padding-top:0">
+              <details class="panel" style="margin:0 0 0.6rem;border:none;padding:0"
+                       {% if editing == item["itm_id"] %}open{% endif %}>
+                <summary style="font-size:0.85rem">Edit</summary>
+                <form method="post" action="{{ url_for('restaurant_menu_edit', itm_id=item['itm_id']) }}">
+                  <div class="field-grid">
+                    {% set live = submitted if editing == item["itm_id"] else {} %}
+                    {% set row_errors = errors if editing == item["itm_id"] else {} %}
+                    {{ field("name", schema.fields["name"], live.get("name", item["name"]), row_errors, "e%s-"|format(item["itm_id"])) }}
+                    {{ field("price", schema.fields["price"], live.get("price", "%.2f"|format(item["price"] / 100) if item["price"] is not none else ""), row_errors, "e%s-"|format(item["itm_id"])) }}
+                    {{ field("calories", schema.fields["calories"], live.get("calories", item["calories"]), row_errors, "e%s-"|format(item["itm_id"])) }}
+                    {{ field("allergens", schema.fields["allergens"], live.get("allergens", item["allergens"]), row_errors, "e%s-"|format(item["itm_id"])) }}
+                    <div class="field field-wide">
+                      <label>Description</label>
+                      <textarea name="description" rows="2"
+                        maxlength="{{ schema.fields['description'].max_length }}">{{ live.get("description", item["description"]) or "" }}</textarea>
+                    </div>
+                    {% for column in tag_columns %}
+                      {{ field(column, schema.fields[column], live.get(column, item[column]), row_errors, "e%s-"|format(item["itm_id"])) }}
+                    {% endfor %}
+                  </div>
+                  <button type="submit" class="primary">Save changes</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    <details class="panel">
+      <summary>Building against this page's API</summary>
+      <div class="contract">
+        <p>Every rule this form applies is applied by the JSON API too, and the contract is
+          generated from the validator rather than written by hand, so it cannot drift from
+          what the server accepts:</p>
+        <ul>
+          <li><code>GET /api/restaurant/menu/schema</code> — every field, whether it is required, and its vocabulary</li>
+          <li><code>GET /api/restaurant/menu</code> — this restaurant's dishes</li>
+          <li><code>POST /api/restaurant/menu</code> — add one; <code>201</code>, or <code>422</code> with one message per bad field</li>
+          <li><code>PATCH /api/restaurant/menu/&lt;itm_id&gt;</code> — change only the fields the body carries</li>
+          <li><code>POST /api/restaurant/menu/&lt;itm_id&gt;/stock</code> — <code>{"instock": false}</code> takes a dish off the menu</li>
+          <li><code>DELETE /api/restaurant/menu/&lt;itm_id&gt;</code> — <code>409</code> when a saved plan or order still names the dish</li>
+        </ul>
+        <p>Required to add a dish:
+          {% for name in schema.required %}<code>{{ name }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+          {{ schema.required_tags_rationale }}</p>
+      </div>
+    </details>
+  </div>
+</body>
+</html>

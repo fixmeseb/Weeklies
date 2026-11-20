@@ -1,8 +1,8 @@
 {# Banner shared by every restaurant-owner page: the restaurant's name and the
-   Orders / Analytics / Reviews tabs. owner_nav comes from the inject_owner_nav
+   Orders / Menu / Analytics / Reviews tabs. owner_nav comes from the inject_owner_nav
    context processor in Flask_app.py; the theme picker places itself in the
    .dashboard-nav row (static/theme.js). #}
-{% set tab = request.endpoint %}
+{% set tab = owner_tab | default(request.endpoint, true) %}
 <header class="owner-header">
   <div class="owner-header-inner">
     <div class="restaurant-info">
@@ -13,6 +13,10 @@
       <a href="{{ url_for('restaurant_orders') }}" class="nav-btn{% if tab == 'restaurant_orders' %} active{% endif %}"{% if tab == 'restaurant_orders' %} aria-current="page"{% endif %}>
         📦 Orders
         {% if owner_nav %}<span class="tab-note">{{ owner_nav.active_orders }} active</span>{% endif %}
+      </a>
+      <a href="{{ url_for('restaurant_menu') }}" class="nav-btn{% if tab == 'restaurant_menu' %} active{% endif %}"{% if tab == 'restaurant_menu' %} aria-current="page"{% endif %}>
+        🍜 Menu
+        {% if owner_nav and owner_nav.menu_items is defined %}<span class="tab-note">{{ owner_nav.menu_items }} dish{{ "es" if owner_nav.menu_items != 1 }}</span>{% endif %}
       </a>
       <a href="{{ url_for('restaurant_analytics') }}" class="nav-btn{% if tab == 'restaurant_analytics' %} active{% endif %}"{% if tab == 'restaurant_analytics' %} aria-current="page"{% endif %}>
         📊 Analytics
