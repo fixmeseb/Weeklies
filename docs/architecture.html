@@ -75,7 +75,19 @@
 <td><code>preferences</code></td>
 <td>TEXT</td>
 <td>NULL</td>
-<td>Comma-separated food preferences (e.g., "vegetarian, spicy")</td>
+<td>Comma-separated required diets and optional food-match tags</td>
+</tr>
+<tr>
+<td><code>optimization_weights</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>JSON map of relative slider priorities</td>
+</tr>
+<tr>
+<td><code>weekly_cap_cents</code></td>
+<td>INTEGER</td>
+<td>NULL</td>
+<td>Standing weekly item-price cap in cents</td>
 </tr>
 <tr>
 <td><code>allergies</code></td>

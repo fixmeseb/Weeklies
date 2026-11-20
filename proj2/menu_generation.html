@@ -42,6 +42,9 @@
                     <a class="variable" href="#RESTART_OPENINGS">RESTART_OPENINGS</a>
             </li>
             <li>
+                    <a class="variable" href="#LOOKBACK_DAYS">LOOKBACK_DAYS</a>
+            </li>
+            <li>
                     <a class="variable" href="#BREAKFAST_TIME">BREAKFAST_TIME</a>
             </li>
             <li>
@@ -90,7 +93,16 @@
                                 <a class="variable" href="#MenuGenerator.variety">variety</a>
                         </li>
                         <li>
+                                <a class="variable" href="#MenuGenerator.targets">targets</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#MenuGenerator.daily_totals">daily_totals</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#MenuGenerator.update_menu">update_menu</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#MenuGenerator.nutrition_report">nutrition_report</a>
                         </li>
                 </ul>
 
@@ -121,7 +133,8 @@ already in the plan (<a href="variety.html">proj2.variety</a>), with soft prefer
 near-ties, then the lower price, then the lower itm_id. After every slot is filled it
 re-picks each slot with the rest of the plan fixed, and repeats that sweep until one
 changes nothing: filling a slot changes what its neighbours should be, so a single pass
-leaves stale picks behind.</p>
+leaves stale picks behind. With nutrition targets, meals that keep a day inside its
+targets outrank everything else (<a href="nutrition.html">proj2.nutrition</a>).</p>
 
 <p>The result is deterministic: the same catalog and request always give the same plan.</p>
 </div>
@@ -162,6 +175,18 @@ leaves stale picks behind.</p>
         
     </div>
     <a class="headerlink" href="#RESTART_OPENINGS"></a>
+    
+    
+
+                </section>
+                <section id="LOOKBACK_DAYS">
+                    <div class="attr variable">
+            <span class="name">LOOKBACK_DAYS</span>        =
+<span class="default_value">3</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LOOKBACK_DAYS"></a>
     
     
 
@@ -438,11 +463,33 @@ hours), and the checks parse strings, so this is much faster on a large catalog.
     
 
                             </div>
+                            <div id="MenuGenerator.targets" class="classattr">
+                                <div class="attr variable">
+            <span class="name">targets</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MenuGenerator.targets"></a>
+    
+    
+
+                            </div>
+                            <div id="MenuGenerator.daily_totals" class="classattr">
+                                <div class="attr variable">
+            <span class="name">daily_totals</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MenuGenerator.daily_totals"></a>
+    
+    
+
+                            </div>
                             <div id="MenuGenerator.update_menu" class="classattr">
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">update_menu</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">menu</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">preferences</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">allergens</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal_numbers</span>,</span><span class="param">	<span class="n">number_of_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">weekly_cap_cents</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+        <span class="name">update_menu</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">menu</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">preferences</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">allergens</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal_numbers</span>,</span><span class="param">	<span class="n">number_of_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">weekly_cap_cents</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">targets</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">strict_targets</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">ordered_meals</span><span class="o">=</span><span class="p">()</span>,</span><span class="param">	<span class="n">objective_weights</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">strategy</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">max_evaluations</span><span class="o">=</span><span class="mi">10000</span>,</span><span class="param">	<span class="n">starts</span><span class="o">=</span><span class="mi">1</span>,</span><span class="param">	<span class="n">seed</span><span class="o">=</span><span class="mi">0</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
 
         
     </div>
@@ -460,18 +507,51 @@ hours), and the checks parse strings, so this is much faster on a large catalog.
     meal_numbers (List[int]): The meals to plan each day (1 breakfast, 2 lunch, 3 dinner)
     number_of_days (int): The number of days to plan, starting at {date}
     weekly_cap_cents (int | None): Item-price limit per Monday–Sunday week,
-        counting all existing meals in that week. None leaves generation uncapped.</p>
+        counting all existing meals in that week. None leaves generation uncapped.
+    targets (dict | None): Daily nutrition ranges to aim for, MenuItem column ->
+        <a href="nutrition.html#DailyRange">proj2.nutrition.DailyRange</a> (<a href="nutrition.html#parse_targets">proj2.nutrition.parse_targets</a>), counting existing
+        meals on each day. Soft goals: days stay inside them where the catalog
+        allows, then variety decides. Items without a value for a targeted
+        nutrient are not planned. None or empty plans as before.
+    strict_targets (bool): Make the targets hard limits: every requested day must
+        end up inside every range, or nothing is planned (see _repair_day).
+    objective_weights (tuple | None): Normalized priorities in OBJECTIVES order.
+        None uses the default planner unless a search strategy is selected.</p>
 
 <p>Returns:
     str: The updated menu string. Also sets self.variety (<a href="variety.html#PlanVariety">proj2.variety.PlanVariety</a>
-        for the requested days) and, with a cap, self.weekly_totals_cents and
-        self.item_total_cents.</p>
+        for the requested days), self.daily_totals (see nutrition_report) and, with a
+        cap, self.weekly_totals_cents and self.item_total_cents.</p>
 
 <p>Raises:
     ValueError: for a malformed date or meal number
     NoEligibleMealError: if no item passes the rules for a slot
     DietaryConstraintError: if items are available but none meets the user's diet
-    BudgetExceededError: if the cheapest possible plan does not fit the cap</p>
+    BudgetExceededError: if the cheapest possible plan does not fit the cap
+    TargetsUnreachableError: with strict_targets, if a requested day cannot be
+        kept inside every range</p>
+</div>
+
+
+                            </div>
+                            <div id="MenuGenerator.nutrition_report" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">nutrition_report</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#MenuGenerator.nutrition_report"></a>
+    
+            <div class="docstring"><p>Each requested day's nutrient totals and how far they are from the targets</p>
+
+<p>Returns:
+    dict | None: {"targets": {column: {"min", "max"}}, "days": [{"date", "totals":
+        {column: amount}, "miss": {column: share}}], "days_outside": int,
+        "outside_by_nutrient": {column: int}}; None if the last plan had no
+        targets. A total (and its miss) is None when one of the day's meals has
+        no value for that nutrient.</p>
 </div>
 
 

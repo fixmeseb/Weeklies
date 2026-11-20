@@ -63,7 +63,7 @@
                     <h1 class="modulename">
 <a href="./../proj2.html">proj2</a><wbr>.seed    </h1>
 
-                        <div class="docstring"><p>The one demo/test seed: two customers, eleven restaurants, 76 menu items (listed in
+                        <div class="docstring"><p>The one demo/test seed: two customers, eleven restaurants, 83 menu items (listed in
 proj2/demo_menu.py), four orders, a review and two analytics snapshots. Used by
 <code>flask seed</code> and by Cypress (scripts/cypress_seed.py). Seeding always recreates the
 database from the migrations.</p>
@@ -155,7 +155,8 @@ config.seed_password(), so a seeded development database has no guessable login.
 
 <p>Raises:
     SeedDataError: if a tag is missing, unknown, or contradicts the item's diets,
-        allergens or other tags</p>
+        allergens or other tags, or the item has no USDA match for its nutrients
+        (proj2/demo_nutrition.py)</p>
 </div>
 
 

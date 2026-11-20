@@ -63,6 +63,12 @@
                     <a class="function" href="#list_swap_options">list_swap_options</a>
             </li>
             <li>
+                    <a class="function" href="#swap_price_limit">swap_price_limit</a>
+            </li>
+            <li>
+                    <a class="function" href="#swap_fits_budget">swap_fits_budget</a>
+            </li>
+            <li>
                     <a class="function" href="#rank_swap_options">rank_swap_options</a>
             </li>
     </ul>
@@ -296,32 +302,47 @@ Flask_app.parse_generated_menu.</p>
 
 
                 </section>
+                <section id="swap_price_limit">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">swap_price_limit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">menu</span>, </span><span class="param"><span class="n">day</span>, </span><span class="param"><span class="n">meal</span>, </span><span class="param"><span class="n">cap</span>, </span><span class="param"><span class="n">catalog</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#swap_price_limit"></a>
+    
+            <div class="docstring"><p>Find how much can be spent on the replacement after counting the other meals.</p>
+</div>
+
+
+                </section>
+                <section id="swap_fits_budget">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">swap_fits_budget</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">item</span>, </span><span class="param"><span class="n">catalog</span>, </span><span class="param"><span class="n">limit</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#swap_fits_budget"></a>
+    
+            <div class="docstring"><p>Whether the replacement has a known price within the available budget.</p>
+</div>
+
+
+                </section>
                 <section id="rank_swap_options">
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">rank_swap_options</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">options</span>,</span><span class="param">	<span class="n">catalog</span><span class="p">:</span> <span class="nb">dict</span>,</span><span class="param">	<span class="n">menu</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">preferences</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+        <span class="name">rank_swap_options</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">options</span>,</span><span class="param">	<span class="n">catalog</span><span class="p">:</span> <span class="nb">dict</span>,</span><span class="param">	<span class="n">menu</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">preferences</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">weights</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
     <a class="headerlink" href="#rank_swap_options"></a>
     
-            <div class="docstring"><p>Orders swap options by how much variety each adds next to the rest of the plan</p>
-
-<p>Uses the same score as generation (<a href="variety.html">proj2.variety</a>): the option's weighted distance
-to the other planned meals around the slot, plus the soft-preference bonus; ties go
-to the cheaper item, then the lower itm_id.</p>
-
-<p>Args:
-    options (List[dict]): Eligible items from list_swap_options
-    catalog (dict): itm_id -> MenuItem row (<a href="variety.html#catalog_rows">proj2.variety.catalog_rows</a>)
-    menu (str): The user's generated menu string
-    date (str): The slot date in YYYY-MM-DD format
-    meal (int): The slot meal number (1, 2, or 3)
-    preferences (str | None): The user's comma-separated preferences</p>
-
-<p>Returns:
-    List[dict]: The options, best first, each with a "variety" score from 0 to about 1</p>
+            <div class="docstring"><p>Rank eligible swaps using the saved objectives or the default variety score.</p>
 </div>
 
 

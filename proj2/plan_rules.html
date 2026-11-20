@@ -48,6 +48,9 @@
                     <a class="variable" href="#SLOT_COURSE">SLOT_COURSE</a>
             </li>
             <li>
+                    <a class="function" href="#is_taking_orders">is_taking_orders</a>
+            </li>
+            <li>
                     <a class="function" href="#is_restaurant_open">is_restaurant_open</a>
             </li>
             <li>
@@ -151,6 +154,32 @@ can both use it.</p>
     <a class="headerlink" href="#SLOT_COURSE"></a>
     
     
+
+                </section>
+                <section id="is_taking_orders">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_taking_orders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">status</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#is_taking_orders"></a>
+    
+            <div class="docstring"><p>Reports whether a restaurant's stored status means it is open for orders.</p>
+
+<p>The one place this question is answered, so meal generation and single-meal swaps
+cannot drift apart. Casing and surrounding whitespace are ignored because the seeds and
+fixtures store 'open' while other code has written 'Open'. A missing status is not open:
+a restaurant whose status was never recorded is not known to be taking orders.</p>
+
+<p>Args:
+    status (str | None): The value stored in Restaurant.status.</p>
+
+<p>Returns:
+    bool: True when the restaurant is open for orders.</p>
+</div>
+
 
                 </section>
                 <section id="is_restaurant_open">

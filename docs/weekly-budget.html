@@ -5,15 +5,16 @@
 <link rel="stylesheet" href="../assets/custom.css">
 </head><body class="pdoc"><main class="pdoc">
 <article><h1>Weekly budget for generated meal plans</h1>
-<p>The meal generation form accepts an optional <strong>Weekly item-price cap</strong>. A week
-runs Monday through Sunday. For a cap of <code>$75.00</code>, every week affected by the
+<p>Set a standing <strong>Weekly item-price cap</strong> in <strong>Profile → Diet</strong>. The meal generation
+form also accepts an optional cap for a single request. The planner uses the lower
+amount when both are set. A week runs Monday through Sunday. For a cap of <code>$75.00</code>, every week affected by the
 request must contain at most 7,500 cents in planned menu items after generation.
 The generator counts meals already saved anywhere in those calendar weeks,
 including meals outside the dates requested.</p>
 <p>The cap applies to one serving of each planned meal at the catalog price. It
-does not include tax, delivery or service charges, or tips. A blank cap keeps
-the existing uncapped behavior. The chosen cap is used for that generation
-request; it is not saved as a standing account budget.</p>
+excludes tax, delivery or service charges, and tips. Clearing the cap in Profile
+removes the standing limit. The calendar filters swap options against the standing
+cap and checks it again when saving a swap.</p>
 <h2>How candidate selection respects the cap</h2>
 <p>For every requested date and meal period, generation finds menu items that are
 in stock, belong to an open restaurant serving at that time, do not contain the
@@ -50,9 +51,7 @@ prevent generation or saving the plan; both total fields are <code>null</code> w
 affected weeks cannot be priced. Capped requests still require valid prices
 for all saved meals in those weeks.
 An impossible plan returns HTTP 422 and an explanation. An invalid cap returns
-HTTP 400. HTML form users see the same message on the profile page.
-Form errors are carried in the session and shown once after redirecting, rather
-than read from URL text. Unexpected failures return a fixed retry message and
+HTTP 400. The calendar displays errors from the generation form. Unexpected failures return a fixed retry message and
 log the exception on the server.</p>
 <p>The home calendar shows saved item totals by Monday-start week for weeks that
 contain dates in the displayed month. A week at the month boundary includes its

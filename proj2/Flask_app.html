@@ -87,6 +87,12 @@
                     <a class="function" href="#insights">insights</a>
             </li>
             <li>
+                    <a class="function" href="#find_customer_for_login">find_customer_for_login</a>
+            </li>
+            <li>
+                    <a class="function" href="#start_customer_session">start_customer_session</a>
+            </li>
+            <li>
                     <a class="function" href="#login">login</a>
             </li>
             <li>
@@ -138,10 +144,34 @@
                     <a class="function" href="#register">register</a>
             </li>
             <li>
+                    <a class="variable" href="#DIET_OPTIONS">DIET_OPTIONS</a>
+            </li>
+            <li>
+                    <a class="function" href="#submitted_diet_constraints">submitted_diet_constraints</a>
+            </li>
+            <li>
+                    <a class="function" href="#profile_weights">profile_weights</a>
+            </li>
+            <li>
+                    <a class="function" href="#configured_weights">configured_weights</a>
+            </li>
+            <li>
+                    <a class="function" href="#submitted_weights">submitted_weights</a>
+            </li>
+            <li>
                     <a class="function" href="#profile">profile</a>
             </li>
             <li>
+                    <a class="function" href="#diet_summary">diet_summary</a>
+            </li>
+            <li>
+                    <a class="function" href="#save_optimization">save_optimization</a>
+            </li>
+            <li>
                     <a class="function" href="#edit_profile">edit_profile</a>
+            </li>
+            <li>
+                    <a class="function" href="#save_diet_settings">save_diet_settings</a>
             </li>
             <li>
                     <a class="function" href="#change_password">change_password</a>
@@ -162,6 +192,9 @@
                     <a class="function" href="#order">order</a>
             </li>
             <li>
+                    <a class="function" href="#order_meals">order_meals</a>
+            </li>
+            <li>
                     <a class="function" href="#user_orders">user_orders</a>
             </li>
             <li>
@@ -169,6 +202,9 @@
             </li>
             <li>
                     <a class="function" href="#restaurants">restaurants</a>
+            </li>
+            <li>
+                    <a class="function" href="#open_now">open_now</a>
             </li>
             <li>
                     <a class="function" href="#order_receipt">order_receipt</a>
@@ -193,6 +229,9 @@
             </li>
             <li>
                     <a class="function" href="#db_view">db_view</a>
+            </li>
+            <li>
+                    <a class="function" href="#save_generated_plan">save_generated_plan</a>
             </li>
             <li>
                     <a class="function" href="#generate_menu">generate_menu</a>
@@ -466,7 +505,7 @@ Returns:
                     <div class="attr variable">
             <span class="name">SWAP_ERROR_MESSAGES</span>        =
 <input id="SWAP_ERROR_MESSAGES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="SWAP_ERROR_MESSAGES-view-value"></label><span class="default_value">{&#39;invalid_slot&#39;: &#39;That meal slot is not valid.&#39;, &#39;invalid_item&#39;: &#39;Choose an item to swap in.&#39;, &#39;slot_not_found&#39;: &#39;There is no planned meal in that slot.&#39;, &#39;same_item&#39;: &#39;That item is already planned for this slot.&#39;, &#39;item_not_found&#39;: &#39;That menu item does not exist.&#39;, &#39;out_of_stock&#39;: &#39;That item is out of stock.&#39;, &#39;restaurant_unavailable&#39;: &#39;That restaurant is not currently taking orders.&#39;, &#39;restaurant_closed&#39;: &#39;That restaurant is closed at that meal time.&#39;, &#39;allergen&#39;: &#39;That item contains one of your allergens.&#39;}</span>
+            <label class="view-value-button pdoc-button" for="SWAP_ERROR_MESSAGES-view-value"></label><span class="default_value">{&#39;invalid_slot&#39;: &#39;That meal slot is not valid.&#39;, &#39;invalid_item&#39;: &#39;Choose an item to swap in.&#39;, &#39;slot_not_found&#39;: &#39;There is no planned meal in that slot.&#39;, &#39;same_item&#39;: &#39;That item is already planned for this slot.&#39;, &#39;item_not_found&#39;: &#39;That menu item does not exist.&#39;, &#39;out_of_stock&#39;: &#39;That item is out of stock.&#39;, &#39;restaurant_unavailable&#39;: &#39;That restaurant is not currently taking orders.&#39;, &#39;restaurant_closed&#39;: &#39;That restaurant is closed at that meal time.&#39;, &#39;allergen&#39;: &#39;That item contains one of your allergens.&#39;, &#39;diet&#39;: &#39;That item does not satisfy your required diets.&#39;, &#39;plan_changed&#39;: &#39;Your plan or Diet settings changed. Refresh the calendar and try again.&#39;, &#39;weekly_cap&#39;: &#39;That swap would exceed your weekly item-price cap or the week could not be priced.&#39;}</span>
 
         
     </div>
@@ -581,6 +620,36 @@ Args:
     month (int | None): Optional month path parameter (1–12).
 Returns:
     Response: HTML page (requires login).</p>
+</div>
+
+
+                </section>
+                <section id="find_customer_for_login">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">find_customer_for_login</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">email</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#find_customer_for_login"></a>
+    
+            <div class="docstring"><p>Find the customer and account fields needed to start a session.</p>
+</div>
+
+
+                </section>
+                <section id="start_customer_session">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">start_customer_session</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">user</span>, </span><span class="param"><span class="n">email</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#start_customer_session"></a>
+    
+            <div class="docstring"><p>Copy an authenticated customer account into the current session.</p>
 </div>
 
 
@@ -903,6 +972,77 @@ Returns:
 
 
                 </section>
+                <section id="DIET_OPTIONS">
+                    <div class="attr variable">
+            <span class="name">DIET_OPTIONS</span>        =
+<input id="DIET_OPTIONS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="DIET_OPTIONS-view-value"></label><span class="default_value">{&#39;gluten-free&#39;: &#39;Gluten-Free&#39;, &#39;halal&#39;: &#39;Halal&#39;, &#39;kosher&#39;: &#39;Kosher&#39;, &#39;pescatarian&#39;: &#39;Pescatarian&#39;, &#39;vegan&#39;: &#39;Vegan&#39;, &#39;vegetarian&#39;: &#39;Vegetarian&#39;}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DIET_OPTIONS"></a>
+    
+    
+
+                </section>
+                <section id="submitted_diet_constraints">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">submitted_diet_constraints</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#submitted_diet_constraints"></a>
+    
+            <div class="docstring"><p>Read the checkbox editor or the existing CSV fields used by older clients.</p>
+</div>
+
+
+                </section>
+                <section id="profile_weights">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">profile_weights</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">stored</span>, </span><span class="param"><span class="n">preferences</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#profile_weights"></a>
+    
+            <div class="docstring"><p>Give legacy food tags a weight when the account has never set any sliders.</p>
+</div>
+
+
+                </section>
+                <section id="configured_weights">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">configured_weights</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">stored</span>, </span><span class="param"><span class="n">preferences</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#configured_weights"></a>
+    
+    
+
+                </section>
+                <section id="submitted_weights">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">submitted_weights</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#submitted_weights"></a>
+    
+            <div class="docstring"><p>Read whole-number priorities. An all-zero set selects the default planner.</p>
+</div>
+
+
+                </section>
                 <section id="profile">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/profile&#39;)</div>
@@ -923,6 +1063,45 @@ Returns:
 
 
                 </section>
+                <section id="diet_summary">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">diet_summary</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">allergies</span>, </span><span class="param"><span class="n">preferences</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#diet_summary"></a>
+    
+            <div class="docstring"><p>What the Profile's Diet chapter says about the user's allergies and preferences.
+Args:
+    conn: Open database connection.
+    allergies (str): The user's comma-separated allergies.
+    preferences (str): The user's comma-separated preferences.
+Returns:
+    dict: allergies and preferences as lists, plus how many in-stock dishes the
+    allergies set aside ("set_aside") out of how many there are ("dishes"). Matching
+    is the meal planner's (proj2.plan_rules.parse_allergens).</p>
+</div>
+
+
+                </section>
+                <section id="save_optimization">
+                    <div class="attr function">
+                    <div class="decorator">@app.post(&#39;/profile/optimization&#39;)</div>
+
+        <span class="def">def</span>
+        <span class="name">save_optimization</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#save_optimization"></a>
+    
+            <div class="docstring"><p>Save the account's selected objectives and relative weights.</p>
+</div>
+
+
+                </section>
                 <section id="edit_profile">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/profile/edit&#39;, methods=[&#39;GET&#39;, &#39;POST&#39;])</div>
@@ -934,12 +1113,27 @@ Returns:
     </div>
     <a class="headerlink" href="#edit_profile"></a>
     
-            <div class="docstring"><p>Save the Profile page's edit pop-up (phone, preferences, allergies).
+            <div class="docstring"><p>Save the profile's phone, preferences, or allergies.
 Args:
     None
 Returns:
     Response: Redirect to the profile after saving (POST), or to the profile with
     the pop-up open (GET, for old links to the separate edit page).</p>
+</div>
+
+
+                </section>
+                <section id="save_diet_settings">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">save_diet_settings</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">usr_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#save_diet_settings"></a>
+    
+            <div class="docstring"><p>Validate both groups before committing any Diet settings.</p>
 </div>
 
 
@@ -1066,6 +1260,28 @@ Returns:
 
 
                 </section>
+                <section id="order_meals">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">order_meals</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">usr_id</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#order_meals"></a>
+    
+            <div class="docstring"><p>What the user ate from their orders, as plan entries for the planner's lookback.
+Args:
+    conn: Open database connection.
+    usr_id (int): The customer.
+Returns:
+    list[tuple]: (date, itm_id, meal) per ordered item, skipping cancelled orders. An
+        order placed from the plan carries its date and meal; any other order uses the
+        day and hour it was placed.</p>
+</div>
+
+
+                </section>
                 <section id="user_orders">
                     <div class="attr function">
             
@@ -1123,6 +1339,28 @@ Args:
     None
 Returns:
     Response: HTML page listing restaurants and their items (requires login).</p>
+</div>
+
+
+                </section>
+                <section id="open_now">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">open_now</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">hours</span>, </span><span class="param"><span class="n">status</span>, </span><span class="param"><span class="n">now</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#open_now"></a>
+    
+            <div class="docstring"><p>Whether a restaurant is open at a moment, for the Restaurants page's "Open now" filter.
+Args:
+    hours (str): The stored hours JSON, e.g. '{"Mon": [1100, 2200], ...}'.
+    status (str): The restaurant's status; "closed" means closed whatever the hours.
+    now (datetime): The moment to check.
+Returns:
+    bool | None: True or False from the hours, or None when the hours are not JSON
+    (then the page cannot tell and does not hide the restaurant).</p>
 </div>
 
 
@@ -1262,6 +1500,21 @@ Returns:
 
 
                 </section>
+                <section id="save_generated_plan">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">save_generated_plan</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">user</span>, </span><span class="param"><span class="n">updated_menu</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#save_generated_plan"></a>
+    
+            <div class="docstring"><p>Persist a plan only if its starting plan and account constraints are still current.</p>
+</div>
+
+
+                </section>
                 <section id="generate_menu">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/menu/generate&#39;, methods=[&#39;POST&#39;])</div>
@@ -1293,9 +1546,9 @@ Returns:
     
             <div class="docstring"><p>Replace the item in one date/meal slot of the logged-in user's plan.</p>
 
-<p>Accepts JSON {"date", "meal", "itm_id"} or the same form fields. The replacement must
-be in stock, at an open restaurant that serves that meal time, and free of the
-allergens stored on the user's account. Every other slot is left unchanged.</p>
+<p>Accepts JSON {"date", "meal", "itm_id"} or the same form fields. The replacement
+must be available for the meal time and satisfy the user's allergies, required
+diets, and saved weekly cap.</p>
 </div>
 
 
@@ -1313,8 +1566,8 @@ allergens stored on the user's account. Every other slot is left unchanged.</p>
     
             <div class="docstring"><p>List the items that could replace one planned slot for the logged-in user.</p>
 
-<p>Query args: date (YYYY-MM-DD) and meal (1|2|3). Only items that pass the same
-availability, allergen and diet checks as POST /menu/swap are returned.</p>
+<p>Query args: date (YYYY-MM-DD) and meal (1|2|3). Eligible options are ranked
+using the account's saved optimization preferences.</p>
 </div>
 
 
