@@ -383,12 +383,27 @@ This catalog was derived from the behavior implemented in the Weeklies repositor
 
 > **Project 2 extension (single-meal swaps).** Added in Project 2. Availability and allergen checks run on the server against the account's stored allergies, never the request. Implemented in `proj2/meal_swap.py`, the `/menu/swap` and `/menu/swap/options` routes in `proj2/Flask_app.py`, and the calendar in `proj2/templates/index.html`; tested in `proj2/sef26tests/test_uc29_swap_meal.py`, `proj2/tests/integration/test_meal_swap_route.py`, and `proj2/tests/unit/test_meal_swap_*.py`.
 
+## UC30 — Manage the restaurant's own menu
+
+| Part | Specification |
+|---|---|
+| **Name** | Manage the restaurant's own menu |
+| **Primary actor** | Signed-in restaurant owner |
+| **Stakeholders & interests** | Restaurant owner—wants to list what they actually sell, correct a price, and withdraw a dish, without asking a developer to edit a seed script. Customers—want the catalog to match what the restaurant will really cook, and want a plan they already saved to keep working. Weeklies—wants every dish described well enough for the planner to place it sensibly. |
+| **Preconditions** | The owner is signed in as a restaurant. |
+| **Trigger** | The owner opens the Menu tab on their pages. |
+| **Main success scenario** | 1. Weeklies lists every dish the restaurant owns, in stock first, with its price, its planner-relevant tags and whether it is being served.<br>2. The owner fills in a dish: name, price, and the tags the planner needs.<br>3. Weeklies canonicalises each tag against its vocabulary and checks the dish against itself.<br>4. Weeklies stores the dish and shows it on the menu, available to the planner at once. |
+| **Extensions** | 2a. The name or price is missing, or the price is not a whole-cent dollar amount → Weeklies reports the field and keeps what was typed.<br>2b. A required planner tag (protein, cuisine, carb base) is absent → Weeklies refuses the dish and lists the values that would work, because an untagged dish scores maximum variety against everything and would crowd out the described catalog.<br>3a. A tag is not in its column's vocabulary → Weeklies refuses it rather than storing free text.<br>3b. The dish contradicts itself, for example vegan with a beef protein or a dairy allergen → Weeklies refuses it and says which claim conflicts.<br>4a. The owner withdraws a dish → Weeklies marks it out of stock; the planner stops offering it, and plans that already name it still price correctly.<br>4b. The owner deletes a dish no plan or order names → Weeklies removes it.<br>4c. The owner deletes a dish a saved plan or order does name → Weeklies refuses, because the diner's calendar would fail to total, and suggests marking it out of stock.<br>1a. The owner asks for a dish that is not theirs, by id → Weeklies reports it as not found.<br>1b. Authentication is absent → Weeklies requires sign-in. |
+| **Postconditions** | The restaurant's catalog reflects the change; no other restaurant's dishes are readable or writable from this session; every stored dish carries the tags the planner needs. |
+
+> **Project 3 extension (restaurant menu management).** Added in Project 3, closing the last missing CRUD surface: before it, `MenuItem` was only ever written by `proj2/seed.py`, `proj2/demo_menu.py` and the CSV importer. The rules live in `proj2/menu_items.py` and reuse `proj2/menu_tags_io.py`'s `canonical_cell` and `contradictions`, so a dish typed into the form and a dish imported from a spreadsheet are held to one standard. The same validator backs the JSON API, whose `GET /api/restaurant/menu/schema` is generated from it rather than written by hand. Implemented in `proj2/menu_items.py`, the `/restaurant/menu` and `/api/restaurant/menu` routes in `proj2/Flask_app.py`, and `proj2/templates/restaurant_menu.html`; tested in `proj2/tests/unit/test_menu_items.py`, `proj2/tests/integration/test_restaurant_menu_routes.py` and `proj2/cypress/e2e/restaurant_dashboard/menu.cy.js`.
+
 ## Coverage summary
 
-The catalog contains 29 use cases:
+The catalog contains 30 use cases:
 
 - 18 customer/visitor goals
-- 11 restaurant-owner goals
+- 12 restaurant-owner goals
 - Full coverage of implemented account, planning, browsing, ordering, receipt, review, fulfillment, and analytics flows
 - Explicit extensions for authentication, ownership, invalid lifecycle transitions, malformed serialized data, meals with no eligible item, and best-effort analytics
 
