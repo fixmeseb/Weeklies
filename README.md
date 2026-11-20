@@ -177,6 +177,35 @@ Setup, environment creation, and execution instructions have been moved to a ded
 
 ---
 
+### Planner experiments
+
+From the repository root on macOS, run the meeting demo with the project virtual environment.
+
+```sh
+.venv/bin/python scripts/demo_planner.py
+```
+
+The command runs a three-dinner comparison and a capped full-week example, then prints
+the URL, demo login, and a sample set of priorities to try in the app. It uses a fresh
+temporary database. Press Ctrl+C to stop, or pass `--console-only` to run just the examples.
+The live walkthrough saves priorities in **Profile → Optimization preferences**. Choose
+**Seed Catalog & Almanac** in the **Style** picker to see the calendar as an almanac.
+For an existing development database, run `flask migrate` once to add saved priorities.
+
+To configure a comparison directly, run it from the activated project environment.
+
+```sh
+python scripts/compare_planners.py --trace --tradeoffs
+python scripts/compare_planners.py --days 7 --meals 1 2 3 --cap 245 --seed 7
+```
+
+The comparison uses a temporary demo catalog and reports runtime, variety, item cost,
+and search effort. The trade-off run compares weighted objectives with weekly cost caps.
+Use the [CP-SAT harness](evals/optimality/README.md) to check small variety-only cases
+against the solver's integer-scaled objective.
+
+---
+
 ## 📹 Project Demonstration Videos
 
 - ⚡ **Teaser Video (30s)**: High-level visual tour of intelligent meal planning, allergen filters, and calendar interactions.  

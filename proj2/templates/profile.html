@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='profile-optimization.js') }}" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -132,6 +133,42 @@
         <p class="px-orn" aria-hidden="true">❦ ❦ ❦</p>
       </div>
     </div>
+    <section class="card optimization-card" id="optimization-preferences" aria-labelledby="optimization-title">
+      <div class="card-header">
+        <h2 id="optimization-title">Optimization preferences</h2>
+      </div>
+      <div class="card-body">
+        <p class="muted">Use the 0–100 sliders to set the relative importance of each preference when generating new meals.</p>
+        {% if optimization_notice %}
+          <div class="flash {{ optimization_notice[0] }}" role="status">{{ optimization_notice[1] }}</div>
+        {% endif %}
+        <form id="optimization-form" method="POST" action="{{ url_for('save_optimization') }}">
+          <p id="optimization-empty" class="muted" {% if optimization_weights %}hidden{% endif %}>
+            Add a preference to customize meal planning. An empty list uses the default planner.
+          </p>
+          {% for name, label in optimization_objectives.items() %}
+            {% set active = name in optimization_weights %}
+            <div class="optimization-row" data-objective="{{ name }}" {% if not active %}hidden{% endif %}>
+              <label for="{{ name }}-priority">{{ label }}</label>
+              <input id="{{ name }}-priority" name="{{ name }}_weight" type="range" min="0" max="100"
+                     value="{{ optimization_weights.get(name, 50) }}" {% if not active %}disabled{% endif %}>
+              <output for="{{ name }}-priority">{{ optimization_weights.get(name, 50) }}</output>
+              <button type="button" class="btn btn-outline btn-sm" data-remove-preference
+                      aria-label="Remove {{ label }}">Remove</button>
+            </div>
+          {% endfor %}
+          <div class="optimization-add">
+            <select class="input" id="optimization-objective" aria-label="Preference to add">
+              {% for name, label in optimization_objectives.items() %}
+                <option value="{{ name }}" {% if name in optimization_weights %}hidden disabled{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="btn btn-outline" id="add-optimization">Add preference</button>
+          </div>
+          <div><button type="submit" class="btn btn-primary">Save preferences</button></div>
+        </form>
+      </div>
+    </section>
   </div>
 
   <!-- Edit Profile Modal (posts to /profile/edit) -->
@@ -164,6 +201,17 @@
 </footer>
 
 <style>
+  .optimization-card { margin-top:24px; scroll-margin-top:5rem; }
+  .optimization-card .card-header h2 { margin:0; }
+  #optimization-form { margin:0; max-width:720px; gap:14px; }
+  .optimization-row { display:grid; grid-template-columns:minmax(0, 1fr) 3ch auto; gap:8px 12px; align-items:center; }
+  .optimization-row[hidden] { display:none; }
+  .optimization-row label { grid-column:1 / -1; font-weight:600; }
+  .optimization-row input { width:100%; accent-color:var(--accent); }
+  .optimization-row output { text-align:right; font-variant-numeric:tabular-nums; }
+  .optimization-add { display:flex; flex-wrap:wrap; gap:8px; }
+  .optimization-add select { width:auto; max-width:100%; }
+
   /* Profile as chapters: a contents list beside one sheet holding every section.
      Colours and fonts come from the theme; the Almanac style adds the ornament. */
   .px { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; }

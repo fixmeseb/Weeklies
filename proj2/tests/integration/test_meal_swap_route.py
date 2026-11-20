@@ -78,7 +78,17 @@ def plan(temp_db_path):
             conn,
             'INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,generated_menu) '
             "VALUES (?,?,?,?,?,?,?,?,?)",
-            ("Swap", "User", email, "5550001111", generate_password_hash("pw123456"), 0, "", "peanuts", menu),
+            (
+                "Swap",
+                "User",
+                email,
+                "5550001111",
+                generate_password_hash("pw123456"),
+                0,
+                "",
+                "peanuts",
+                menu,
+            ),
         )
     finally:
         close_connection(conn)
@@ -127,7 +137,9 @@ def test_swap_keeps_other_slots_intact(logged_in, plan, temp_db_path):
     after = parse_generated_menu(stored_menu(temp_db_path, plan["usr_id"]))
 
     assert after[TUESDAY] == before[TUESDAY]
-    assert [e for e in after[MONDAY] if e["meal"] != 2] == [e for e in before[MONDAY] if e["meal"] != 2]
+    assert [e for e in after[MONDAY] if e["meal"] != 2] == [
+        e for e in before[MONDAY] if e["meal"] != 2
+    ]
     assert len(after[MONDAY]) == len(before[MONDAY])
 
 
@@ -157,7 +169,9 @@ def test_swap_twice_on_different_slots(logged_in, plan, temp_db_path):
         ("lunch", 2, "same_item", 400),
     ],
 )
-def test_rejected_swap_leaves_plan_unchanged(logged_in, plan, temp_db_path, key, meal, code, status):
+def test_rejected_swap_leaves_plan_unchanged(
+    logged_in, plan, temp_db_path, key, meal, code, status
+):
     resp = swap(logged_in, MONDAY, meal, plan["ids"][key])
     assert resp.status_code == status
     assert resp.get_json()["error"] == code
@@ -219,7 +233,9 @@ def test_requires_login_form(client):
 
 def test_form_swap_redirects_to_slot_month(logged_in, plan, temp_db_path):
     ids = plan["ids"]
-    resp = logged_in.post("/menu/swap", data={"date": MONDAY, "meal": "3", "itm_id": str(ids["safe"])})
+    resp = logged_in.post(
+        "/menu/swap", data={"date": MONDAY, "meal": "3", "itm_id": str(ids["safe"])}
+    )
     assert resp.status_code == 302
     assert "/2025/11" in resp.headers["Location"]
     assert "swapped=1" in resp.headers["Location"]
@@ -324,7 +340,9 @@ def test_calendar_unknown_error_code_is_generic(logged_in, plan):
 def test_calendar_without_swap_params_has_no_banner(logged_in, plan):
     html = logged_in.get("/2025/11").get_data(as_text=True)
     # The generate form's error box is always there, but hidden until it has an error
-    shown = [tag for tag in re.findall(r'<div[^>]*class="flash[^>]*>', html) if " hidden" not in tag]
+    shown = [
+        tag for tag in re.findall(r'<div[^>]*class="flash[^>]*>', html) if " hidden" not in tag
+    ]
     assert shown == []
 
 
@@ -394,7 +412,9 @@ def test_insights_needs_login_and_a_real_month(client, logged_in, plan):
 def test_calendar_has_the_almanac_style(logged_in, plan):
     """The Seed Catalog & Almanac style: the same week drawn as an almanac page."""
     html = logged_in.get("/2025/11").get_data(as_text=True)
-    page = html.split('<article class="al" aria-label="Week of 2025-11-03">')[1].split("</article>")[0]
+    page = html.split('<article class="al" aria-label="Week of 2025-11-03">')[1].split(
+        "</article>"
+    )[0]
     assert "Vol. MMXXV · No. 45" in page
     assert "Week of the 3rd to the 9th of November, 2025" in page
     assert "4 meals from 1 kitchen, set out by the day" in page

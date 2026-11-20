@@ -7,7 +7,7 @@ echo ""
 echo "1️⃣ Checking Black and Ruff on the files you changed..."
 # Scoped to your own changes, matching the CI lint job. The whole tree does not pass
 # yet, so a tree-wide check here would fail on files you never touched.
-bash scripts/check-changed.sh "${1:-dev-branch}" || {
+bash scripts/check-changed.sh "${1:-main}" || {
     echo "❌ Formatting or lint check failed on a file you changed!"
     exit 1
 }

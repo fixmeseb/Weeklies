@@ -297,3 +297,77 @@ def test_calendar_does_not_claim_zero_total_for_missing_items(
     response = client.get("/insights/2026/10")
     assert response.status_code == 200
     assert "Item totals are unavailable" in response.get_data(as_text=True)
+
+
+def test_optimization_weights_change_the_selected_item(
+    client, login_session, budget_catalog, temp_db_path
+):
+    with sqlite3.connect(temp_db_path) as conn:
+        conn.execute("UPDATE MenuItem SET cuisine='Italian' WHERE itm_id=?", (budget_catalog,))
+        restaurant = conn.execute(
+            "SELECT rtr_id FROM MenuItem WHERE itm_id=?", (budget_catalog,)
+        ).fetchone()[0]
+        cheap = conn.execute(
+            """INSERT INTO MenuItem (rtr_id, name, price, instock, allergens, cuisine)
+            VALUES (?, 'Cheap dinner', 300, 1, '', 'Mexican')""",
+            (restaurant,),
+        ).lastrowid
+
+    preference = client.post(
+        "/menu/generate",
+        json=payload(number_of_days=1, preferences="Italian", preference_weight=100),
+    )
+    assert preference.status_code == 200
+    assert f",{budget_catalog},3]" in preference.json["generated_menu"]
+    assert preference.json["optimization"]["preference_match"] == 1
+
+    cost = client.post(
+        "/menu/generate",
+        json=payload(start_date="2026-10-12", number_of_days=1, cost_weight=100),
+    )
+    assert cost.status_code == 200
+    assert f",{cheap},3]" in cost.json["generated_menu"]
+    assert cost.json["optimization"]["item_cost_cents"] == 300
+
+
+@pytest.mark.parametrize("weight", [-1, 101, "NaN", True])
+def test_invalid_optimization_weights_return_400(client, login_session, weight):
+    response = client.post("/menu/generate", json=payload(variety_weight=weight))
+    assert response.status_code == 400
+    assert "optimization weights" in response.json["error"]
+
+
+def test_form_displays_optimization_metrics_after_generation(client, login_session, budget_catalog):
+    response = client.post(
+        "/menu/generate",
+        data={"start_date": "2026-10-05", "meal3": "on", "days": 2, "cost_weight": 50},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"New meals cost $10.00" in response.data
+    assert b"Edit optimization preferences in Profile" in response.data
+    assert b'name="preference_weight"' not in response.data
+
+
+def test_saved_optimization_sliders_apply_to_generation_and_can_be_removed(
+    client, login_session, budget_catalog
+):
+    profile = client.post(
+        "/profile/optimization",
+        data={"cost_weight": "25", "restaurants_weight": "75"},
+        follow_redirects=True,
+    )
+    assert profile.status_code == 200
+    assert b'for="restaurants-priority">75</output>' in profile.data
+    assert b'type="range"' in profile.data
+    assert b"Add preference" in profile.data
+    assert b"Remove More distinct restaurants" in profile.data
+
+    response = client.post("/menu/generate", json=payload())
+    assert response.status_code == 200
+    assert response.json["optimization"]["distinct_restaurants"] == 1
+
+    client.post("/profile/optimization", data={})
+    response = client.post("/menu/generate", json=payload(start_date="2026-10-12"))
+    assert response.status_code == 200
+    assert response.json["optimization"] is None

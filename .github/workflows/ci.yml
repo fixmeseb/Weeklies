@@ -4,7 +4,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    # dev-branch is the integration branch; without it, PRs into it got no CI at all.
+    # Check pull requests targeting either shared branch.
     branches: ["main", "dev-branch"]
   workflow_dispatch:
 
@@ -39,7 +39,7 @@ jobs:
           pip install -r /tmp/lint-requirements.txt
 
       - name: Check the files this branch changed
-        run: bash scripts/check-changed.sh "${{ github.event.pull_request.base.ref || 'dev-branch' }}"
+        run: bash scripts/check-changed.sh "${{ github.event.pull_request.base.ref || 'main' }}"
 
   m0-evaluation:
     runs-on: ubuntu-latest

@@ -7,13 +7,13 @@
 # conflicts with every open branch. This checks only what you touched, which keeps new
 # code to the standard without rewriting history under anyone.
 #
-#   scripts/check-changed.sh [base-ref]     # base-ref defaults to dev-branch
+#   scripts/check-changed.sh [base-ref]     # base-ref defaults to main
 #
 # Exits 0 when every changed Python file is clean, or when none changed.
 
 set -euo pipefail
 
-BASE="${1:-dev-branch}"
+BASE="${1:-main}"
 
 cd "$(dirname "$0")/.."
 

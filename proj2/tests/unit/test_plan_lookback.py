@@ -52,15 +52,17 @@ def test_repeat_is_allowed_when_nothing_else_fits():
 
 
 def test_only_meals_within_three_days_bar_a_dish():
-    # The bar is the first item of the ranking key; variety scoring still sees older meals.
+    # The bar follows nutrition miss in the ranking key; variety scoring still sees older meals.
     gen = make_generator([{"protein": "chicken"}, {"protein": "beef"}])
     pool = gen.menu_items.assign(price_cents=gen.menu_items.price)
     position = variety.slot_position(START, 3)
     for day, barred in [("2026-11-15", False), ("2026-11-16", True), ("2026-11-22", True)]:
         recent = [(variety.slot_position(day, 3), 1)]
-        keys = dict((itm_id, key) for key, itm_id in gen._ranked(pool, position, [], "", recent))
-        assert keys[1][0] is barred, day
-        assert keys[2][0] is False
+        keys = dict(
+            (itm_id, key) for key, itm_id in gen._ranked(pool, position, [], "", recent=recent)
+        )
+        assert keys[1][1] is barred, day
+        assert keys[2][1] is False
 
 
 def test_ordered_meals_count_like_planned_ones():

@@ -81,6 +81,19 @@ def apply_migrations(conn, directory=MIGRATIONS_DIR):
             continue
         with open(path, encoding="utf-8") as fh:
             sql = fh.read()
+        # The Profile preview used version 005 before the team's macro migrations
+        # were combined with it. Upgrade both histories without losing saved settings.
+        filename = os.path.basename(path)
+        if filename == "006_user_nutrition_targets.sql":
+            menu_columns = {row[1] for row in conn.execute("PRAGMA table_info(MenuItem)")}
+            if "protein_g" not in menu_columns:
+                macros = os.path.join(os.path.dirname(path), "005_menu_item_macros.sql")
+                with open(macros, encoding="utf-8") as fh:
+                    sql = fh.read() + "\n" + sql
+        elif filename == "007_user_optimization_weights.sql":
+            user_columns = {row[1] for row in conn.execute('PRAGMA table_info("User")')}
+            if "optimization_weights" in user_columns:
+                sql = ""
         # executescript() commits first and runs outside the sqlite3 module's implicit
         # transactions, so wrap each file in an explicit one.
         try:

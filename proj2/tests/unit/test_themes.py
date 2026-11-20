@@ -18,10 +18,31 @@ PALETTE_IDS = re.findall(r'\{ id: "([a-z]+)", name:', THEME_JS)
 
 ## Every variable a palette must set; Classic sets them on :root
 REQUIRED = [
-    "--bg", "--surface", "--elev", "--text", "--muted", "--primary", "--primary-600",
-    "--primary-700", "--on-primary", "--success", "--warning", "--danger", "--info",
-    "--border", "--hint", "--ring", "--accent", "--accent-2", "--hero-a", "--hero-b",
-    "--on-hero", "--glow-1", "--glow-2", "--shade", "--star",
+    "--bg",
+    "--surface",
+    "--elev",
+    "--text",
+    "--muted",
+    "--primary",
+    "--primary-600",
+    "--primary-700",
+    "--on-primary",
+    "--success",
+    "--warning",
+    "--danger",
+    "--info",
+    "--border",
+    "--hint",
+    "--ring",
+    "--accent",
+    "--accent-2",
+    "--hero-a",
+    "--hero-b",
+    "--on-hero",
+    "--glow-1",
+    "--glow-2",
+    "--shade",
+    "--star",
 ]
 
 ## The old dark-only surface colours that templates used to hard-code
@@ -36,8 +57,15 @@ def palette_block(palette_id):
 def test_switcher_offers_the_palettes():
     assert PALETTE_IDS[0] == "classic"
     assert set(PALETTE_IDS) == {
-        "classic", "sorbet", "seaside", "midnight",
-        "driftwood", "fern", "blossom", "admiral", "lagoon",
+        "classic",
+        "sorbet",
+        "seaside",
+        "midnight",
+        "driftwood",
+        "fern",
+        "blossom",
+        "admiral",
+        "lagoon",
     }
 
 
@@ -61,7 +89,9 @@ def test_every_page_loads_the_switcher_in_head(template):
     head = html.split("</head>")[0]
     assert "filename='theme.js'" in head
     # Not deferred, so the saved palette applies before the page paints
-    assert re.search(r"<script src=\"\{\{ url_for\('static', filename='theme.js'\) \}\}\"></script>", head)
+    assert re.search(
+        r"<script src=\"\{\{ url_for\('static', filename='theme.js'\) \}\}\"></script>", head
+    )
 
 
 @pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
@@ -122,9 +152,13 @@ def _contrast(a, b):
 
 ## (foreground, background) pairs the pages use for text
 TEXT_PAIRS = [
-    ("--text", "--bg"), ("--text", "--surface"), ("--text", "--elev"),
-    ("--muted", "--bg"), ("--muted", "--surface"),
-    ("--on-primary", "--primary"), ("--primary", "--surface"),
+    ("--text", "--bg"),
+    ("--text", "--surface"),
+    ("--text", "--elev"),
+    ("--muted", "--bg"),
+    ("--muted", "--surface"),
+    ("--on-primary", "--primary"),
+    ("--primary", "--surface"),
 ]
 
 
@@ -133,6 +167,8 @@ TEXT_PAIRS = [
 def test_text_meets_wcag_aa_contrast(palette_id, fg, bg):
     """4.5:1 is the WCAG AA minimum for normal-size text."""
     if (palette_id, fg) == ("classic", "--on-primary"):
-        pytest.xfail("Classic's original white-on-#5b8cff buttons are about 3.3:1; left as designed")
+        pytest.xfail(
+            "Classic's original white-on-#5b8cff buttons are about 3.3:1; left as designed"
+        )
     colours = _variables(palette_id)
     assert _contrast(colours[fg], colours[bg]) >= 4.5, (fg, bg, colours[fg], colours[bg])

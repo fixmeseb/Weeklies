@@ -132,7 +132,7 @@ def test_seed_creates_the_documented_demo_data(tmp_path):
         assert counts == {
             "User": 2,
             "Restaurant": 11,
-            "MenuItem": 76,
+            "MenuItem": 83,
             "Order": 4,
             "Review": 1,
             "Analytics": 2,
@@ -207,3 +207,38 @@ def test_cypress_seed_uses_weeklies_database(tmp_path, capsys):
     cypress_seed.main({config.DB_PATH_ENV: path})
     assert "successfully seeded" in capsys.readouterr().out
     assert _version(path) == db_cli.latest_version()
+
+
+@pytest.mark.parametrize("preview", ["optimization", "nutrition"])
+def test_combined_migrations_preserve_branch_data(tmp_path, preview):
+    directory = tmp_path / "preview"
+    directory.mkdir()
+    for version, source in db_cli.migrations():
+        if version <= (4 if preview == "optimization" else 6):
+            _write(directory, os.path.basename(source), open(source, encoding="utf-8").read())
+    with sqlite3.connect(":memory:") as conn:
+        db_cli.apply_migrations(conn, directory)
+        if preview == "optimization":
+            _write(
+                directory,
+                "005_user_optimization_weights.sql",
+                "ALTER TABLE User ADD COLUMN optimization_weights TEXT NOT NULL DEFAULT '{}';",
+            )
+            db_cli.apply_migrations(conn, directory)
+            conn.execute(
+                "INSERT INTO User (email, optimization_weights) VALUES (?, ?)",
+                ("demo@example.com", '{"cost": 42}'),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO User (email, nutrition_targets) VALUES (?, ?)",
+                ("demo@example.com", '{"calories":{"min":1000}}'),
+            )
+        db_cli.apply_migrations(conn)
+        weights, targets = conn.execute(
+            "SELECT optimization_weights, nutrition_targets FROM User"
+        ).fetchone()
+        assert weights == ('{"cost": 42}' if preview == "optimization" else "{}")
+        assert targets == ('{"calories":{"min":1000}}' if preview == "nutrition" else "")
+        conn.execute("SELECT protein_g, sodium_mg FROM MenuItem")
+        conn.execute("SELECT task_id FROM Task")

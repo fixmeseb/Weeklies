@@ -16,10 +16,23 @@ from proj2.pdf_receipt import generate_order_receipt_pdf
 from proj2 import almanac, variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
+from proj2.plan_optimization import OBJECTIVES, parse_weights
 from proj2.plan_rules import SLOT_NAMES, is_restaurant_open, parse_allergens
 from proj2.menu_generation import DAYS_OF_WEEK
+from proj2.nutrition import (
+    TargetsUnreachableError,
+    form_values,
+    load_saved_targets,
+    nutrition_notice,
+    parse_targets,
+    saved_targets_json,
+)
 from proj2.meal_budget import (
-    BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
+    BudgetExceededError,
+    parse_weekly_cap,
+    plan_entries,
+    week_start,
+    weekly_item_totals,
 )
 from proj2.order_progress import order_progress
 from proj2.dietary import with_account_allergies, with_account_diets
@@ -131,6 +144,7 @@ def _internal_error(exc):
     original = getattr(exc, "original_exception", None) or exc
     app.logger.error("Unhandled error on %s %s", request.method, request.path, exc_info=original)
     return "<h1>Internal Server Error</h1><p>Something went wrong. It has been logged.</p>", 500
+
 
 # ---------------------- Helpers ----------------------
 
@@ -245,7 +259,6 @@ def record_analytics_snapshot(rtr_id):
         else:
             total_orders = len(orders)
             total_revenue_cents = 0
-            unique_customers = set()
             completed_orders = 0
             item_counts = {}
 
@@ -330,7 +343,7 @@ def update_analytics_safe(rtr_id):
     """
     Safe wrapper to update analytics snapshot without blocking request.
     Silently fails if unable to update (doesn't disrupt order/status flow).
-    
+
     Args:
         rtr_id (int): The restaurant ID to update analytics for.
     """
@@ -350,8 +363,8 @@ def palette_for_item_ids(item_ids):
     """
     import colorsys
 
-    def hsl_to_hex(h, s, l):
-        r, g, b = colorsys.hls_to_rgb(h / 360.0, l / 100.0, s / 100.0)
+    def hsl_to_hex(h, s, lightness):
+        r, g, b = colorsys.hls_to_rgb(h / 360.0, lightness / 100.0, s / 100.0)
         return "#%02x%02x%02x" % (int(r * 255), int(g * 255), int(b * 255))
 
     palette = {}
@@ -506,9 +519,7 @@ def calendar_week_variety(conn, gen_str, year, month, items_by_id):
     catalog = variety.catalog_rows(conn)
     out = {}
     for week in weeks:
-        report = variety.plan_variety(
-            [e for e in entries if week_start(e[0]) == week], catalog
-        )
+        report = variety.plan_variety([e for e in entries if week_start(e[0]) == week], catalog)
         out[week] = {
             "score": None if report.score is None else round(report.score * 100),
             "similar": [describe_similar_pair(p, items_by_id) for p in report.similar_pairs(2)],
@@ -524,14 +535,11 @@ def month_item_totals(gen_str, gen_map, year, month):
         Tuple[dict, str | None]: (week start -> cents, error message or None)
     """
     try:
-        visible_weeks = sorted({
-            week_start(day) for day in gen_map
-            if day.startswith(f"{year:04d}-{month:02d}-")
-        })
+        visible_weeks = sorted(
+            {week_start(day) for day in gen_map if day.startswith(f"{year:04d}-{month:02d}-")}
+        )
         visible_week_item_ids = {
-            item_id
-            for day, item_id, _ in plan_entries(gen_str)
-            if week_start(day) in visible_weeks
+            item_id for day, item_id, _ in plan_entries(gen_str) if week_start(day) in visible_weeks
         }
         totals_by_item = fetch_menu_items_by_ids(sorted(visible_week_item_ids))
         totals = weekly_item_totals(
@@ -570,10 +578,12 @@ def index(year, month):
     if not year or not month:
         year, month = today.year, today.month
 
-    # Load current user's generated_menu
+    # Load current user's generated_menu, and the targets the plan form opens with
     conn = get_db()
     user = fetch_one(
-        conn, 'SELECT generated_menu FROM "User" WHERE email = ?', (session.get("Email"),)
+        conn,
+        'SELECT generated_menu, nutrition_targets, strict_targets FROM "User" WHERE email = ?',
+        (session.get("Email"),),
     )
 
     if not user:
@@ -615,9 +625,14 @@ def index(year, month):
     if request.args.get("swapped"):
         swap_notice = ("success", "Meal swapped. The rest of your plan is unchanged.")
     elif request.args.get("swap_error"):
-        swap_notice = ("danger", SWAP_ERROR_MESSAGES.get(
-            request.args.get("swap_error"), "That meal could not be swapped."
-        ))
+        swap_notice = (
+            "danger",
+            SWAP_ERROR_MESSAGES.get(
+                request.args.get("swap_error"), "That meal could not be swapped."
+            ),
+        )
+    elif session.get("plan_notice"):
+        swap_notice = ("warning", session.pop("plan_notice"))
 
     return render_template(
         "index.html",
@@ -637,6 +652,10 @@ def index(year, month):
         today_menu=today_menu,
         generation_error=session.pop("menu_generation_error", None),
         almanac_weeks=almanac_weeks,
+        optimization=session.pop("menu_optimization", None),
+        # The plan form opens with the targets last planned with (see generate_menu)
+        target_values=form_values(load_saved_targets(user["nutrition_targets"])),
+        strict_saved=bool(user["strict_targets"]),
     )
 
 
@@ -703,7 +722,7 @@ def login():
         conn = get_db()
         user = fetch_one(
             conn,
-            'SELECT usr_id, first_name, last_name, phone, password_HS, wallet, preferences, '
+            "SELECT usr_id, first_name, last_name, phone, password_HS, wallet, preferences, "
             'allergies, generated_menu FROM "User" WHERE email = ?',
             (email,),
         )
@@ -877,7 +896,9 @@ def inject_owner_nav():
         f'SELECT COUNT(*) FROM "Order" WHERE rtr_id = ? AND status IN ({marks})',
         (rtr_id, *ACTIVE_ORDER_STATUSES),
     )
-    stats = fetch_one(conn, 'SELECT COUNT(*), AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,))
+    stats = fetch_one(
+        conn, 'SELECT COUNT(*), AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
+    )
     dishes = fetch_one(conn, 'SELECT COUNT(*) FROM "MenuItem" WHERE rtr_id = ?', (rtr_id,))
     return {
         "owner_nav": {
@@ -934,7 +955,7 @@ def restaurant_orders():
         # Parse JSON details
         try:
             details = json.loads(details_json)
-        except:
+        except (TypeError, ValueError):
             details = {}
 
         # Ensure charges has all required keys
@@ -1030,9 +1051,7 @@ def restaurant_owner_reviews():
     )[0]
 
     # Calculate average rating
-    avg_row = fetch_one(
-        conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
-    )
+    avg_row = fetch_one(conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,))
     average_rating = float(avg_row[0]) if avg_row and avg_row[0] else 0.0
 
     # Get reviews
@@ -1051,7 +1070,16 @@ def restaurant_owner_reviews():
     )
 
     reviews = []
-    for rev_id, title, rating, description, created_at, ord_id, first_name, last_name in review_rows:
+    for (
+        rev_id,
+        title,
+        rating,
+        description,
+        created_at,
+        ord_id,
+        first_name,
+        last_name,
+    ) in review_rows:
         # Format date
         date_str = ""
         if created_at:
@@ -1094,7 +1122,6 @@ def restaurant_owner_reviews():
     )
 
 
-
 @app.route("/restaurant/analytics")
 @restaurant_required
 def restaurant_analytics():
@@ -1129,16 +1156,13 @@ def restaurant_analytics():
     )
 
     if latest_snapshot:
-        total_orders, total_revenue_cents, avg_order_value_cents, completion_rate = (
-            latest_snapshot
-        )
+        total_orders, total_revenue_cents, avg_order_value_cents, completion_rate = latest_snapshot
         total_revenue = total_revenue_cents / 100.0
         avg_order_value = avg_order_value_cents / 100.0
     else:
         total_orders = 0
         total_revenue = 0.0
         avg_order_value = 0.0
-        completion_rate = 0.0
 
     # Get order status distribution from actual orders
     status_data = fetch_all(
@@ -1479,7 +1503,7 @@ def profile():
     conn = get_db()
     row = fetch_one(
         conn,
-        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies FROM "User" WHERE email = ?',
+        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,optimization_weights FROM "User" WHERE email = ?',
         (email,),
     )
     if not row:
@@ -1508,6 +1532,9 @@ def profile():
         user=user,
         diet=diet_summary(conn, user["allergies"], user["preferences"]),
         last_order=recent[0] if recent else None,
+        optimization_objectives=OBJECTIVES,
+        optimization_weights=json.loads(row["optimization_weights"]),
+        optimization_notice=session.pop("optimization_notice", None),
         pw_updated=pw_updated,
         pw_error=pw_error,
     )
@@ -1538,6 +1565,33 @@ def diet_summary(conn, allergies, preferences) -> dict:
         "set_aside": sum(1 for (tags,) in rows if banned & parse_allergens(tags)),
         "dishes": len(rows),
     }
+
+
+@app.post("/profile/optimization")
+def save_optimization():
+    """Save the account's selected objectives and relative weights."""
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
+
+    values = tuple(request.form.get(f"{name}_weight") for name in OBJECTIVES)
+    try:
+        weights = {
+            name: int(value) for name, value in zip(OBJECTIVES, values) if value not in (None, "")
+        }
+        parse_weights(tuple(weights.values()))
+    except ValueError:
+        session["optimization_notice"] = (
+            "danger",
+            "Use whole-number weights from 0 to 100 and give at least one at least 1.",
+        )
+    else:
+        execute_query(
+            get_db(),
+            'UPDATE "User" SET optimization_weights = ? WHERE email = ?',
+            (json.dumps(weights), session.get("Email")),
+        )
+        session["optimization_notice"] = ("success", "Optimization preferences saved.")
+    return redirect(url_for("profile", _anchor="optimization-preferences"))
 
 
 # Edit Profile route
@@ -1662,10 +1716,7 @@ def change_password():
 
     # All good → update
     new_hash = generate_password_hash(new_password)
-    execute_query(
-        conn, 'UPDATE "User" SET password_HS = ? WHERE usr_id = ?', (new_hash, usr_id)
-    )
-
+    execute_query(conn, 'UPDATE "User" SET password_HS = ? WHERE usr_id = ?', (new_hash, usr_id))
 
     # Success
     return redirect(url_for("profile", pw_updated=1))
@@ -1697,8 +1748,16 @@ def user_review(conn, ord_id, usr_id):
     )
     if not row:
         return None
-    keys = ("rev_id", "rtr_id", "ord_id", "title", "rating", "description", "created_at",
-            "restaurant_name")
+    keys = (
+        "rev_id",
+        "rtr_id",
+        "ord_id",
+        "title",
+        "rating",
+        "description",
+        "created_at",
+        "restaurant_name",
+    )
     return dict(zip(keys, row))
 
 
@@ -1822,7 +1881,6 @@ def review_order(ord_id):
     return render_template("review.html", order=order)
 
 
-
 @app.route("/order/<int:ord_id>/review/view")
 def view_review(ord_id):
     """
@@ -1846,9 +1904,7 @@ def restaurant_reviews(rtr_id):
     """
     conn = get_db()
     # Get restaurant info
-    restaurant_row = fetch_one(
-        conn, 'SELECT name FROM "Restaurant" WHERE rtr_id = ?', (rtr_id,)
-    )
+    restaurant_row = fetch_one(conn, 'SELECT name FROM "Restaurant" WHERE rtr_id = ?', (rtr_id,))
     if not restaurant_row:
         abort(404)
 
@@ -1889,9 +1945,7 @@ def restaurant_reviews(rtr_id):
     )[0]
 
     # Calculate average rating
-    avg_row = fetch_one(
-        conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,)
-    )
+    avg_row = fetch_one(conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,))
     average_rating = float(avg_row[0]) if avg_row and avg_row[0] else 0.0
 
     # Get reviews
@@ -1910,7 +1964,16 @@ def restaurant_reviews(rtr_id):
     )
 
     reviews = []
-    for rev_id, title, rating, description, created_at, ord_id, first_name, last_name in review_rows:
+    for (
+        rev_id,
+        title,
+        rating,
+        description,
+        created_at,
+        ord_id,
+        first_name,
+        last_name,
+    ) in review_rows:
         # Format date
         date_str = ""
         if created_at:
@@ -1953,7 +2016,6 @@ def restaurant_reviews(rtr_id):
     )
 
 
-
 # Order route (Calendar "Order" button target)
 @app.route("/order", methods=["GET", "POST"])
 def order():
@@ -1972,9 +2034,7 @@ def order():
     usr_id = session.get("usr_id")
     if not usr_id:
         conn = get_db()
-        row = fetch_one(
-            conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),)
-        )
+        row = fetch_one(conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),))
         if not row:
             return redirect(url_for("logout"))
         usr_id = row[0]
@@ -2458,9 +2518,7 @@ def order_receipt(ord_id: int):
     # If usr_id not in session (older sessions), compare via email
     if not session.get("usr_id"):
         # Resolve current user's usr_id by email
-        urow = fetch_one(
-            conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),)
-        )
+        urow = fetch_one(conn, 'SELECT usr_id FROM "User" WHERE email = ?', (session.get("Email"),))
         if not urow or urow[0] != row[0]:
             abort(403)
 
@@ -2592,26 +2650,26 @@ def db_view():
 
 
 # ----------- Meal Plan Generation Route -----------
-@app.route('/menu/generate', methods=['POST'])
+@app.route("/menu/generate", methods=["POST"])
 def generate_menu():
     """
     Generate or extend the logged-in user's meal plan and persist it.
 
     Supports application/json and HTML form submissions.
     """
-    if session.get('Username') is None:
-        return redirect(url_for('login'))
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
 
     # Load user row (need preferences, allergies, existing generated_menu)
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT usr_id, email, preferences, allergies, generated_menu FROM "User" WHERE email = ?',
-        (session.get('Email'),)
+        'SELECT usr_id, email, preferences, allergies, generated_menu, optimization_weights FROM "User" WHERE email = ?',
+        (session.get("Email"),),
     )
 
     if not user:
-        return redirect(url_for('logout'))
+        return redirect(url_for("logout"))
 
     usr_id = user[0]
     prefs_db = user[2] or ""
@@ -2621,48 +2679,77 @@ def generate_menu():
     # Parse inputs
     if request.is_json:
         payload = request.get_json(silent=True) or {}
-        start_date = (payload.get('start_date') or date.today().isoformat()).strip()
+        start_date = (payload.get("start_date") or date.today().isoformat()).strip()
         try:
-            meal_numbers = [int(x) for x in (payload.get('meal_numbers') or [1,2,3])]
+            meal_numbers = [int(x) for x in (payload.get("meal_numbers") or [1, 2, 3])]
         except Exception:
-            meal_numbers = [1,2,3]
+            meal_numbers = [1, 2, 3]
         try:
-            number_of_days = int(payload.get('number_of_days') or 1)
+            number_of_days = int(payload.get("number_of_days") or 1)
         except Exception:
             number_of_days = 1
-        preferences = (payload.get('preferences') or prefs_db).strip()
-        allergies = (payload.get('allergens') or allergies_db).strip()
+        preferences = (payload.get("preferences") or prefs_db).strip()
+        allergies = (payload.get("allergens") or allergies_db).strip()
     else:
-        start_date = (request.form.get('start_date') or date.today().isoformat()).strip()
+        start_date = (request.form.get("start_date") or date.today().isoformat()).strip()
         try:
-            number_of_days = int(request.form.get('days') or 1)
+            number_of_days = int(request.form.get("days") or 1)
         except Exception:
             number_of_days = 1
         sel = []
-        if request.form.get('meal1'): sel.append(1)
-        if request.form.get('meal2'): sel.append(2)
-        if request.form.get('meal3'): sel.append(3)
-        meal_numbers = sel or [1,2,3]
-        preferences = (request.form.get('preferences') or prefs_db).strip()
-        allergies = (request.form.get('allergens') or allergies_db).strip()
+        if request.form.get("meal1"):
+            sel.append(1)
+        if request.form.get("meal2"):
+            sel.append(2)
+        if request.form.get("meal3"):
+            sel.append(3)
+        meal_numbers = sel or [1, 2, 3]
+        preferences = (request.form.get("preferences") or prefs_db).strip()
+        allergies = (request.form.get("allergens") or allergies_db).strip()
 
     # Diets and allergies on the account are hard rules; a request can add to them but not drop them.
     preferences = with_account_diets(preferences, prefs_db)
     allergies = with_account_allergies(allergies, allergies_db)
 
-    want_json = request.is_json or request.accept_mimetypes.best == 'application/json'
+    want_json = request.is_json or request.accept_mimetypes.best == "application/json"
 
     def generation_error(message, status):
         if want_json:
             return jsonify({"ok": False, "error": message}), status
-        session['menu_generation_error'] = message
-        return redirect(url_for('index', _anchor='new-plan'))
+        session["menu_generation_error"] = message
+        return redirect(url_for("index", _anchor="new-plan"))
 
     try:
-        cap_value = payload.get('weekly_cap') if request.is_json else request.form.get('weekly_cap')
+        cap_value = payload.get("weekly_cap") if request.is_json else request.form.get("weekly_cap")
         weekly_cap_cents = parse_weekly_cap(cap_value)
+        inputs = payload if request.is_json else request.form
+        if any(f"{name}_weight" in inputs for name in OBJECTIVES):
+            values = tuple(inputs.get(f"{name}_weight") for name in OBJECTIVES)
+        else:
+            saved_weights = json.loads(user[5])
+            values = tuple(saved_weights.get(name) for name in OBJECTIVES)
+        objective_weights = parse_weights(values)
+        fields = payload if request.is_json else request.form
+        targets = parse_targets(fields)
+        strict_targets = str(fields.get("strict_targets", "")).strip().lower() in (
+            "1",
+            "true",
+            "on",
+            "yes",
+        )
     except ValueError as exc:
         return generation_error(str(exc), 400)
+
+    # The plan form (sent as form data, also by its fetch) remembers its targets on the
+    # account so it opens with them next time, even if this plan is refused. A JSON
+    # client changes them only by asking ("save_targets": true).
+    from_form = not request.is_json
+    if from_form or payload.get("save_targets") in (True, "true", "1", 1):
+        execute_query(
+            get_db(),
+            'UPDATE "User" SET nutrition_targets = ?, strict_targets = ? WHERE usr_id = ?',
+            (saved_targets_json(targets), int(strict_targets), usr_id),
+        )
 
     # Validate start_date
     try:
@@ -2688,11 +2775,16 @@ def generate_menu():
             number_of_days=number_of_days,
             weekly_cap_cents=weekly_cap_cents,
             ordered_meals=order_meals(conn, usr_id),
+            objective_weights=objective_weights,
+            targets=targets,
+            strict_targets=strict_targets,
         )
         start = date.fromisoformat(start_date)
-        weeks = list(dict.fromkeys(
-            week_start((start + timedelta(days=i)).isoformat()) for i in range(number_of_days)
-        ))
+        weeks = list(
+            dict.fromkeys(
+                week_start((start + timedelta(days=i)).isoformat()) for i in range(number_of_days)
+            )
+        )
         try:
             totals = weekly_item_totals(updated_menu, gen.item_prices, weeks)
         except ValueError:
@@ -2700,7 +2792,7 @@ def generate_menu():
                 raise
             # Uncapped plans can retain old meals whose catalog prices are unavailable.
             totals = None
-    except BudgetExceededError as exc:
+    except (BudgetExceededError, TargetsUnreachableError) as exc:
         return generation_error(str(exc), 422)
     except ValueError as exc:
         return generation_error(str(exc), 400)
@@ -2710,23 +2802,37 @@ def generate_menu():
 
     # Persist
     conn = get_db()
-    execute_query(conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id))
+    execute_query(
+        conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id)
+    )
 
-    session['GeneratedMenu'] = updated_menu
+    session["GeneratedMenu"] = updated_menu
+    if gen.optimization is not None and from_form:
+        session["menu_optimization"] = gen.optimization
+
+    # The calendar shows the miss once after a form submission, including the form's own
+    # fetch, which asks for JSON and then opens the calendar
+    notice = nutrition_notice(gen.nutrition_report())
+    if notice and from_form:
+        session["plan_notice"] = notice
 
     if want_json:
-        return jsonify({
-            "ok": True,
-            "generated_menu": updated_menu,
-            "start_date": start_date,
-            "meal_numbers": meal_numbers,
-            "number_of_days": number_of_days,
-            "weekly_cap_cents": weekly_cap_cents,
-            "item_total_cents": sum(totals.values()) if totals is not None else None,
-            "weekly_item_totals_cents": totals,
-            "variety": gen.variety.as_json() if gen.variety else None,
-        })
-    return redirect(url_for('index'))
+        return jsonify(
+            {
+                "ok": True,
+                "generated_menu": updated_menu,
+                "start_date": start_date,
+                "meal_numbers": meal_numbers,
+                "number_of_days": number_of_days,
+                "weekly_cap_cents": weekly_cap_cents,
+                "item_total_cents": sum(totals.values()) if totals is not None else None,
+                "weekly_item_totals_cents": totals,
+                "variety": gen.variety.as_json() if gen.variety else None,
+                "optimization": gen.optimization,
+                "nutrition": gen.nutrition_report(),
+            }
+        )
+    return redirect(url_for("index"))
 
 
 @app.route("/menu/swap", methods=["POST"])
@@ -2943,7 +3049,10 @@ def restaurant_menu():
         this restaurant's.
     """
     editing = request.args.get("edit", type=int)
-    if editing is not None and menu_items.get_item(get_db(), session.get("rtr_id"), editing) is None:
+    if (
+        editing is not None
+        and menu_items.get_item(get_db(), session.get("rtr_id"), editing) is None
+    ):
         abort(404)
     return _owner_page(editing=editing, open_add=request.args.get("add") == "1")
 

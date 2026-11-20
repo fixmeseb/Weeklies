@@ -16,6 +16,10 @@ from proj2.menu_generation import MenuGenerator, is_taking_orders
 ALL_DAY = json.dumps({d: [0, 2359] for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]})
 
 SCHEMA = """
+CREATE TABLE "User" (usr_id INTEGER);
+CREATE TABLE "Order" (ord_id INTEGER);
+CREATE TABLE Review (review_id INTEGER);
+CREATE TABLE Analytics (analytics_id INTEGER);
 CREATE TABLE Restaurant (rtr_id INTEGER PRIMARY KEY, name TEXT, status TEXT, hours TEXT);
 CREATE TABLE MenuItem (itm_id INTEGER PRIMARY KEY, rtr_id INTEGER, name TEXT, description TEXT,
                        price INTEGER, calories INTEGER, instock INTEGER, allergens TEXT);
@@ -45,14 +49,14 @@ def _swap_rule(status):
 
 @pytest.mark.parametrize("status", ["open", "Open", "OPEN", " open ", "\topen\n"])
 def test_any_casing_or_padding_of_open_is_available(tmp_path, status):
-    gen = MenuGenerator(tokens=10, database_path=_db(tmp_path, status))
+    gen = MenuGenerator(database_path=_db(tmp_path, status))
     assert set(gen.restaurants["rtr_id"]) == {1}
     assert _swap_rule(status) is True
 
 
 @pytest.mark.parametrize("status", ["Closed", "closed", "", "   ", None, "pending", "open for now"])
 def test_anything_that_is_not_open_is_excluded(tmp_path, status):
-    gen = MenuGenerator(tokens=10, database_path=_db(tmp_path, status))
+    gen = MenuGenerator(database_path=_db(tmp_path, status))
     assert set(gen.restaurants["rtr_id"]) == set()
     assert _swap_rule(status) is False
 
@@ -63,7 +67,7 @@ def test_anything_that_is_not_open_is_excluded(tmp_path, status):
 )
 def test_generation_and_swap_never_disagree(tmp_path, status):
     """Whatever the stored value, both halves of the app reach the same verdict."""
-    gen = MenuGenerator(tokens=10, database_path=_db(tmp_path, status))
+    gen = MenuGenerator(database_path=_db(tmp_path, status))
     assert bool(set(gen.restaurants["rtr_id"])) == _swap_rule(status)
 
 
@@ -85,5 +89,5 @@ def test_a_closed_restaurant_does_not_hide_an_open_one(tmp_path):
     finally:
         conn.close()
 
-    gen = MenuGenerator(tokens=10, database_path=path)
+    gen = MenuGenerator(database_path=path)
     assert set(gen.restaurants["rtr_id"]) == {2, 4}

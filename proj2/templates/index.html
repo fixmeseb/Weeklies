@@ -84,6 +84,23 @@
       <div class="flash {{ swap_notice[0] }}" role="status">{{ swap_notice[1] }}</div>
     {% endif %}
 
+    {% if optimization %}
+      <div class="flash success" role="status">
+        Variety in the selected dates
+        {{ '%.1f%%' | format(100 * optimization.variety) if optimization.variety is not none else 'unavailable' }}.
+        New meals cost {{ '$%.2f' | format(optimization.item_cost_cents / 100) }}.
+        Preference match for new meals
+        {{ '%.1f%%' | format(100 * optimization.preference_match) if optimization.preference_match is not none else 'unavailable' }}.
+        {% if optimization.average_calories is not none %}
+          Average listed calories {{ '%.0f' | format(optimization.average_calories) }} kcal.
+        {% endif %}
+        {% if optimization.average_spice is not none %}
+          Average listed spice {{ '%.1f' | format(optimization.average_spice) }}/3.
+        {% endif %}
+        Distinct restaurants for new meals {{ optimization.distinct_restaurants }}.
+      </div>
+    {% endif %}
+
     {% set meal_names = {1: 'Breakfast', 2: 'Lunch', 3: 'Dinner'} %}
     {% set meal_short = {1: 'B', 2: 'L', 3: 'D'} %}
     {% set has_any = today_menu and (today_menu|length) %}
@@ -380,6 +397,46 @@
             <p id="weekly-cap-help" class="muted">Applies to each Monday–Sunday week, including meals already planned.
               One serving per meal; taxes, delivery fees, and tips are extra. Leave blank for no cap.</p>
           </div>
+          <fieldset class="form-row" style="border:0; padding:0; margin:0;">
+            <legend style="padding:0;">Daily nutrition targets (optional)</legend>
+            {% set nutrition_rows = [
+              ('calorie', 'Calories', 'kcal', 10000, '1800', '2200'),
+              ('protein', 'Protein', 'g', 1000, '100', ''),
+              ('carbs', 'Carbs', 'g', 2000, '', '250'),
+              ('fat', 'Fat', 'g', 1000, '', '80'),
+              ('sodium', 'Sodium', 'mg', 20000, '', '2300'),
+            ] %}
+            <div class="table-wrap">
+              <table class="table" style="max-width:480px;">
+                <thead>
+                  <tr><th scope="col">Per day</th><th scope="col">At least</th><th scope="col">At most</th></tr>
+                </thead>
+                <tbody>
+                  {% for field, label, unit, largest, low_example, high_example in nutrition_rows %}
+                  <tr>
+                    <th scope="row">{{ label }} ({{ unit }})</th>
+                    <td><input class="input" type="number" id="{{ field }}_min" name="{{ field }}_min" min="1"
+                               max="{{ largest }}" step="1" style="width:140px;" aria-label="{{ label }} at least, {{ unit }}"
+                               value="{{ (target_values or {}).get(field ~ '_min', '') }}" {% if low_example %}placeholder="e.g., {{ low_example }}"{% endif %} aria-describedby="nutrition-help"></td>
+                    <td><input class="input" type="number" id="{{ field }}_max" name="{{ field }}_max" min="1"
+                               max="{{ largest }}" step="1" style="width:140px;" aria-label="{{ label }} at most, {{ unit }}"
+                               value="{{ (target_values or {}).get(field ~ '_max', '') }}" {% if high_example %}placeholder="e.g., {{ high_example }}"{% endif %} aria-describedby="nutrition-help"></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p id="nutrition-help" class="muted">Each day's meals aim for these ranges, including meals already
+              planned. Protein, carbs, fat and sodium are estimates from USDA data. If your diet, allergies or budget
+              make a range unreachable, the plan comes as close as it can and tells you which days miss. Leave blank
+              for no target. Your targets are saved on your account each time you plan.</p>
+            <label style="display:flex; gap:8px; align-items:center;">
+              <input type="checkbox" id="strict_targets" name="strict_targets" value="on" aria-describedby="strict-help"{% if strict_saved %} checked{% endif %}>
+              Strict targets
+            </label>
+            <p id="strict-help" class="muted">Every planned day must land inside every range. If one can't, nothing is
+              planned and you'll see which day and target is the problem.</p>
+          </fieldset>
           <div class="form-row">
             <label for="preferences">Preferences (override)</label>
             <input class="input" type="text" id="preferences" name="preferences" placeholder="e.g., high protein, low carb">
@@ -388,6 +445,7 @@
             <label for="allergens">Allergens (override)</label>
             <input class="input" type="text" id="allergens" name="allergens" placeholder="e.g., Peanuts,Shellfish">
           </div>
+          <p class="muted"><a href="{{ url_for('profile', _anchor='optimization-preferences') }}">Edit optimization preferences in Profile</a></p>
           <div class="form-row" style="margin-top: 10px;">
             <button type="submit" class="btn btn-primary" id="generateMenuBtn">Generate Plan</button>
           </div>
