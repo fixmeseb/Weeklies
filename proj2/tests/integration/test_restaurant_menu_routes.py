@@ -298,3 +298,172 @@ def test_every_required_field_in_the_schema_is_actually_enforced(client, owner):
 def test_the_schema_is_json_serialisable_without_surprises(client, owner):
     raw = client.get("/api/restaurant/menu/schema").data
     assert json.loads(raw)["fields"]["protein"]["required"] is True
+
+
+## --- searching, narrowing and editing on the page ------------------------
+
+
+def test_search_narrows_the_page_to_matching_dishes(client, owner):
+    body = client.get("/restaurant/menu?q=pasta").data
+    assert b"Pasta" in body and b"Salad" not in body
+
+
+def test_a_search_that_matches_nothing_offers_a_way_back(client, owner):
+    body = client.get("/restaurant/menu?q=zzzznothing").data
+    assert b"Nothing here matches" in body
+
+
+def test_the_filters_narrow_the_page(client, owner, app_context):
+    conn = get_db()
+    itm_id, errors = menu_items.create(conn, owner["rtr_id"], dish(name="Withdrawn Plate"))
+    assert errors == {}
+    menu_items.set_stock(conn, owner["rtr_id"], itm_id, False)
+    conn.commit()
+    assert b"Withdrawn Plate" not in client.get("/restaurant/menu?show=on").data
+    assert b"Withdrawn Plate" in client.get("/restaurant/menu?show=off").data
+
+
+def test_an_unknown_filter_falls_back_to_showing_everything(client, owner):
+    assert client.get("/restaurant/menu?show=../etc").status_code == 200
+    assert b"Pasta" in client.get("/restaurant/menu?show=../etc").data
+
+
+def test_the_untagged_filter_surfaces_a_dish_the_planner_cannot_place(client, owner, app_context):
+    conn = get_db()
+    conn.execute(
+        'INSERT INTO "MenuItem" (rtr_id, name, price, instock) VALUES (?, ?, 1200, 1)',
+        (owner["rtr_id"], "Imported Mystery"),
+    )
+    conn.commit()
+    body = client.get("/restaurant/menu?show=untagged").data
+    assert b"Imported Mystery" in body
+    assert b"needs tags" in body
+
+
+def test_edit_opens_one_form_for_one_dish(client, owner, app_context):
+    conn = get_db()
+    itm_id = next(
+        row["itm_id"]
+        for row in menu_items.list_items(conn, owner["rtr_id"])
+        if row["name"] == "Pasta"
+    )
+    body = client.get(f"/restaurant/menu?edit={itm_id}").data.decode()
+    assert "Editing Pasta" in body
+    ## The form posts to that dish's edit route, with its stored values already in it.
+    assert f'action="/restaurant/menu/{itm_id}/edit"' in body
+    assert 'value="Pasta"' in body
+    assert 'value="12.99"' in body
+
+
+def test_only_the_edited_dish_gets_a_form(client, owner, app_context):
+    """One form on the page, not one per dish: ?edit is what keeps the page small."""
+    conn = get_db()
+    itm_id = next(
+        row["itm_id"]
+        for row in menu_items.list_items(conn, owner["rtr_id"])
+        if row["name"] == "Pasta"
+    )
+    body = client.get(f"/restaurant/menu?edit={itm_id}").data.decode()
+    assert body.count("Editing ") == 1
+
+
+def test_edit_of_another_restaurant_s_dish_is_not_found(client, owner, rival):
+    assert client.get(f"/restaurant/menu?edit={rival['itm_id']}").status_code == 404
+
+
+def test_edit_of_a_dish_that_does_not_exist_is_not_found(client, owner):
+    assert client.get("/restaurant/menu?edit=999999").status_code == 404
+
+
+def test_a_nonsense_edit_id_is_ignored_rather_than_crashing(client, owner):
+    assert client.get("/restaurant/menu?edit=abc").status_code == 200
+
+
+## --- the tag pickers -----------------------------------------------------
+
+
+def test_a_tag_group_always_sends_a_value_so_clearing_works(client, owner):
+    """Without the hidden empty value, unticking every box would silently do nothing."""
+    body = client.get("/restaurant/menu").data.decode()
+    assert '<input type="hidden" name="protein" value="" />' in body
+
+
+def test_the_form_builds_its_choices_from_the_server_s_vocabulary(client, owner):
+    body = client.get("/restaurant/menu").data.decode()
+    for value in menu_items.schema()["fields"]["protein"]["values"]:
+        assert f'value="{value}"' in body
+
+
+def test_ticking_several_boxes_stores_one_cell(client, owner, app_context):
+    ## A list value is how the test client sends one field twice, which is what a
+    ## checkbox group does in a browser.
+    client.post(
+        "/restaurant/menu/new",
+        data={
+            "name": "Combo Bowl",
+            "price": "10.00",
+            "protein": ["tofu", "legumes"],
+            "cuisine": "thai",
+            "carb_base": "rice",
+        },
+    )
+    row = next(
+        item
+        for item in menu_items.list_items(get_db(), owner["rtr_id"])
+        if item["name"] == "Combo Bowl"
+    )
+    assert row["protein"] == "legumes, tofu"
+
+
+def test_unticking_every_box_clears_an_optional_tag(client, owner, app_context):
+    conn = get_db()
+    itm_id, errors = menu_items.create(
+        conn, owner["rtr_id"], dish(name="Smoky Plate", flavor="smoky")
+    )
+    assert errors == {}
+    conn.commit()
+    client.post(f"/restaurant/menu/{itm_id}/edit", data={"flavor": ""})
+    assert menu_items.get_item(get_db(), owner["rtr_id"], itm_id)["flavor"] is None
+
+
+## --- reporting problems --------------------------------------------------
+
+
+def test_a_rejected_form_lists_its_problems_and_links_to_them(client, owner):
+    body = client.post("/restaurant/menu/new", data=dish(protein="", cuisine="")).data.decode()
+    assert 'href="#new-protein"' in body
+    assert 'href="#new-cuisine"' in body
+
+
+def test_a_rejected_field_is_marked_invalid_for_assistive_technology(client, owner):
+    body = client.post("/restaurant/menu/new", data=dish(price="nope")).data.decode()
+    assert 'aria-invalid="true"' in body
+    assert 'aria-describedby="new-price-bad"' in body
+    assert 'id="new-price-bad"' in body
+
+
+def test_a_rejected_add_reopens_the_add_panel(client, owner):
+    body = client.post("/restaurant/menu/new", data=dish(price="nope")).data.decode()
+    assert '<details class="panel" open>' in body
+
+
+def test_a_rejected_edit_keeps_that_dish_s_form_open(client, owner, app_context):
+    conn = get_db()
+    itm_id = next(
+        row["itm_id"]
+        for row in menu_items.list_items(conn, owner["rtr_id"])
+        if row["name"] == "Pasta"
+    )
+    body = client.post(f"/restaurant/menu/{itm_id}/edit", data={"price": "nope"}).data.decode()
+    assert "Editing Pasta" in body
+    assert f'href="#e{itm_id}-price"' in body
+
+
+def test_a_stored_null_renders_as_an_empty_field_not_the_word_none(client, owner, app_context):
+    conn = get_db()
+    itm_id, errors = menu_items.create(conn, owner["rtr_id"], dish(name="Bare Plate"))
+    assert errors == {}
+    conn.commit()
+    body = client.get(f"/restaurant/menu?edit={itm_id}").data.decode()
+    assert 'value="None"' not in body
+    assert ">None<" not in body

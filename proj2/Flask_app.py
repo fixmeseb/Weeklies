@@ -2752,20 +2752,45 @@ def swap_meal_options():
 ## ---------------------------------------------------------------------------
 
 
-def _owner_page(**context):
-    """Render the menu page with the shared owner banner's context."""
+def _owner_page(errors=None, submitted=None, editing=None, open_add=False):
+    """
+    Render the menu page.
+
+    Three endpoints render it -- the page itself, and the add and edit forms when they
+    come back with errors -- so the state that differs between them is passed in rather
+    than read from request.endpoint.
+
+    Args:
+        errors (dict | None): One message per rejected field, plus "_consistency" or
+            "_blocked" for problems that belong to the dish rather than to one field.
+        submitted (Mapping | None): What was typed, so a rejected form is not emptied.
+        editing (int | None): The dish whose edit form is open.
+        open_add (bool): Whether the "Add a dish" panel starts open.
+
+    Returns:
+        str: The rendered page.
+    """
     conn = get_db()
     rtr_id = session.get("rtr_id")
+    query = (request.args.get("q") or "").strip()
+    show = request.args.get("show") or "all"
+    if show not in menu_items.FILTERS:
+        show = "all"
     return render_template(
         "restaurant_menu.html",
         owner_tab="restaurant_menu",
         restaurant_name=session.get("RestaurantName", "Restaurant"),
         restaurant_email=session.get("RestaurantEmail", ""),
-        items=menu_items.list_items(conn, rtr_id),
+        items=menu_items.list_items(conn, rtr_id, query, show),
         schema=menu_items.schema(),
         tag_columns=menu_items.TAG_COLUMNS,
         required_tags=menu_items.REQUIRED_TAGS,
-        **context,
+        errors=errors or {},
+        submitted=submitted or {},
+        editing=editing,
+        open_add=open_add,
+        query=query,
+        show=show,
     )
 
 
@@ -2774,12 +2799,20 @@ def _owner_page(**context):
 def restaurant_menu():
     """
     The owner's menu page: every dish they serve, with forms to add and edit.
+
+    Editing is ``?edit=<itm_id>`` rather than a script, so exactly one edit form is on
+    the page and the page works without JavaScript. ``?q=`` searches and ``?show=``
+    narrows (see menu_items.FILTERS).
     Args:
         None
     Returns:
-        Response: Renders the restaurant menu page.
+        Response: Renders the restaurant menu page, or 404 for an ?edit id that is not
+        this restaurant's.
     """
-    return _owner_page(errors={}, submitted={}, editing=None, notice=None)
+    editing = request.args.get("edit", type=int)
+    if editing is not None and menu_items.get_item(get_db(), session.get("rtr_id"), editing) is None:
+        abort(404)
+    return _owner_page(editing=editing, open_add=request.args.get("add") == "1")
 
 
 @app.route("/restaurant/menu/new", methods=["POST"])
@@ -2795,7 +2828,7 @@ def restaurant_menu_new():
     conn = get_db()
     itm_id, errors = menu_items.create(conn, session.get("rtr_id"), request.form)
     if errors:
-        return _owner_page(errors=errors, submitted=request.form, editing=None, notice=None)
+        return _owner_page(errors=errors, submitted=request.form, open_add=True)
     return redirect(url_for("restaurant_menu", added=itm_id))
 
 
@@ -2814,7 +2847,7 @@ def restaurant_menu_edit(itm_id):
     if not saved:
         if "_missing" in errors:
             abort(404)
-        return _owner_page(errors=errors, submitted=request.form, editing=itm_id, notice=None)
+        return _owner_page(errors=errors, submitted=request.form, editing=itm_id)
     return redirect(url_for("restaurant_menu", saved=itm_id))
 
 
@@ -2850,7 +2883,7 @@ def restaurant_menu_delete(itm_id):
     if not removed:
         if "_missing" in errors:
             abort(404)
-        return _owner_page(errors=errors, submitted={}, editing=None, notice=None)
+        return _owner_page(errors=errors)
     return redirect(url_for("restaurant_menu", removed=1))
 
 

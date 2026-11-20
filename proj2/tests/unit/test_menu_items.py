@@ -381,3 +381,124 @@ def test_every_editable_column_appears_in_the_schema():
 
 def test_the_schema_never_advertises_a_column_a_request_cannot_set():
     assert set(menu_items.schema()["fields"]) <= set(menu_items.EDITABLE_COLUMNS)
+
+
+## --- searching and narrowing the list ------------------------------------
+
+
+def test_search_matches_the_name_case_insensitively(conn, rtr_id):
+    menu_items.create(conn, rtr_id, good_dish(name="Seitan Larb Bowl"))
+    found = menu_items.list_items(conn, rtr_id, query="seitan")
+    assert [row["name"] for row in found] == ["Seitan Larb Bowl"]
+
+
+def test_search_matches_the_description_too(conn, rtr_id):
+    menu_items.create(conn, rtr_id, good_dish(description="charred and limey"))
+    assert menu_items.list_items(conn, rtr_id, query="limey")
+
+
+def test_search_treats_wildcards_as_literal_text(conn, rtr_id):
+    """A bare "%" must not match every dish, as a raw LIKE pattern would."""
+    everything = menu_items.list_items(conn, rtr_id)
+    assert everything
+    assert menu_items.list_items(conn, rtr_id, query="%") == []
+    assert menu_items.list_items(conn, rtr_id, query="_") == []
+
+
+def test_search_finds_a_dish_whose_name_really_contains_a_wildcard(conn, rtr_id):
+    menu_items.create(conn, rtr_id, good_dish(name="100% Plant Bowl"))
+    assert [row["name"] for row in menu_items.list_items(conn, rtr_id, query="100%")] == [
+        "100% Plant Bowl"
+    ]
+
+
+def test_blank_search_is_not_a_filter(conn, rtr_id):
+    assert len(menu_items.list_items(conn, rtr_id, query="   ")) == len(
+        menu_items.list_items(conn, rtr_id)
+    )
+
+
+def test_the_on_and_off_filters_split_the_menu(conn, rtr_id):
+    itm_id, _ = menu_items.create(conn, rtr_id, good_dish())
+    menu_items.set_stock(conn, rtr_id, itm_id, False)
+    on = {row["itm_id"] for row in menu_items.list_items(conn, rtr_id, show="on")}
+    off = {row["itm_id"] for row in menu_items.list_items(conn, rtr_id, show="off")}
+    everything = {row["itm_id"] for row in menu_items.list_items(conn, rtr_id)}
+    assert itm_id in off and itm_id not in on
+    assert on | off == everything and on.isdisjoint(off)
+
+
+def test_the_untagged_filter_finds_a_dish_the_planner_cannot_place(conn, rtr_id):
+    """Nothing added through this module can be untagged, but imported rows can."""
+    assert menu_items.list_items(conn, rtr_id, show="untagged") == []
+    conn.execute(
+        'INSERT INTO "MenuItem" (rtr_id, name, price, instock) VALUES (?, ?, 1200, 1)',
+        (rtr_id, "Imported Mystery"),
+    )
+    found = menu_items.list_items(conn, rtr_id, show="untagged")
+    assert [row["name"] for row in found] == ["Imported Mystery"]
+
+
+def test_a_partly_tagged_dish_still_counts_as_untagged(conn, rtr_id):
+    conn.execute(
+        'INSERT INTO "MenuItem" (rtr_id, name, price, instock, protein, cuisine)'
+        ' VALUES (?, ?, 1200, 1, "tofu", "thai")',
+        (rtr_id, "Half Tagged"),
+    )
+    assert "Half Tagged" in {
+        row["name"] for row in menu_items.list_items(conn, rtr_id, show="untagged")
+    }
+
+
+def test_an_unknown_filter_shows_everything(conn, rtr_id):
+    assert len(menu_items.list_items(conn, rtr_id, show="nonsense")) == len(
+        menu_items.list_items(conn, rtr_id)
+    )
+
+
+def test_search_and_filter_combine(conn, rtr_id):
+    itm_id, _ = menu_items.create(conn, rtr_id, good_dish(name="Seitan Larb Bowl"))
+    menu_items.set_stock(conn, rtr_id, itm_id, False)
+    assert menu_items.list_items(conn, rtr_id, query="seitan", show="on") == []
+    assert len(menu_items.list_items(conn, rtr_id, query="seitan", show="off")) == 1
+
+
+## --- several values for one field ----------------------------------------
+
+
+def test_a_tag_picker_sends_one_value_per_box(conn, rtr_id):
+    """A checkbox group posts the column once per ticked box; they become one cell."""
+    itm_id, errors = menu_items.create(
+        conn, rtr_id, good_dish(protein=["tofu", "legumes"], flavor=["Smoky", "spicy"])
+    )
+    assert errors == {}
+    row = menu_items.get_item(conn, rtr_id, itm_id)
+    assert row["protein"] == "legumes, tofu"
+    assert row["flavor"] == "smoky, spicy"
+
+
+def test_one_ticked_box_is_not_turned_into_a_list(conn, rtr_id):
+    itm_id, _ = menu_items.create(conn, rtr_id, good_dish(price=["13.50"]))
+    assert menu_items.get_item(conn, rtr_id, itm_id)["price"] == 1350
+
+
+def test_clearing_every_box_clears_the_tag(conn, rtr_id):
+    """The form always sends an empty value for a group, so "" means cleared."""
+    itm_id, _ = menu_items.create(conn, rtr_id, good_dish(flavor="smoky"))
+    saved, errors = menu_items.update(conn, rtr_id, itm_id, {"flavor": ""})
+    assert (saved, errors) == (True, {})
+    assert menu_items.get_item(conn, rtr_id, itm_id)["flavor"] is None
+
+
+def test_clearing_every_box_in_a_required_group_is_refused(conn, rtr_id):
+    itm_id, _ = menu_items.create(conn, rtr_id, good_dish())
+    saved, errors = menu_items.update(conn, rtr_id, itm_id, {"protein": ""})
+    assert saved is False and "protein" in errors
+    assert menu_items.get_item(conn, rtr_id, itm_id)["protein"] == "tofu"
+
+
+def test_a_field_the_form_does_not_carry_is_still_left_alone(conn, rtr_id):
+    """Clearing is "" and absence is absence; the two must stay distinguishable."""
+    itm_id, _ = menu_items.create(conn, rtr_id, good_dish(flavor="smoky"))
+    menu_items.update(conn, rtr_id, itm_id, {"calories": "500"})
+    assert menu_items.get_item(conn, rtr_id, itm_id)["flavor"] == "smoky"

@@ -146,6 +146,33 @@ def _flag(submitted, key, default=1):
     return 0 if text in {"0", "no", "n", "false", "f", "off"} else 1
 
 
+def _flatten(submitted):
+    """
+    One plain dict from any submission, with repeated fields joined
+
+    A tag picker is a group of checkboxes sharing one name, so a form sends several
+    values under that name and ``Mapping.get`` would see only the first; a JSON client
+    may send a list for the same field. Both become the comma-separated text the tag
+    parsers already read, so neither encoding is a special case further down.
+
+    Args:
+        submitted (Mapping): A Werkzeug MultiDict, a plain dict, or anything mapping-like
+
+    Returns:
+        dict: One value per key, lists joined with ", "
+    """
+    getlist = getattr(submitted, "getlist", None)
+    out = {}
+    for key in submitted.keys():
+        value = submitted.getlist(key) if getlist else submitted[key]
+        if isinstance(value, (list, tuple, set)):
+            parts = [str(part).strip() for part in value if str(part).strip()]
+            ## A single value stays itself, so "12.99" never becomes a one-item join.
+            value = parts[0] if len(parts) == 1 else ", ".join(parts)
+        out[key] = value
+    return out
+
+
 def validate(submitted, *, partial=False) -> Validated:
     """
     Check a submitted dish against every rule before it reaches the catalog
@@ -160,6 +187,7 @@ def validate(submitted, *, partial=False) -> Validated:
         Validated: The storable values keyed by column, and one message per bad field
     """
     out = Validated()
+    submitted = _flatten(submitted)
     present = set(submitted) & set(EDITABLE_COLUMNS)
 
     def wanted(column):
@@ -307,24 +335,64 @@ def _stored_columns(conn, wanted):
     ]
 
 
-def list_items(conn, rtr_id):
+## What the menu page can be narrowed to. "untagged" is the one that matters: the
+## required tags are enforced on write, so a dish can only be missing one if it predates
+## this page or arrived through the CSV importer -- and the planner mishandles exactly
+## those. See the module docstring.
+FILTERS = ("all", "on", "off", "untagged")
+
+
+def is_untagged(row) -> bool:
     """
-    Every dish belonging to one restaurant, in stock first, then by name
+    Whether a dish is missing a tag the planner leans on
+
+    Args:
+        row (Mapping): A dish, as list_items returns it
+
+    Returns:
+        bool: True when any of REQUIRED_TAGS is absent
+    """
+    keys = row.keys() if hasattr(row, "keys") else row
+    return any(column not in keys or not row[column] for column in REQUIRED_TAGS)
+
+
+def list_items(conn, rtr_id, query: str = None, show: str = "all"):
+    """
+    One restaurant's dishes, in stock first then by name, optionally narrowed
+
+    Filtering is done here rather than in the page so that the rule for "untagged"
+    is the same rule the validator enforces, and so it can be tested without a request.
 
     Args:
         conn (sqlite3.Connection): Active connection
         rtr_id (int): The owning restaurant
+        query (str | None): Free text matched against the name and description
+        show (str): One of FILTERS; anything else is treated as "all"
 
     Returns:
-        List[sqlite3.Row]: The restaurant's dishes
+        List[sqlite3.Row]: The matching dishes
     """
     columns = ", ".join(["itm_id", *_stored_columns(conn, EDITABLE_COLUMNS)])
-    return fetch_all(
-        conn,
-        f'SELECT {columns} FROM "MenuItem" WHERE rtr_id = ?'
-        " ORDER BY instock DESC, name COLLATE NOCASE",
-        (rtr_id,),
-    )
+    sql = f'SELECT {columns} FROM "MenuItem" WHERE rtr_id = ?'
+    params = [rtr_id]
+
+    text = (query or "").strip()
+    if text:
+        ## LIKE is case-insensitive for ASCII in SQLite; escape so a name containing
+        ## % or _ is searched for literally rather than as a wildcard.
+        pattern = "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        sql += " AND (name LIKE ? ESCAPE '\\' OR IFNULL(description, '') LIKE ? ESCAPE '\\')"
+        params += [pattern, pattern]
+
+    if show == "on":
+        sql += " AND instock == 1"
+    elif show == "off":
+        sql += " AND IFNULL(instock, 0) != 1"
+
+    rows = fetch_all(conn, sql + " ORDER BY instock DESC, name COLLATE NOCASE", tuple(params))
+    if show == "untagged":
+        rows = [row for row in rows if is_untagged(row)]
+    return rows
 
 
 def get_item(conn, rtr_id, itm_id):
