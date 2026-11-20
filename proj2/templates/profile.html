@@ -14,9 +14,10 @@
     <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
       <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
+      <a href="{{ url_for('insights') }}">Insights</a>
       <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">Order</a>
+      <a href="{{ url_for('orders') }}">My Orders</a>
+      <a href="{{ url_for('profile') }}">Profile</a>
       {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
       <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
@@ -54,7 +55,7 @@
       <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border);">
         <h2 style="margin:0; font-size:20px; font-weight:700;">User Profile</h2>
         <div style="display:flex; gap:8px;">
-          <a class="btn btn-outline btn-sm" href="{{ url_for('edit_profile') }}">Edit</a>
+          <button type="button" class="btn btn-outline btn-sm" id="openEditBtn">Edit</button>
           <button type="button" class="btn btn-primary btn-sm" id="openChangePwBtn">Change Password</button>
         </div>
       </div>
@@ -115,146 +116,42 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Meal Plan Generation -->
-    <div class="page-title" style="margin-top: 20px;">
-      <h1>Generate Meal Plan</h1>
+  <!-- Edit Profile Modal (posts to /profile/edit) -->
+  <div id="editModalBackdrop" class="modal-backdrop" aria-hidden="true"></div>
+  <div id="editModal" class="modal-sheet modal-wide" role="dialog" aria-modal="true" aria-labelledby="editModalTitle" aria-hidden="true">
+    <div class="modal-head">
+      <h3 id="editModalTitle" style="margin:0; font-size:18px;">Edit Profile</h3>
+      <button type="button" class="btn btn-outline btn-sm" id="closeEditModalBtn" aria-label="Close">Close</button>
     </div>
-    <div class="card max-w-lg" style="max-width: var(--container);">
-      <div class="card-body">
-        <div id="menuError" class="flash danger" role="alert" {% if not generation_error %}hidden{% endif %}>
-          {{ generation_error or '' }}
+    <form method="POST" action="{{ url_for('edit_profile') }}" id="editProfileForm" novalidate>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div>
+            <label>First name</label>
+            <input class="input read-only" type="text" value="{{ user.first_name }}" disabled>
+          </div>
+          <div>
+            <label>Last name</label>
+            <input class="input read-only" type="text" value="{{ user.last_name }}" disabled>
+          </div>
+          <div>
+            <label>Email</label>
+            <input class="input read-only" type="email" value="{{ user.email }}" disabled>
+          </div>
+          <div>
+            <label for="editPhone">Phone</label>
+            <input class="input" id="editPhone" name="phone" type="tel" value="{{ user.phone }}" placeholder="(555) 555-5555">
+          </div>
         </div>
-        <form method="POST" action="{{ url_for('generate_menu') }}" class="form-grid">
-          <div class="form-row">
-            <label for="start_date">Start date</label>
-            <input class="input" type="date" id="start_date" name="start_date" value="{{ (now().date() if false else '') }}" placeholder="YYYY-MM-DD">
-          </div>
-          <div class="form-row" style="display:flex; gap:14px; align-items:center;">
-            <label style="min-width:120px;">Meals</label>
-            <label><input type="checkbox" name="meal1" checked> Breakfast</label>
-            <label><input type="checkbox" name="meal2" checked> Lunch</label>
-            <label><input type="checkbox" name="meal3" checked> Dinner</label>
-          </div>
-          <div class="form-row">
-            <label for="days">Number of days</label>
-            <input class="input" type="number" id="days" name="days" min="1" max="14" value="1" style="width:120px;">
-          </div>
-          <!-- Optional overrides; leave blank to use your saved profile -->
-          <div class="form-row">
-            <label for="weekly_cap">Weekly item-price cap ($, optional)</label>
-            <input class="input" type="number" id="weekly_cap" name="weekly_cap" min="0" step="0.01"
-                   placeholder="e.g., 100.00" aria-describedby="weekly-cap-help">
-            <p id="weekly-cap-help" class="muted">Applies to each Monday–Sunday week, including meals already planned.
-              One serving per meal; taxes, delivery fees, and tips are extra. Leave blank for no cap.</p>
-          </div>
-          <div class="form-row">
-            <label for="preferences">Preferences (override)</label>
-            <input class="input" type="text" id="preferences" name="preferences" placeholder="e.g., high protein, low carb">
-          </div>
-          <div class="form-row">
-            <label for="allergens">Allergens (override)</label>
-            <input class="input" type="text" id="allergens" name="allergens" placeholder="e.g., Peanuts,Shellfish">
-          </div>
-          <div class="form-row" style="margin-top: 10px;">
-            <button type="submit" class="btn btn-primary" id="generateMenuBtn">Generate Plan</button>
-          </div>
-          
-          <!-- Loading spinner (hidden by default) - Bright colors for dark mode visibility -->
-          <div id="menuLoading" style="display: none; margin-top: 20px; text-align: center; padding: 20px; background: color-mix(in srgb, var(--warning) 10%, transparent); border-radius: 12px; border: 2px solid var(--warning);">
-            <div style="display: inline-flex; align-items: center; gap: 12px;">
-              <div style="width: 32px; height: 32px; border: 4px solid color-mix(in srgb, var(--warning) 30%, transparent); border-top-color: var(--warning); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-              <div style="text-align: left;">
-                <span style="font-size: 14px; font-weight: 700; color: var(--warning); display: block;">Planning your meals...</span>
-              </div>
-            </div>
-          </div>
-        </form>
-        
-        <!-- Hidden form data (for AJAX submission) -->
-        <input type="hidden" id="menuFormData" value="">
+        {% with diet_allergies=user.allergies, diet_prefs=user.preferences %}{% include "_diet_editor.html" %}{% endwith %}
       </div>
-    </div>
-
-    <!-- Order Tracking -->
-    <div class="page-title" style="margin-top: 20px;">
-      <h1>Order Tracking</h1>
-    </div>
-
-    <div class="card max-w-lg " style="max-width: var(--container);">
-      <div class="card-body">
-        {% if orders %}
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th scope="col">Order ID</th>
-                <th scope="col">Restaurant</th> <!-- NEW -->
-                <th scope="col">Date</th>
-                <th scope="col">Status</th>
-                <th scope="col">Receipt</th>
-                <th scope="col">Total</th>
-                <th scope="col">Review</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for order in orders %}
-              <tr>
-                <td>{{ order.id }}</td>
-                <td>{{ order.restaurant }}</td> <!-- NEW -->
-                <td>{{ order.date }}</td>
-                <td>
-                  {# UC13 progress: view model built by proj2/order_progress.py #}
-                  {% set p = order.progress %}
-                  <div class="order-progress" data-order-id="{{ order.id }}" data-status="{{ p.key }}">
-                    <span class="status-bubble status-{{ p.key }}">{{ p.label }}</span>
-                    {% if p.known %}
-                    <ol class="stepper{% if p.cancelled %} stepper-cancelled{% endif %}" aria-label="Order progress">
-                      {% for step in p.steps %}
-                      <li class="step step-{{ step.state }}" data-step="{{ step.key }}" data-state="{{ step.state }}"{% if step.state == 'current' %} aria-current="step"{% endif %}>
-                        <span class="step-dot" aria-hidden="true"></span>
-                        <span class="step-label">{{ step.label }}</span>
-                        <span class="sr-only">({{ step.state }})</span>
-                      </li>
-                      {% endfor %}
-                    </ol>
-                    {% endif %}
-                  </div>
-                </td>
-                <td>
-                  <a class="btn btn-outline btn-sm"
-                    href="{{ url_for('order_receipt', ord_id=order.id) }}">
-                    PDF
-                  </a>
-                </td>
-                <td>{{ order.total }}</td>
-                <td>
-                  {% if order.status|lower == 'delivered' %}
-                    {% if order.has_review %}
-                      <a class="btn btn-outline btn-sm"
-                         href="{{ url_for('view_review', ord_id=order.id) }}">
-                        View Review
-                      </a>
-                    {% else %}
-                      <a class="btn btn-primary btn-sm"
-                         href="{{ url_for('review_order', ord_id=order.id) }}">
-                        ⭐ Review
-                      </a>
-                    {% endif %}
-                  {% else %}
-                    <span style="color: var(--muted); font-size: 0.85rem;">—</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <p>No orders found.</p>
-        {% endif %}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="cancelEditBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save changes</button>
       </div>
-    </div>
+    </form>
   </div>
 
   <!-- Change Password Modal -->
@@ -301,38 +198,6 @@
   }
   .bubble.selected { border-color: currentColor; box-shadow:0 0 6px currentColor; opacity:1; }
 
-  .status-bubble {
-    display:inline-flex; align-items:center; justify-content:center;
-    border-radius:999px; padding:4px 10px; font-size:13px; font-weight:600; color:#fff;
-  }
-  .status-delivered {background-color:#28a745;} /* green */
-  .status-preparing {background-color:#fd7e14;} /* orange */
-  .status-cancelled {background-color:#dc3545;} /* red */
-  .status-ordered  {background-color:#ffc107; color:#212529;} /* yellow; dark text, white was unreadable */
-  .status-accepted {background-color:#2563eb;} /* blue */
-  .status-ready    {background-color:#0f766e;} /* teal */
-  .status-unknown  {background-color:#6c757d;} /* grey: status outside the known lifecycle */
-
-  /* UC13 order progress stepper */
-  .order-progress { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
-  .stepper { list-style:none; margin:0; padding:0; display:flex; }
-  .step { position:relative; display:flex; flex-direction:column; align-items:center; min-width:64px; font-size:11px; color:var(--muted); }
-  .step + .step::before {
-    content:""; position:absolute; top:5px; right:50%; width:100%; height:2px; background:var(--border);
-  }
-  .step + .step-done::before, .step + .step-current::before { background:var(--success); }
-  .step-dot {
-    position:relative; z-index:1; box-sizing:border-box; width:12px; height:12px; margin-bottom:4px;
-    border-radius:50%; border:2px solid var(--border); background:var(--surface);
-  }
-  .step-done .step-dot { background:var(--success); border-color:var(--success); }
-  .step-current .step-dot { background:var(--primary); border-color:var(--primary); box-shadow:0 0 0 3px var(--ring); }
-  .step-current[data-step="delivered"] .step-dot { background:var(--success); border-color:var(--success); box-shadow:none; }
-  .step-current .step-label { color:var(--text); font-weight:600; }
-  .stepper-cancelled .step { opacity:.45; }
-  @media (max-width:639px){ .step { min-width:22px; } .step-label { display:none; } }
-  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-
   .meta-grid { display:grid; grid-template-columns:1fr; gap:14px; }
   @media (min-width:640px){ .meta-grid { grid-template-columns:1fr 1fr; } }
   .meta-item { padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
@@ -345,6 +210,11 @@
   .modal-backdrop { position:fixed; inset:0; background:color-mix(in srgb, var(--shade) 45%, transparent); display:none; z-index:1000; }
   .modal-sheet { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(92vw,480px); background:var(--surface); border:1px solid var(--border); border-radius:14px; display:none; z-index:1001; }
   .modal-backdrop.show, .modal-sheet.show { display:block; }
+  .modal-sheet.modal-wide { width:min(94vw,720px); max-height:90vh; overflow:auto; }
+  #editProfileForm { max-width:none; margin:0; display:block; }  /* undo style.css's bare-form width */
+  .form-grid { display:grid; gap:12px; grid-template-columns: 1fr; margin-bottom:20px; }
+  @media (min-width: 720px) { .form-grid { grid-template-columns: 1fr 1fr; } }
+  .read-only { background: var(--surface); border:1px dashed var(--border); color: var(--muted); }
   .modal-head {
     display:flex; align-items:center; justify-content:space-between;
     padding: 14px 16px; border-bottom: 1px solid var(--border);
@@ -537,6 +407,28 @@
     // initial
     update();
   });
+  // Edit Profile pop-up: opened by the Edit button, or by /profile#edit (old edit-page links)
+  (function () {
+    const modal = document.getElementById('editModal');
+    const backdrop = document.getElementById('editModalBackdrop');
+    const form = document.getElementById('editProfileForm');
+    function show() {
+      modal.classList.add('show'); backdrop.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      setTimeout(() => document.getElementById('editPhone').focus(), 0);
+    }
+    function hide() {
+      modal.classList.remove('show'); backdrop.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      if (location.hash === '#edit') history.replaceState(null, '', location.pathname + location.search);
+    }
+    document.getElementById('openEditBtn').addEventListener('click', show);
+    document.getElementById('closeEditModalBtn').addEventListener('click', hide);
+    document.getElementById('cancelEditBtn').addEventListener('click', () => { form.reset(); hide(); });
+    backdrop.addEventListener('click', hide);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) hide(); });
+    if (location.hash === '#edit') show();
+  })();
 </script>
 
 </body>

@@ -84,7 +84,7 @@ def test_test_mode_keeps_viewer_enabled(monkeypatch):
 
 # ---- nav link follows the flag ----
 
-NAV_PAGES = ["/", "/profile", "/profile/edit", "/orders", "/restaurants"]
+NAV_PAGES = ["/", "/insights", "/profile", "/orders", "/restaurants"]
 DB_LINK = 'href="/db"'
 
 

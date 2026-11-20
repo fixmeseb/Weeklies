@@ -35,9 +35,16 @@ def test_logout_clears_identity_and_redirects(client, login_session):
             assert key not in s
 
 
-def test_edit_profile_get_renders_for_logged_in_user(client, login_session):
-    r = client.get("/profile/edit")
-    assert r.status_code == 200
+def test_edit_profile_get_opens_the_profile_pop_up(client, login_session):
+    """Editing is a pop-up on Profile now; the old page address opens it."""
+    r = client.get("/profile/edit", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    assert r.headers["Location"].endswith("/profile#edit")
+    html = client.get("/profile").get_data(as_text=True)
+    assert 'id="editModal"' in html and 'id="openEditBtn"' in html
+    form = html.split('id="editProfileForm"')[1].split("</form>")[0]
+    assert 'name="phone"' in form and 'name="allergies[]"' in form
+    assert 'id="allergiesField"' in form and 'id="preferencesField"' in form
 
 
 def test_edit_profile_requires_login(client):

@@ -30,9 +30,13 @@ describe("Navigation & Smoke Tests", () => {
     cy.get("header nav a").contains("Restaurants").click();
     cy.location("pathname").should("eq", "/restaurants");
 
-    // Order builder
-    cy.get("header nav a").contains("Order").click();
+    // Order history
+    cy.get("header nav a").contains("My Orders").click();
     cy.location("pathname").should("eq", "/orders");
+
+    // Planning stats
+    cy.get("header nav a").contains("Insights").click();
+    cy.location("pathname").should("eq", "/insights");
 
     // DB view
     cy.get("header nav a").contains("DB").click();

@@ -1,0 +1,473 @@
+{#-
+  The owner's menu page: the only place a restaurant can change what it sells.
+
+  Three endpoints render this one template (the page, and the add and edit forms when
+  they come back with errors), so it is driven by `editing`, `submitted` and `errors`
+  rather than by which route it was reached from.
+
+  Everything a form offers comes from `schema`, which the server generates from the same
+  validator it checks submissions with, so the page cannot suggest a value that would be
+  rejected. Editing one dish is a link to `?edit=<itm_id>` rather than a script, which
+  keeps exactly one edit form on the page and keeps the page working without JavaScript.
+-#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu · {{ restaurant_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <style>
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 1rem 3rem; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem;
+    }
+    .panel > summary { cursor: pointer; font-weight: 600; font-size: 1.05rem; list-style: none; }
+    .panel > summary::-webkit-details-marker { display: none; }
+    .panel > summary::before { content: "＋ "; opacity: 0.6; }
+    .panel[open] > summary::before { content: "− "; }
+    .panel h2 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+
+    /* --- toolbar --- */
+    .toolbar {
+      display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;
+      margin-bottom: 1.25rem;
+    }
+    .toolbar form { display: flex; gap: 0.4rem; }
+    .toolbar input[type="search"] {
+      padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface); color: var(--text); font: inherit; min-width: 14rem;
+    }
+    .filters { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-left: auto; }
+    .filters a {
+      font-size: 0.82rem; padding: 0.32rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); text-decoration: none; color: var(--text);
+    }
+    .filters a[aria-current="true"] {
+      background: var(--primary); color: var(--on-primary); border-color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* --- forms --- */
+    .section-head {
+      margin: 1.25rem 0 0.1rem; font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.65;
+    }
+    .section-note { margin: 0.15rem 0 0; font-size: 0.8rem; opacity: 0.75; }
+    .field-grid {
+      display: grid; gap: 0.9rem 1.1rem; margin-top: 0.9rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    /* style.css sets `form div.field { display: grid }`, which stretches a short input
+       to the height of the tallest cell in its row. These fields lay out in normal flow. */
+    .field-grid div.field { display: block; }
+    .field > label, .field > .group-label {
+      display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem;
+    }
+    .field input[type="text"], .field input[type="number"], .field select, .field textarea {
+      width: 100%; padding: 0.45rem 0.55rem; border: 1px solid var(--border);
+      border-radius: 6px; background: var(--bg); color: var(--text); font: inherit;
+    }
+    .field .hint { display: block; font-size: 0.75rem; opacity: 0.7; margin-top: 0.3rem; }
+    .field .bad { display: block; font-size: 0.78rem; color: var(--danger); margin-top: 0.3rem; }
+    .field [aria-invalid="true"], fieldset[aria-invalid="true"] { border-color: var(--danger); }
+    .field.required > label::after, .field.required > .group-label::after {
+      content: " *"; color: var(--danger);
+    }
+    .field-wide { grid-column: 1 / -1; }
+    fieldset.choices {
+      border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.6rem;
+      display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; margin: 0;
+    }
+    fieldset.choices legend { padding: 0 0.3rem; font-size: 0.85rem; font-weight: 600; }
+    fieldset.choices.required legend::after { content: " *"; color: var(--danger); }
+    .choice { display: inline-flex; align-items: center; gap: 0.28rem; font-size: 0.82rem; }
+    .choice input { accent-color: var(--primary); margin: 0; }
+    .primary {
+      font: inherit; font-weight: 600; padding: 0.55rem 1.2rem; cursor: pointer;
+      border: none; border-radius: 8px; background: var(--primary); color: var(--on-primary);
+      margin-top: 1.2rem;
+    }
+    .cancel { margin-left: 0.6rem; font-size: 0.85rem; }
+
+    /* --- messages --- */
+    .alert {
+      padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem;
+      border: 1px solid var(--danger); color: var(--danger);
+      background: color-mix(in srgb, var(--danger) 8%, transparent);
+    }
+    .alert.good {
+      border-color: var(--success); color: var(--success);
+      background: color-mix(in srgb, var(--success) 8%, transparent);
+    }
+    .alert ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+    .alert a { color: inherit; }
+
+    /* --- the list --- */
+    table.menu { width: 100%; border-collapse: collapse; }
+    table.menu th, table.menu td {
+      text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    table.menu th {
+      font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;
+    }
+    .dish-name { font-weight: 600; }
+    .dish-desc { font-size: 0.82rem; opacity: 0.75; margin-top: 0.15rem; }
+    .tagline { font-size: 0.78rem; opacity: 0.85; }
+    .badge {
+      display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    }
+    .badge.in { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+    .badge.out { background: color-mix(in srgb, var(--muted) 22%, transparent); }
+    .badge.warn {
+      background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning);
+    }
+    .row-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+    .row-actions form { display: contents; }
+    .row-actions .action, .row-actions button[type="submit"] {
+      font: inherit; font-size: 0.82rem; font-weight: 500; padding: 0.3rem 0.7rem;
+      cursor: pointer; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg); color: var(--text); box-shadow: none; text-decoration: none;
+      display: inline-block; line-height: 1.5;
+    }
+    .row-actions .action:hover, .row-actions button[type="submit"]:hover {
+      background: color-mix(in srgb, var(--text) 8%, var(--bg)); transform: none;
+    }
+    .row-actions button[type="submit"].danger {
+      border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger);
+      background: var(--bg);
+    }
+    .row-actions button[type="submit"].danger:hover {
+      background: color-mix(in srgb, var(--danger) 12%, var(--bg));
+    }
+    tr.editing > td { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+    td.edit-cell { padding-top: 0.2rem; }
+    .empty { padding: 2rem 1rem; text-align: center; opacity: 0.8; }
+    .contract { font-size: 0.85rem; }
+    .contract pre {
+      overflow-x: auto; padding: 0.7rem 0.8rem; border-radius: 6px;
+      background: var(--bg); border: 1px solid var(--border); font-size: 0.8rem;
+    }
+
+    /* --- narrow screens: the table becomes stacked cards --- */
+    @media (max-width: 720px) {
+      .filters { margin-left: 0; }
+      table.menu thead { position: absolute; left: -9999px; }
+      table.menu tr { display: block; border-bottom: 1px solid var(--border); padding: 0.5rem 0; }
+      table.menu td { display: block; border: none; padding: 0.2rem 0; }
+      table.menu td[data-label]::before {
+        content: attr(data-label); display: block; font-size: 0.7rem;
+        text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6;
+      }
+    }
+  </style>
+</head>
+<body>
+  {% include "_owner_header.html" %}
+
+  {#- A plain text, money, integer or long-text field. -#}
+  {% macro simple_field(column, spec, value, errors, prefix, kind="text") %}
+    {% set id = prefix ~ column %}
+    {% set problem = errors.get(column) %}
+    <div class="field{% if spec.required %} required{% endif %}{% if kind == 'area' %} field-wide{% endif %}">
+      <label for="{{ id }}">{{ column.replace("_", " ")|title }}</label>
+      {% if kind == "area" %}
+        <textarea id="{{ id }}" name="{{ column }}" rows="2" maxlength="{{ spec.max_length }}"
+                  {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %}>{{ value or "" }}</textarea>
+      {% elif kind == "integer" %}
+        <input type="number" id="{{ id }}" name="{{ column }}" min="0" max="{{ spec.max }}"
+               value="{{ value if value is not none else '' }}"
+               {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %} />
+      {% elif kind == "level" %}
+        <input type="number" id="{{ id }}" name="{{ column }}" min="{{ spec.min }}" max="{{ spec.max }}"
+               value="{{ value if value is not none else '' }}"
+               {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %} />
+      {% elif kind == "money" %}
+        <input type="text" id="{{ id }}" name="{{ column }}" inputmode="decimal" placeholder="12.99"
+               value="{{ value or '' }}" {% if spec.required %}required{% endif %}
+               {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %} />
+      {% else %}
+        <input type="text" id="{{ id }}" name="{{ column }}" maxlength="{{ spec.max_length or 255 }}"
+               value="{{ value or '' }}" {% if spec.required %}required{% endif %}
+               {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %} />
+      {% endif %}
+      {% if spec.help or spec.note %}<span class="hint">{{ spec.help or spec.note }}</span>{% endif %}
+      {% if problem %}<span class="bad" id="{{ id }}-bad">{{ problem }}</span>{% endif %}
+    </div>
+  {% endmacro %}
+
+  {#- A tag field: checkboxes for a vocabulary, a select where only one value is allowed.
+      Checkboxes share one name, so the browser sends several values under it; the server
+      joins them, which is why no JavaScript is needed to build a comma-separated cell. -#}
+  {% macro tag_field(column, spec, value, errors, prefix) %}
+    {% set id = prefix ~ column %}
+    {% set problem = errors.get(column) %}
+    {% set chosen = [] %}
+    {% for part in ((value if value is not none else "")|string).split(",") %}
+      {% if part.strip() %}{% set _ = chosen.append(part.strip()|lower) %}{% endif %}
+    {% endfor %}
+    {% if spec.kind == "flag" %}
+      <div class="field">
+        <label for="{{ id }}">{{ column.replace("_", " ")|title }}</label>
+        <select id="{{ id }}" name="{{ column }}">
+          <option value=""{% if not chosen %} selected{% endif %}>—</option>
+          <option value="1"{% if "1" in chosen %} selected{% endif %}>Yes</option>
+          <option value="0"{% if "0" in chosen %} selected{% endif %}>No</option>
+        </select>
+        {% if spec.help %}<span class="hint">{{ spec.help }}</span>{% endif %}
+        {% if problem %}<span class="bad" id="{{ id }}-bad">{{ problem }}</span>{% endif %}
+      </div>
+    {% elif spec.kind == "level" %}
+      {{ simple_field(column, spec, value, errors, prefix, "level") }}
+    {% elif spec.single %}
+      <div class="field{% if spec.required %} required{% endif %}">
+        <label for="{{ id }}">{{ column.replace("_", " ")|title }}</label>
+        <select id="{{ id }}" name="{{ column }}"
+                {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %}>
+          <option value=""{% if not chosen %} selected{% endif %}>—</option>
+          {% for option in spec["values"] %}
+            <option value="{{ option }}"{% if option in chosen %} selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+        {% if spec.help %}<span class="hint">{{ spec.help }}</span>{% endif %}
+        {% if problem %}<span class="bad" id="{{ id }}-bad">{{ problem }}</span>{% endif %}
+      </div>
+    {% else %}
+      <div class="field field-wide">
+        {#- The id is what the error summary at the top of the page links to, so it
+            belongs on the group rather than on any one checkbox. -#}
+        <fieldset class="choices{% if spec.required %} required{% endif %}" id="{{ id }}"
+                  {% if problem %}aria-invalid="true" aria-describedby="{{ id }}-bad"{% endif %}>
+          <legend>{{ column.replace("_", " ")|title }}</legend>
+          {#- A checkbox group sends nothing when every box is cleared, which an edit
+              would read as "this field was not submitted, leave it alone" -- so clearing
+              a tag would silently do nothing. This empty value is always sent, so the
+              column is always present and clearing it really clears it. -#}
+          <input type="hidden" name="{{ column }}" value="" />
+          {% for option in spec["values"] %}
+            <label class="choice" for="{{ id }}-{{ loop.index }}">
+              <input type="checkbox" id="{{ id }}-{{ loop.index }}" name="{{ column }}"
+                     value="{{ option }}"{% if option in chosen %} checked{% endif %} />
+              {{ option }}
+            </label>
+          {% endfor %}
+        </fieldset>
+        {% if spec.help %}<span class="hint">{{ spec.help }}</span>{% endif %}
+        {% if problem %}<span class="bad" id="{{ id }}-bad">{{ problem }}</span>{% endif %}
+      </div>
+    {% endif %}
+  {% endmacro %}
+
+  {#- The whole dish form, shared by adding and editing. `current` supplies the stored
+      values, `submitted` whatever was typed on an attempt that failed. -#}
+  {#- `form_id` matters: the add form stays in the page (collapsed) while an edit form is
+      open, so a selector like input[name="protein"][value="tofu"] matches twice. Anything
+      driving one of the forms scopes itself to that form's id. -#}
+  {% macro dish_form(action, prefix, current, submitted, errors, submit_label,
+                     cancel_url=None, form_id=None) %}
+    {#- The value to show: what was typed if this is a rejected attempt, else what is
+        stored. A stored NULL must render as an empty field, not the word "None", and a
+        stored 0 (spice level, a flag) must still render as 0. -#}
+    {% macro val(column) %}
+      {%- set raw = submitted.get(column, current[column] if current and column in current.keys() else none) -%}
+      {{- "" if raw is none else raw -}}
+    {% endmacro %}
+    <form method="post" action="{{ action }}"{% if form_id %} id="{{ form_id }}"{% endif %}>
+      <p class="section-head">The basics</p>
+      <div class="field-grid">
+        {{ simple_field("name", schema.fields["name"], val("name")|trim, errors, prefix) }}
+        {{ simple_field("price", schema.fields["price"],
+             submitted.get("price", ("%.2f"|format(current["price"] / 100))
+                           if current and current["price"] is not none else ""),
+             errors, prefix, "money") }}
+        {{ simple_field("calories", schema.fields["calories"], val("calories")|trim, errors, prefix, "integer") }}
+        {{ simple_field("allergens", schema.fields["allergens"], val("allergens")|trim, errors, prefix) }}
+        {{ simple_field("description", schema.fields["description"], val("description")|trim, errors, prefix, "area") }}
+      </div>
+
+      <p class="section-head">What the planner needs</p>
+      <p class="section-note">
+        These three decide how unlike your dish is to the rest of someone's week. Without
+        them the planner cannot tell it apart from anything else, so they are required.
+      </p>
+      <div class="field-grid">
+        {% for column in required_tags %}
+          {{ tag_field(column, schema.fields[column], val(column)|trim, errors, prefix) }}
+        {% endfor %}
+      </div>
+
+      <p class="section-head">Diets and allergy-relevant tags</p>
+      <div class="field-grid">
+        {{ tag_field("diet_tags", schema.fields["diet_tags"], val("diet_tags")|trim, errors, prefix) }}
+        {{ tag_field("contains", schema.fields["contains"], val("contains")|trim, errors, prefix) }}
+        {{ tag_field("nutrition", schema.fields["nutrition"], val("nutrition")|trim, errors, prefix) }}
+      </div>
+
+      <p class="section-head">Everything else, all optional</p>
+      <div class="field-grid">
+        {% for column in tag_columns %}
+          {% if column not in required_tags and column not in ("diet_tags", "contains", "nutrition") %}
+            {{ tag_field(column, schema.fields[column], val(column)|trim, errors, prefix) }}
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="primary">{{ submit_label }}</button>
+      {% if cancel_url %}<a class="cancel" href="{{ cancel_url }}">Cancel</a>{% endif %}
+    </form>
+  {% endmacro %}
+
+  <div class="container">
+    {% if errors %}
+      <div class="alert" role="alert">
+        {% if errors.get("_consistency") %}
+          This dish contradicts itself: {{ errors["_consistency"] }}
+        {% elif errors.get("_blocked") %}
+          {{ errors["_blocked"] }}
+        {% else %}
+          That dish could not be saved:
+          <ul>
+            {% for column, message in errors.items() %}
+              <li><a href="#{{ (('e' ~ editing ~ '-') if editing else 'new-') ~ column }}">{{ message }}</a></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if request.args.get("added") %}<div class="alert good" role="status">Dish added.</div>{% endif %}
+    {% if request.args.get("saved") %}<div class="alert good" role="status">Changes saved.</div>{% endif %}
+    {% if request.args.get("stock") %}<div class="alert good" role="status">Availability updated.</div>{% endif %}
+    {% if request.args.get("removed") %}<div class="alert good" role="status">Dish removed.</div>{% endif %}
+
+    <div class="toolbar">
+      <form method="get" action="{{ url_for('restaurant_menu') }}" role="search">
+        <label class="sr-only" for="q">Search your menu</label>
+        <input type="search" id="q" name="q" value="{{ query or '' }}"
+               placeholder="Search dishes…" />
+        {% if show != "all" %}<input type="hidden" name="show" value="{{ show }}" />{% endif %}
+        <button type="submit">Search</button>
+      </form>
+      <nav class="filters" aria-label="Filter the menu">
+        {% for key, caption in [("all", "All"), ("on", "On the menu"), ("off", "Off the menu"),
+                                ("untagged", "Needs tags")] %}
+          <a href="{{ url_for('restaurant_menu', show=key if key != 'all' else none, q=query or none) }}"
+             {% if show == key %}aria-current="true"{% endif %}>{{ caption }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    <details class="panel" {% if open_add %}open{% endif %}>
+      <summary>Add a dish</summary>
+      {{ dish_form(url_for("restaurant_menu_new"), "new-", none,
+                   submitted if not editing else {}, errors if not editing else {},
+                   "Add to menu", form_id="add-dish-form") }}
+    </details>
+
+    <div class="panel">
+      <h2>
+        Your menu
+        <span class="tagline">
+          ({{ items|length }} dish{{ "es" if items|length != 1 }}{% if query or show != "all" %} shown{% endif %})
+        </span>
+      </h2>
+      {% if not items %}
+        <p class="empty">
+          {% if query or show != "all" %}
+            Nothing here matches. <a href="{{ url_for('restaurant_menu') }}">Show the whole menu</a>.
+          {% else %}
+            Nothing on the menu yet. Add your first dish above — diners can only be offered
+            dishes that are listed here and in stock.
+          {% endif %}
+        </p>
+      {% else %}
+      <table class="menu">
+        <thead>
+          <tr><th>Dish</th><th>Price</th><th>Tags</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+          {% set open_edit = editing == item["itm_id"] %}
+          <tr id="dish-{{ item['itm_id'] }}"{% if open_edit %} class="editing"{% endif %}>
+            <td data-label="Dish">
+              <div class="dish-name">{{ item["name"] }}</div>
+              {% if item["description"] %}<div class="dish-desc">{{ item["description"] }}</div>{% endif %}
+            </td>
+            <td data-label="Price">
+              {%- if item["price"] is not none %}${{ "%.2f"|format(item["price"] / 100) }}{% else %}—{% endif -%}
+            </td>
+            <td data-label="Tags" class="tagline">
+              {%- set shown = [] -%}
+              {%- for column in required_tags -%}
+                {%- if column in item.keys() and item[column] %}{% set _ = shown.append(item[column]) %}{% endif -%}
+              {%- endfor -%}
+              {%- if shown %}{{ shown|join(" · ") }}{% else %}<span class="badge warn">needs tags</span>{% endif -%}
+              {%- if item["diet_tags"] %}<br />{{ item["diet_tags"] }}{% endif -%}
+            </td>
+            <td data-label="Status">
+              {% if item["instock"] %}<span class="badge in">On the menu</span>
+              {% else %}<span class="badge out">Off the menu</span>{% endif %}
+            </td>
+            <td data-label="Actions">
+              <div class="row-actions">
+                {% if open_edit %}
+                  <a class="action" href="{{ url_for('restaurant_menu', q=query or none, show=show if show != 'all' else none) }}#dish-{{ item['itm_id'] }}">Close</a>
+                {% else %}
+                  <a class="action" href="{{ url_for('restaurant_menu', edit=item['itm_id'], q=query or none, show=show if show != 'all' else none) }}#dish-{{ item['itm_id'] }}">Edit</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('restaurant_menu_stock', itm_id=item['itm_id']) }}">
+                  <button type="submit">{{ "Take off" if item["instock"] else "Put back" }}</button>
+                  <input type="hidden" name="instock" value="{{ 0 if item['instock'] else 1 }}" />
+                </form>
+                <form method="post" action="{{ url_for('restaurant_menu_delete', itm_id=item['itm_id']) }}"
+                      onsubmit="return confirm('Delete {{ item['name']|e }} for good? Taking it off the menu is usually what you want, and keeps plans that already include it working.');">
+                  <button type="submit" class="danger">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% if open_edit %}
+          <tr class="editing">
+            <td class="edit-cell" colspan="5">
+              <h3 style="margin:0.2rem 0 0;font-size:0.95rem">Editing {{ item["name"] }}</h3>
+              {{ dish_form(url_for("restaurant_menu_edit", itm_id=item["itm_id"]),
+                           "e%s-"|format(item["itm_id"]), item, submitted, errors, "Save changes",
+                           url_for("restaurant_menu", q=query or none,
+                                   show=show if show != "all" else none),
+                           form_id="edit-dish-form") }}
+            </td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    <details class="panel">
+      <summary>The same menu over HTTP</summary>
+      <div class="contract">
+        <p>These pages are a client of an API, not a special case. Every rule the forms
+          apply is applied here too, and the contract is generated from the validator
+          rather than written by hand, so it cannot drift from what the server accepts.</p>
+<pre>GET    /api/restaurant/menu/schema          every field, whether it is required, its vocabulary
+GET    /api/restaurant/menu                 your dishes
+POST   /api/restaurant/menu                 add one — 201, or 422 with a message per bad field
+PATCH  /api/restaurant/menu/&lt;itm_id&gt;        change only the fields the body carries
+POST   /api/restaurant/menu/&lt;itm_id&gt;/stock  {"instock": false} takes a dish off the menu
+DELETE /api/restaurant/menu/&lt;itm_id&gt;        409 while a saved plan or order still names it</pre>
+        <p>Required to add a dish:
+          {% for name in schema.required %}<code>{{ name }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+          {{ schema.required_tags_rationale }}</p>
+      </div>
+    </details>
+  </div>
+</body>
+</html>

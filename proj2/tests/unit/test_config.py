@@ -47,7 +47,7 @@ def test_order_charges_follow_config_changes(monkeypatch):
     assert Flask_app._order_charges(10.00, "pickup", 0)["total"] == 11.00
 
 
-@pytest.mark.parametrize("path", ["/orders", "/restaurants"])
+@pytest.mark.parametrize("path", ["/restaurants"])  # the only cart page
 def test_cart_pages_get_fee_schedule_from_server(client, seed_minimal_data, login_session, path,
                                                  monkeypatch):
     """Templates must read fees from the server, so a config change reaches the preview."""

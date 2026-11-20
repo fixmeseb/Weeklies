@@ -93,7 +93,7 @@ class TestRestaurantLogin:
         )
 
         assert response.status_code in (302, 303)
-        assert "/restaurant/dashboard" in response.location
+        assert "/restaurant/orders" in response.location
 
     def test_restaurant_login_with_invalid_email(self, client, seed_restaurant):
         """POST /restaurant/login with non-existent email should show error."""
@@ -133,7 +133,7 @@ class TestRestaurantLogin:
         )
 
         assert response.status_code in (302, 303)
-        assert "/restaurant/dashboard" in response.location
+        assert "/restaurant/orders" in response.location
 
     def test_restaurant_login_trims_whitespace(self, client, seed_restaurant):
         """Restaurant login should trim whitespace from email."""
@@ -147,7 +147,7 @@ class TestRestaurantLogin:
         )
 
         assert response.status_code in (302, 303)
-        assert "/restaurant/dashboard" in response.location
+        assert "/restaurant/orders" in response.location
 
 
 @pytest.mark.integration
@@ -177,7 +177,7 @@ class TestRestaurantSession:
         )
 
         # Make another request
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert response.status_code == 200
         assert b"Test Restaurant" in response.data
 
@@ -187,7 +187,7 @@ class TestRestaurantSession:
         client.post("/login", data={"email": "test@x.com", "password": "secret123"})
 
         # Try to access restaurant dashboard
-        response = client.get("/restaurant/dashboard", follow_redirects=False)
+        response = client.get("/restaurant/orders", follow_redirects=False)
         assert response.status_code in (302, 303)
         assert "/restaurant/login" in response.location
 
@@ -205,14 +205,14 @@ class TestRestaurantLogout:
         )
 
         # Verify dashboard is accessible (session exists)
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert response.status_code == 200
 
         # Logout
         client.get("/restaurant/logout")
 
         # Verify session cleared - dashboard should redirect to login
-        response = client.get("/restaurant/dashboard", follow_redirects=False)
+        response = client.get("/restaurant/orders", follow_redirects=False)
         assert response.status_code in (302, 303)
         assert "/restaurant/login" in response.location
 
@@ -238,14 +238,14 @@ class TestRestaurantLogout:
         )
 
         # Verify dashboard accessible
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert response.status_code == 200
 
         # Logout
         client.get("/restaurant/logout")
 
         # Try to access dashboard again
-        response = client.get("/restaurant/dashboard", follow_redirects=False)
+        response = client.get("/restaurant/orders", follow_redirects=False)
         assert response.status_code in (302, 303)
         assert "/restaurant/login" in response.location
 
@@ -256,7 +256,7 @@ class TestRestaurantDashboard:
 
     def test_dashboard_requires_authentication(self, client):
         """Dashboard should redirect to login when not authenticated."""
-        response = client.get("/restaurant/dashboard", follow_redirects=False)
+        response = client.get("/restaurant/orders", follow_redirects=False)
         assert response.status_code in (302, 303)
         assert "/restaurant/login" in response.location
 
@@ -269,7 +269,7 @@ class TestRestaurantDashboard:
         )
 
         # Access dashboard
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert response.status_code == 200
         assert b"Test Restaurant" in response.data
         assert b"restaurant@test.com" in response.data
@@ -283,7 +283,7 @@ class TestRestaurantDashboard:
         )
 
         # Check dashboard content
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert b"Test Restaurant" in response.data
 
     def test_dashboard_has_logout_button(self, client, seed_restaurant):
@@ -295,7 +295,7 @@ class TestRestaurantDashboard:
         )
 
         # Check dashboard has logout
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert b"Logout" in response.data or b"logout" in response.data
 
     def test_dashboard_has_cache_control_headers(self, client, seed_restaurant):
@@ -307,7 +307,7 @@ class TestRestaurantDashboard:
         )
 
         # Check headers
-        response = client.get("/restaurant/dashboard")
+        response = client.get("/restaurant/orders")
         assert "Cache-Control" in response.headers
         assert "no-cache" in response.headers["Cache-Control"].lower()
         assert "no-store" in response.headers["Cache-Control"].lower()
@@ -319,7 +319,7 @@ class TestRestaurantProtectedRoutes:
 
     def test_direct_dashboard_access_without_login(self, client):
         """Accessing dashboard URL directly should redirect to login."""
-        response = client.get("/restaurant/dashboard", follow_redirects=False)
+        response = client.get("/restaurant/orders", follow_redirects=False)
         assert response.status_code in (302, 303)
         assert "/restaurant/login" in response.location
 
@@ -333,7 +333,7 @@ class TestRestaurantProtectedRoutes:
 
         # Make multiple requests
         for _ in range(3):
-            response = client.get("/restaurant/dashboard")
+            response = client.get("/restaurant/orders")
             assert response.status_code == 200
 
     def test_session_isolation_between_customer_and_restaurant(
@@ -348,7 +348,7 @@ class TestRestaurantProtectedRoutes:
         assert response.status_code == 200
 
         # But not restaurant routes
-        response = client.get("/restaurant/dashboard", follow_redirects=False)
+        response = client.get("/restaurant/orders", follow_redirects=False)
         assert response.status_code in (302, 303)
         assert "/restaurant/login" in response.location
 

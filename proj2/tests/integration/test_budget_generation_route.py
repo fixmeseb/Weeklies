@@ -203,7 +203,7 @@ def test_unexpected_generation_errors_are_logged_without_exposing_details(
             data={"start_date": "2026-10-05", "days": "2", "meal3": "on"},
         )
         assert response.status_code == 302
-        assert response.headers["Location"] == "/profile"
+        assert response.headers["Location"] == "/#new-plan"
         page = client.get(response.headers["Location"]).get_data(as_text=True)
         assert message in page
         assert details not in page
@@ -220,25 +220,25 @@ def test_unexpected_generation_errors_are_logged_without_exposing_details(
         assert session["GeneratedMenu"] == ""
 
 
-def test_profile_ignores_url_error_text_and_consumes_real_form_errors_once(
+def test_calendar_ignores_url_error_text_and_consumes_real_form_errors_once(
     client, login_session, budget_catalog
 ):
     injected = "Send your password to the attacker"
-    html = client.get("/profile", query_string={"gen_error": injected}).get_data(as_text=True)
+    html = client.get("/", query_string={"gen_error": injected}).get_data(as_text=True)
     assert injected not in html
     assert 'role="alert" hidden' in html
     response = client.post("/menu/generate", data={"weekly_cap": "-1"})
     assert response.status_code == 302
-    assert response.headers["Location"] == "/profile"
-    html = client.get("/profile", query_string={"gen_error": injected}).get_data(as_text=True)
+    assert response.headers["Location"] == "/#new-plan"
+    html = client.get("/", query_string={"gen_error": injected}).get_data(as_text=True)
     assert "Weekly cap must be a nonnegative dollar amount" in html
     assert injected not in html
-    html = client.get("/profile").get_data(as_text=True)
+    html = client.get("/").get_data(as_text=True)
     assert "Weekly cap must be a nonnegative dollar amount" not in html
     assert 'role="alert" hidden' in html
 
 
-def test_profile_offers_cap_and_shows_budget_error_for_regular_form(
+def test_calendar_offers_cap_and_shows_budget_error_for_regular_form(
     client, login_session, budget_catalog
 ):
     response = client.post(
@@ -253,9 +253,9 @@ def test_profile_offers_cap_and_shows_budget_error_for_regular_form(
     assert 'id="menuError"' in html
 
 
-def test_calendar_displays_weekly_item_total(client, login_session, budget_catalog):
+def test_insights_display_weekly_item_total(client, login_session, budget_catalog):
     assert client.post("/menu/generate", json=payload()).status_code == 200
-    response = client.get("/2026/10")
+    response = client.get("/insights/2026/10")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "Weekly item totals" in html
@@ -282,7 +282,7 @@ def test_calendar_total_includes_saved_meals_just_outside_the_month(
     )
     assert response.status_code == 200
     assert response.get_json()["weekly_item_totals_cents"] == {"2026-10-26": 9500}
-    page = client.get("/2026/11")
+    page = client.get("/insights/2026/11")
     assert "<td>2026-10-26</td><td>$95.00</td>" in page.get_data(as_text=True)
 
 
@@ -294,6 +294,6 @@ def test_calendar_does_not_claim_zero_total_for_missing_items(
             'UPDATE "User" SET generated_menu=? WHERE email="test@x.com"',
             ("[2026-10-05,999999,3]",),
         )
-    response = client.get("/2026/10")
+    response = client.get("/insights/2026/10")
     assert response.status_code == 200
     assert "Item totals are unavailable" in response.get_data(as_text=True)

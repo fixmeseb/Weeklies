@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 PROJ = Path(__file__).resolve().parents[2]
-TEMPLATES = sorted((PROJ / "templates").glob("*.html"))
+# Full pages only: "_name.html" files are pieces included into pages
+TEMPLATES = sorted(p for p in (PROJ / "templates").glob("*.html") if not p.name.startswith("_"))
 STYLE = (PROJ / "static" / "style.css").read_text(encoding="utf-8")
 THEME_JS = (PROJ / "static" / "theme.js").read_text(encoding="utf-8")
 
