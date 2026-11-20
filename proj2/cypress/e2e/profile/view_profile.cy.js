@@ -19,8 +19,15 @@ describe("User Profile View", () => {
   });
 
   it("names the last order in the Wallet chapter and links to My Orders", () => {
+    // The profile shows only the last order; the full history lives on /orders.
     cy.get("#wallet").should("contain.text", "Taste of Italy");
-    cy.get('#wallet a[href="/orders"]').should("exist");
+    cy.get('#wallet a[href="/orders"]').click();
+    cy.location("pathname").should("eq", "/orders");
+    cy.get("h1").should("contain.text", "My Orders");
+
+    // The seeded delivered order is there, with its restaurant and its status.
+    cy.contains("Taste of Italy").should("be.visible");
+    cy.contains("Delivered").should("be.visible");
   });
 
   it("redirects unauthenticated users to login", () => {
