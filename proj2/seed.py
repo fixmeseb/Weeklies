@@ -122,6 +122,10 @@ def _insert_demo_data(cursor, password):
             "Vegetarian, Italian",
             "Peanuts",
             gen_menu_str,
+            "410 Hillsborough St",
+            "Raleigh",
+            "NC",
+            "27603",
         ),
         (
             "Jane",
@@ -133,12 +137,17 @@ def _insert_demo_data(cursor, password):
             "Gluten-Free, Healthy",
             "Dairy",
             f"[{d1},5,2]",
+            "2 Glenwood Ave, Apt 5",
+            "Raleigh",
+            "NC",
+            "27605",
         ),
     ]
     cursor.executemany(
         """
-        INSERT INTO "User" (first_name, last_name, email, phone, password_HS, wallet, preferences, allergies, generated_menu)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO "User" (first_name, last_name, email, phone, password_HS, wallet, preferences, allergies, generated_menu,
+                            address, city, state, zip)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         users,
     )

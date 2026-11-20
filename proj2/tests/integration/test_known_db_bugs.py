@@ -134,7 +134,6 @@ def _insert_order(bug_db, status, total):
 # ---------------------------------------------------------------- profile
 
 
-@_known_bug(3, "an empty form field falls back to the old value (Flask_app.py:1525-1527)")
 def test_profile_edit_can_clear_allergies(user_client, bug_db):
     user_client.post(
         "/profile/edit", data={"phone": "5550000", "preferences": "", "allergies": ""}
@@ -145,7 +144,6 @@ def test_profile_edit_can_clear_allergies(user_client, bug_db):
 # ---------------------------------------------------------------- ordering
 
 
-@_known_bug(3, "negative tips are accepted and produce a negative total")
 def test_order_rejects_negative_tip(user_client, bug_db):
     resp = user_client.post(
         "/order",
@@ -156,7 +154,6 @@ def test_order_rejects_negative_tip(user_client, bug_db):
     assert _order_count(bug_db) == 0
 
 
-@_known_bug(3, "ordering does not check stock (swaps do)")
 def test_order_rejects_out_of_stock_item(user_client, bug_db):
     resp = user_client.post(
         "/order",
@@ -167,7 +164,6 @@ def test_order_rejects_out_of_stock_item(user_client, bug_db):
     assert _order_count(bug_db) == 0
 
 
-@_known_bug(3, "the legacy GET /order path writes an order (Flask_app.py:2078-2176)")
 def test_get_request_does_not_create_order(user_client, bug_db):
     user_client.get(f"/order?itm_id={bug_db['in_stock']}")
     assert _order_count(bug_db) == 0
@@ -193,7 +189,6 @@ def restaurant_client(app, bug_db):
         yield c
 
 
-@_known_bug(3, "every analytics page view inserts a new snapshot row")
 def test_analytics_views_do_not_multiply_snapshots(restaurant_client, bug_db):
     restaurant_client.get("/restaurant/analytics")
     after_one = _rows(bug_db["path"], "SELECT COUNT(*) FROM Analytics")[0][0]
@@ -202,7 +197,6 @@ def test_analytics_views_do_not_multiply_snapshots(restaurant_client, bug_db):
     assert _rows(bug_db["path"], "SELECT COUNT(*) FROM Analytics")[0][0] == after_one
 
 
-@_known_bug(3, "revenue includes cancelled orders (Flask_app.py:209-226)")
 def test_analytics_revenue_excludes_cancelled_orders(bug_db):
     _insert_order(bug_db, "Delivered", 10.00)
     _insert_order(bug_db, "Cancelled", 20.00)

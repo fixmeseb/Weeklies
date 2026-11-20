@@ -397,14 +397,17 @@
       items: lines.map(l => ({ itm_id: Number(l.item.itm_id), qty: Number(l.qty||1), notes: l.notes || '' })),
       delivery_type: deliveryType,
       tip: Number(tipDollar||0),
-      eta_minutes: 40,
-      date: new Date().toISOString().slice(0,10),
-      meal: 3
+      eta_minutes: 40
+      // No date or meal: an order from here is for as soon as possible.
     };
     try {
       const res = await fetch(`{{ url_for('order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Order failed');
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.ok) {
+        // The server says why: sold out, closed now, an allergen, no delivery address...
+        showToast((data && data.message) || 'Could not place the order');
+        return;
+      }
       showToast('Order placed!');
       const cart = readCart().filter(l => Number(l.restaurant_id) !== Number(rtrId));
       writeCart(cart);

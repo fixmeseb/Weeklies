@@ -1,4 +1,4 @@
-from proj2.sqlQueries import create_connection, close_connection, fetch_all
+from proj2.sqlQueries import create_connection, close_connection, fetch_all, fetch_one
 
 
 def _first_menu_item_id(db_path, rtr_id):
@@ -63,17 +63,26 @@ def test_orders_json_item_specific_not_found(
     assert body.get("error") == "item_999999_not_found"
 
 
-def test_legacy_get_order_success_redirects_to_my_orders(
+def test_get_order_places_nothing_and_redirects_to_restaurants(
     client, temp_db_path, seed_minimal_data, login_session
 ):
+    """GET /order used to place an order from query arguments, so a link could buy food.
+    Orders are POST-only now; a GET goes to the Restaurants page."""
     rtr_id = seed_minimal_data["rtr_id"]
     itm_id = _first_menu_item_id(temp_db_path, rtr_id)
 
+    def count():
+        conn = create_connection(temp_db_path)
+        try:
+            return fetch_one(conn, 'SELECT COUNT(*) FROM "Order"')[0]
+        finally:
+            close_connection(conn)
+
+    before = count()
     resp = client.get(
         f"/order?itm_id={itm_id}&qty=2&delivery=delivery&tip=1.50&eta=30&date=2025-11-10&meal=2",
         follow_redirects=False,
     )
     assert resp.status_code in (302, 303)
-    loc = resp.headers.get("Location", "")
-    assert "/orders" in loc
-    assert "ordered=" in loc
+    assert resp.headers.get("Location", "").endswith("/restaurants")
+    assert count() == before

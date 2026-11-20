@@ -24,6 +24,7 @@ from typing import Tuple
 
 import pandas as pd
 
+from proj2 import meal_times as meal_times_module
 from proj2 import variety
 from proj2.meal_budget import (
     BudgetExceededError,
@@ -60,10 +61,10 @@ RESTART_OPENINGS = 12
 ## Days before a new plan's first day whose ordered meals shape its variety
 LOOKBACK_DAYS = 3
 
-## Preset Meal times - In the future, times will be user-provided
-BREAKFAST_TIME = 1000
-LUNCH_TIME = 1400
-DINNER_TIME = 2000
+## Default meal times (HHMM); a user's own come from proj2.meal_times.times_for
+BREAKFAST_TIME = meal_times_module.DEFAULT_TIMES[1]
+LUNCH_TIME = meal_times_module.DEFAULT_TIMES[2]
+DINNER_TIME = meal_times_module.DEFAULT_TIMES[3]
 
 
 class NoEligibleMealError(ValueError):
@@ -83,18 +84,18 @@ def recent_repeats(recent, position: int) -> set:
     """
     day = position // variety.SLOTS_PER_DAY
     return {
-        itm_id
-        for pos, itm_id in recent
-        if abs(day - pos // variety.SLOTS_PER_DAY) <= LOOKBACK_DAYS
+        itm_id for pos, itm_id in recent if abs(day - pos // variety.SLOTS_PER_DAY) <= LOOKBACK_DAYS
     }
 
 
-def get_meal_and_order_time(meal_number: int) -> Tuple[str, int]:
+def get_meal_and_order_time(meal_number: int, times: dict = None) -> Tuple[str, int]:
     """
-    Maps a meal number to it's cooresponding meal as a string as well as its cooreponding meal time
+    Maps a meal number to its meal name and the time it is eaten
 
     Args:
         meal_number (int): The meal number to get the meal and order times for
+        times (dict | None): The user's meal times (proj2.meal_times.times_for); None
+            uses the defaults
 
     Returns:
         str: The name of the meal as a string ("breakfast", "lunch", or "dinner")
@@ -117,6 +118,8 @@ def get_meal_and_order_time(meal_number: int) -> Tuple[str, int]:
             order_time = DINNER_TIME
         case _:
             raise ValueError("The meal number must be 1, 2, or 3")
+    if times:
+        order_time = int(times[meal_number])
     return meal, order_time
 
 
@@ -520,6 +523,7 @@ class MenuGenerator:
         number_of_days: int = 1,
         weekly_cap_cents: int = None,
         ordered_meals=(),
+        meal_times=None,
     ) -> str:
         """
         Fills the empty slots of a plan with the most varied eligible meals
@@ -537,6 +541,8 @@ class MenuGenerator:
                 counting all existing meals in that week. None leaves generation uncapped.
             ordered_meals: (date, itm_id, meal) of meals the user ordered; those in the
                 LOOKBACK_DAYS before {date} count as described in the module docstring
+            meal_times (dict | None): The user's meal times (proj2.meal_times.times_for);
+                restaurants must be open then. None uses the defaults.
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
@@ -578,7 +584,7 @@ class MenuGenerator:
             for meal in meals:
                 if (day, meal) in occupied:
                     continue
-                _, order_time = get_meal_and_order_time(meal)
+                _, order_time = get_meal_and_order_time(meal, meal_times)
                 key = (weekday, order_time, meal)
                 if key not in candidates_for:
                     candidates_for[key] = self._eligible_candidates(

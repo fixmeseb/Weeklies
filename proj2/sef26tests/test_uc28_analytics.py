@@ -59,15 +59,19 @@ def test_analytics_invalid_data(client, seed_user, seed_restaurant, temp_db_path
 
 
 def test_analytics_no_popular_item(client, seed_restaurant, temp_db_path):
-    """UC28 ext 2b: no orders → most_popular_item_id is NULL in snapshot."""
+    """UC28 ext 2b: no orders → most_popular_item_id is NULL in snapshot.
+
+    Snapshots are saved when orders change, not when the page is viewed, so this
+    records one directly after removing the orders."""
     from proj2.sqlQueries import create_connection, execute_query, fetch_one, close_connection
     conn = create_connection(temp_db_path)
     try:
         execute_query(conn, 'DELETE FROM "Order" WHERE rtr_id=?', (seed_restaurant["rtr_id"],))
     finally:
         close_connection(conn)
-    _login_owner(client, seed_restaurant)
-    client.get("/restaurant/analytics")
+    from proj2 import Flask_app
+    with client.application.app_context():
+        assert Flask_app.record_analytics_snapshot(seed_restaurant["rtr_id"]) is True
     conn = create_connection(temp_db_path)
     try:
         row = fetch_one(conn,

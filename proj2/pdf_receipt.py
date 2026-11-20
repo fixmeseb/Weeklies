@@ -99,6 +99,8 @@ def generate_order_receipt_pdf(db_file: str, ord_id: int) -> bytes:
 
         placed_at = _dt_display(j.get("placed_at") or j.get("time"))
         delivery_type = _safe_str(j.get("delivery_type"))
+        deliver_to = _safe_str(j.get("deliver_to"))
+        due_at = _safe_str(j.get("due_at")).replace("T", " ") if not j.get("asap") else ""
         notes = _safe_str(j.get("notes"))
 
         items = j.get("items") or []
@@ -255,6 +257,12 @@ def generate_order_receipt_pdf(db_file: str, ord_id: int) -> bytes:
         c.setFont("Helvetica", 9)
         if delivery_type:
             c.drawString(margin, y, f"Delivery type: {delivery_type}")
+            y -= 12
+        if deliver_to:
+            c.drawString(margin, y, f"Deliver to: {deliver_to[:110]}")
+            y -= 12
+        if due_at:
+            c.drawString(margin, y, f"For: {due_at}")
             y -= 12
         if notes:
             c.drawString(margin, y, f"Notes: {notes[:120]}")

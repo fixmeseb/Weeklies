@@ -22,6 +22,17 @@ from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
 from proj2.order_progress import order_progress
+from proj2 import meal_times, plan_edit
+from proj2.ordering import (
+    OrderError,
+    build_order,
+    daily_order_counts,
+    delivery_address,
+    insert_order,
+    restaurant_metrics,
+    set_status,
+    status_history,
+)
 from proj2.dietary import with_account_allergies, with_account_diets
 from proj2 import menu_items
 from proj2.meal_swap import (
@@ -39,7 +50,13 @@ from flask import Flask, render_template, url_for, redirect, request, session, s
 
 # Use ONLY these helpers for DB access: get_db() for the connection, then the
 # sqlQueries helpers (which raise on SQL errors) to run statements.
-from proj2.db import DatabaseNotInitialisedError, connect, get_db, init_app as init_db_support
+from proj2.db import (
+    DatabaseNotInitialisedError,
+    connect,
+    get_db,
+    init_app as init_db_support,
+    transaction,
+)
 from proj2.sqlQueries import fetch_one, fetch_all, execute_query
 
 SECRET_KEY_ENV = "WEEKLIES_SECRET_KEY"
@@ -204,15 +221,20 @@ def parse_generated_menu(gen_str):
     return out
 
 
+def _restaurant_orders_for_metrics(conn, rtr_id):
+    """(status, usr_id, details) of every order a restaurant has received."""
+    return fetch_all(
+        conn, 'SELECT status, usr_id, details FROM "Order" WHERE rtr_id = ?', (rtr_id,)
+    )
+
+
 def record_analytics_snapshot(rtr_id):
     """
-    Record an analytics snapshot for a restaurant by calculating current order metrics.
+    Save today's figures for a restaurant (proj2.ordering.restaurant_metrics).
 
-    This function:
-    1. Queries all orders for the restaurant
-    2. Calculates total orders, revenue, average order value, and completion rate
-    3. Identifies the most popular menu item
-    4. Inserts a new snapshot record in the Analytics table
+    There is one snapshot per restaurant per day: a later call the same day replaces
+    that day's row instead of adding another, so the history has one point per day
+    however often orders change. Cancelled orders are left out of revenue.
 
     Args:
         rtr_id (int): The restaurant ID to record analytics for.
@@ -221,108 +243,40 @@ def record_analytics_snapshot(rtr_id):
         bool: True if snapshot was recorded successfully, False otherwise.
     """
     conn = get_db()
-
+    today = date.today().isoformat()
     try:
-        # Get all orders for this restaurant
-        orders = fetch_all(
-            conn,
-            """
-            SELECT ord_id, status, details
-            FROM "Order"
-            WHERE rtr_id = ?
-            """,
-            (rtr_id,),
-        )
-
-        if not orders:
-            # No orders yet, create a blank snapshot
-            total_orders = 0
-            total_revenue_cents = 0
-            avg_order_value_cents = 0
-            total_customers = 0
-            order_completion_rate = 0.0
-            most_popular_item_id = None
-        else:
-            total_orders = len(orders)
-            total_revenue_cents = 0
-            unique_customers = set()
-            completed_orders = 0
-            item_counts = {}
-
-            # Process each order
-            for ord_id, status, details_json in orders:
-                # Track completion rate
-                if status and status.lower() in ["completed", "delivered"]:
-                    completed_orders += 1
-
-                # Parse details JSON
-                try:
-                    if details_json:
-                        details = (
-                            json.loads(details_json)
-                            if isinstance(details_json, str)
-                            else details_json
-                        )
-
-                        # Extract revenue
-                        if "charges" in details and "total" in details["charges"]:
-                            total_cents = int(details["charges"]["total"] * 100)
-                            total_revenue_cents += total_cents
-
-                        # Track items for popularity
-                        if "items" in details:
-                            for item in details["items"]:
-                                itm_id = item.get("itm_id")
-                                if itm_id:
-                                    item_counts[itm_id] = item_counts.get(itm_id, 0) + 1
-                except (json.JSONDecodeError, TypeError, KeyError):
-                    continue
-
-                # Note: We don't have usr_id in the Order table currently
-                # So we can't track unique_customers reliably
-                # This would need to be added to the Order schema if needed
-
-            # Calculate metrics
-            avg_order_value_cents = total_revenue_cents // total_orders if total_orders > 0 else 0
-            total_customers = total_orders  # Use total orders as proxy since usr_id not available
-            order_completion_rate = (completed_orders / total_orders) if total_orders > 0 else 0.0
-
-            # Find most popular item
-            most_popular_item_id = None
-            if item_counts:
-                most_popular_item_id = max(item_counts.items(), key=lambda x: x[1])[0]
-
-        # Record the snapshot
-        snapshot_date = date.today().isoformat()
-        created_at = datetime.now().isoformat()
-
-        execute_query(
-            conn,
-            """
-            INSERT INTO Analytics
-            (rtr_id, snapshot_date, total_orders, total_revenue_cents, avg_order_value_cents,
-             total_customers, most_popular_item_id, order_completion_rate, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                rtr_id,
-                snapshot_date,
-                total_orders,
-                total_revenue_cents,
-                avg_order_value_cents,
-                total_customers,
-                most_popular_item_id,
-                order_completion_rate,
-                created_at,
-            ),
-        )
-
+        m = restaurant_metrics(_restaurant_orders_for_metrics(conn, rtr_id))
+        with transaction(conn):
+            # Replace today's row (migration 005 also makes a second one impossible).
+            execute_query(
+                conn,
+                "DELETE FROM Analytics WHERE rtr_id = ? AND snapshot_date = ?",
+                (rtr_id, today),
+            )
+            execute_query(
+                conn,
+                """
+                INSERT INTO Analytics
+                (rtr_id, snapshot_date, total_orders, total_revenue_cents,
+                 avg_order_value_cents, total_customers, most_popular_item_id,
+                 order_completion_rate, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rtr_id,
+                    today,
+                    m["total_orders"],
+                    m["total_revenue_cents"],
+                    m["avg_order_value_cents"],
+                    m["total_customers"],
+                    m["most_popular_item_id"],
+                    m["order_completion_rate"],
+                    datetime.now().isoformat(),
+                ),
+            )
         return True
-    except Exception as e:
-        print(f"Error recording analytics snapshot: {e}")
-        import traceback
-
-        traceback.print_exc()
+    except Exception:
+        app.logger.exception("Could not record the analytics snapshot for %s", rtr_id)
         return False
 
 
@@ -572,12 +526,21 @@ def index(year, month):
 
     # Load current user's generated_menu
     conn = get_db()
-    user = fetch_one(
-        conn, 'SELECT generated_menu FROM "User" WHERE email = ?', (session.get("Email"),)
-    )
+    user = account(conn, email=session.get("Email"))
 
     if not user:
         return redirect(url_for("logout"))
+    # Planned meals whose dish is on an order for that day and meal (not cancelled), as
+    # "YYYY-MM-DD|meal". Another dish ordered at that time does not count.
+    planned = set(plan_entries(user["generated_menu"] or ""))
+    ordered_slots = sorted(
+        {
+            f"{day}|{meal}"
+            for day, itm_id, meal in order_meals(conn, user["usr_id"])
+            if (day, itm_id, meal) in planned
+        }
+    )
+    times = meal_times.times_for(user)
 
     gen_str = user["generated_menu"] or ""
     gen_map = parse_generated_menu(gen_str)
@@ -637,6 +600,10 @@ def index(year, month):
         today_menu=today_menu,
         generation_error=session.pop("menu_generation_error", None),
         almanac_weeks=almanac_weeks,
+        ordered_slots=ordered_slots,
+        plan_notice=session.pop("plan_notice", None),
+        delivery_to=delivery_address(user),
+        meal_time_labels={meal: meal_times.as_display(t) for meal, t in times.items()},
     )
 
 
@@ -965,12 +932,21 @@ def restaurant_orders():
             "date": details.get("date", ""),
             "meal": details.get("meal", 3),
             "notes": details.get("notes", ""),
+            "for": _order_for(details_json),
+            "due_at": details.get("due_at", ""),
+            "deliver_to": details.get("deliver_to", ""),
         }
 
         if status in orders_by_status:
             orders_by_status[status].append(order_obj)
         else:
             orders_by_status.setdefault("Other", []).append(order_obj)
+
+    # Orders still to make come soonest-due first; orders without a due time keep
+    # their newest-first place after them.
+    for status in ("Ordered", "Accepted", "Preparing", "Ready"):
+        if status in orders_by_status:
+            orders_by_status[status].sort(key=lambda o: (not o["due_at"], o["due_at"]))
 
     return render_template(
         "restaurant_orders.html",
@@ -1094,7 +1070,6 @@ def restaurant_owner_reviews():
     )
 
 
-
 @app.route("/restaurant/analytics")
 @restaurant_required
 def restaurant_analytics():
@@ -1110,35 +1085,13 @@ def restaurant_analytics():
     restaurant_name = session.get("RestaurantName", "Restaurant")
     rtr_id = session.get("rtr_id")
 
-    # Record a fresh analytics snapshot from current order data
-    record_analytics_snapshot(rtr_id)
-
+    # Figures straight from the orders; viewing the page writes nothing.
     conn = get_db()
-    # Get the latest snapshot for current metrics
-    latest_snapshot = fetch_one(
-        conn,
-        """
-        SELECT total_orders, total_revenue_cents, avg_order_value_cents, 
-               order_completion_rate
-        FROM Analytics
-        WHERE rtr_id = ?
-        ORDER BY analytics_id DESC
-        LIMIT 1
-        """,
-        (rtr_id,),
-    )
-
-    if latest_snapshot:
-        total_orders, total_revenue_cents, avg_order_value_cents, completion_rate = (
-            latest_snapshot
-        )
-        total_revenue = total_revenue_cents / 100.0
-        avg_order_value = avg_order_value_cents / 100.0
-    else:
-        total_orders = 0
-        total_revenue = 0.0
-        avg_order_value = 0.0
-        completion_rate = 0.0
+    all_orders = _restaurant_orders_for_metrics(conn, rtr_id)
+    metrics = restaurant_metrics(all_orders)
+    total_orders = metrics["total_orders"]
+    total_revenue = metrics["total_revenue_cents"] / 100.0
+    avg_order_value = metrics["avg_order_value_cents"] / 100.0
 
     # Get order status distribution from actual orders
     status_data = fetch_all(
@@ -1162,7 +1115,7 @@ def restaurant_analytics():
         conn,
         """
         SELECT details FROM "Order"
-        WHERE rtr_id = ?
+        WHERE rtr_id = ? AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled')
         """,
         (rtr_id,),
     )
@@ -1188,23 +1141,8 @@ def restaurant_analytics():
     item_names = [item[0] for item in top_items]
     item_counts = [item[1] for item in top_items]
 
-    # Get historical data for time series chart (last 30 days)
-    snapshots = fetch_all(
-        conn,
-        """
-        SELECT snapshot_date, total_orders
-        FROM Analytics
-        WHERE rtr_id = ?
-        ORDER BY snapshot_date DESC
-        LIMIT 30
-        """,
-        (rtr_id,),
-    )
-
-    # Reverse to show oldest to newest
-    snapshots = list(reversed(snapshots))
-    date_labels = [s[0] for s in snapshots]
-    date_counts = [s[1] for s in snapshots]
+    # Orders placed on each of the last 30 days (every day shown, cancelled left out)
+    date_labels, date_counts = daily_order_counts(all_orders, date.today(), days=30)
 
     return render_template(
         "restaurant_analytics.html",
@@ -1252,7 +1190,7 @@ def restaurant_accept_order(ord_id):
         )
 
     # Update status
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Accepted", ord_id))
+    set_status(conn, ord_id, "Accepted")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1286,7 +1224,7 @@ def restaurant_reject_order(ord_id):
             400,
         )
 
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Cancelled", ord_id))
+    set_status(conn, ord_id, "Cancelled")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1319,7 +1257,7 @@ def restaurant_prepare_order(ord_id):
             400,
         )
 
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Preparing", ord_id))
+    set_status(conn, ord_id, "Preparing")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1352,7 +1290,7 @@ def restaurant_ready_order(ord_id):
             400,
         )
 
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Ready", ord_id))
+    set_status(conn, ord_id, "Ready")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1385,7 +1323,7 @@ def restaurant_deliver_order(ord_id):
             400,
         )
 
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Delivered", ord_id))
+    set_status(conn, ord_id, "Delivered")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1477,25 +1415,25 @@ def profile():
         return redirect(url_for("logout"))
 
     conn = get_db()
-    row = fetch_one(
-        conn,
-        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies FROM "User" WHERE email = ?',
-        (email,),
-    )
+    row = account(conn, email=email)
     if not row:
         return redirect(url_for("logout"))
 
     user = {
-        "usr_id": row[0],
-        "first_name": row[1],
-        "last_name": row[2],
-        "email": row[3],
-        "phone": row[4],
-        "password_HS": row[5],
-        "wallet": (row[6] or 0) / 100.0,
-        "preferences": row[7] or "",
-        "allergies": row[8] or "",
+        "usr_id": row["usr_id"],
+        "first_name": row["first_name"],
+        "last_name": row["last_name"],
+        "email": row["email"],
+        "phone": row["phone"],
+        "wallet": (row["wallet"] or 0) / 100.0,
+        "preferences": row["preferences"] or "",
+        "allergies": row["allergies"] or "",
+        "address": row["address"] or "",
+        "city": row["city"] or "",
+        "state": row["state"] or "",
+        "zip": row["zip"] or "",
     }
+    times = meal_times.times_for(row)
 
     session["usr_id"] = user["usr_id"]
 
@@ -1510,6 +1448,11 @@ def profile():
         last_order=recent[0] if recent else None,
         pw_updated=pw_updated,
         pw_error=pw_error,
+        address_line=delivery_address(row),
+        times_text={meal: meal_times.as_text(t) for meal, t in times.items()},
+        times_display={meal: meal_times.as_display(t) for meal, t in times.items()},
+        times_error=session.pop("meal_times_error", None),
+        times_saved=bool(request.args.get("times_saved")),
     )
 
 
@@ -1583,19 +1526,43 @@ def edit_profile():
     }
 
     if request.method == "POST":
-        new_phone = request.form.get("phone") or user["phone"]
-        new_prefs = request.form.get("preferences") or user["preferences"]
-        new_allergies = request.form.get("allergies") or user["allergies"]
+        # A field the form sent empty clears it (that is how allergies are removed); a
+        # field the form did not send at all keeps its saved value.
+        def submitted(name, current):
+            if name not in request.form:
+                return current
+            return (request.form.get(name) or "").strip()
+
+        new_phone = submitted("phone", user["phone"] or "")
+        new_prefs = submitted("preferences", user["preferences"])
+        new_allergies = submitted("allergies", user["allergies"])
+        current_address = fetch_one(
+            conn, 'SELECT address, city, state, zip FROM "User" WHERE usr_id = ?', (usr_id,)
+        )
+        address = {
+            key: submitted(key, current_address[key] or "")
+            for key in ("address", "city", "state", "zip")
+        }
 
         conn = get_db()
         execute_query(
             conn,
             """
             UPDATE "User"
-            SET phone = ?, preferences = ?, allergies = ?
+            SET phone = ?, preferences = ?, allergies = ?,
+                address = ?, city = ?, state = ?, zip = ?
             WHERE usr_id = ?
         """,
-            (new_phone, new_prefs, new_allergies, usr_id),
+            (
+                new_phone,
+                new_prefs,
+                new_allergies,
+                address["address"],
+                address["city"],
+                address["state"],
+                address["zip"],
+                usr_id,
+            ),
         )
 
         # Refresh session values
@@ -1606,6 +1573,36 @@ def edit_profile():
         return redirect(url_for("profile"))
 
     return redirect(url_for("profile", _anchor="edit"))
+
+
+@app.route("/profile/meal-times", methods=["POST"])
+def save_meal_times():
+    """
+    Save when the user eats breakfast, lunch and dinner (proj2/meal_times.py).
+
+    Form fields breakfast_time, lunch_time and dinner_time as HH:MM. Plans, swaps and
+    orders check that restaurants are open at these times.
+    """
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
+    usr_id = session.get("usr_id")
+    if not usr_id:
+        return redirect(url_for("logout"))
+    try:
+        times = {
+            meal: meal_times.parse_time(request.form.get(column))
+            for meal, (_name, column, _default) in meal_times.MEALS.items()
+        }
+        meal_times.check_order(times)
+    except meal_times.MealTimeError as err:
+        session["meal_times_error"] = str(err)
+        return redirect(url_for("profile", _anchor="meal-times"))
+    execute_query(
+        get_db(),
+        'UPDATE "User" SET breakfast_time = ?, lunch_time = ?, dinner_time = ? WHERE usr_id = ?',
+        (times[1], times[2], times[3], usr_id),
+    )
+    return redirect(url_for("profile", times_saved=1, _anchor="meal-times"))
 
 
 @app.route("/profile/change-password", methods=["POST"])
@@ -1822,7 +1819,6 @@ def review_order(ord_id):
     return render_template("review.html", order=order)
 
 
-
 @app.route("/order/<int:ord_id>/review/view")
 def view_review(ord_id):
     """
@@ -1953,7 +1949,6 @@ def restaurant_reviews(rtr_id):
     )
 
 
-
 # Order route (Calendar "Order" button target)
 @app.route("/order", methods=["GET", "POST"])
 def order():
@@ -1962,7 +1957,9 @@ def order():
     Args:
         None
     Returns:
-        Response: JSON with {'ok', 'ord_id'} on POST; redirects/HTML for legacy GET.
+        Response: JSON with {'ok', 'ord_id'} on success, or {'ok': False, 'error',
+        'message'} with 400/404/409 (see proj2.ordering.build_order). A GET places
+        nothing and redirects to the Restaurants page.
     """
     # Must be logged in
     if session.get("Username") is None:
@@ -1980,210 +1977,24 @@ def order():
         usr_id = row[0]
         session["usr_id"] = usr_id
 
-    # ---- POST JSON: place a single order containing ALL items in the restaurant group ----
-    if request.method == "POST" and request.is_json:
-        payload = request.get_json(silent=True) or {}
-        rtr_id = int(payload.get("restaurant_id") or 0)
-        items_in = payload.get("items") or []  # [{itm_id, qty, notes}]
-        delivery_type = (payload.get("delivery_type") or "delivery").lower()
-        if delivery_type not in ("delivery", "pickup"):
-            delivery_type = "delivery"
-        tip_dollars = _money(payload.get("tip") or 0)
-        eta_minutes = int(payload.get("eta_minutes") or 40)
-        iso_date = payload.get("date") or datetime.now().date().isoformat()
-        try:
-            meal = int(payload.get("meal") or 3)
-        except Exception:
-            meal = 3
-
-        if rtr_id <= 0 or not items_in:
-            return jsonify({"ok": False, "error": "invalid_input"}), 400
-
-        # Look up all items strictly from DB to get authoritative prices/names
-        itm_ids = [int(it.get("itm_id") or 0) for it in items_in if int(it.get("itm_id") or 0) > 0]
-        if not itm_ids:
-            return jsonify({"ok": False, "error": "no_items"}), 400
-
-        conn = get_db()
-        qmarks = ",".join(["?"] * len(itm_ids))
-        rows = fetch_all(
-            conn,
-            f"""
-            SELECT m.itm_id, m.rtr_id, m.name, m.price, r.name
-            FROM "MenuItem" m
-            JOIN "Restaurant" r ON r.rtr_id = m.rtr_id
-            WHERE m.itm_id IN ({qmarks})
-        """,
-            tuple(itm_ids),
-        )
-
-        # Validate that all items belong to the same restaurant
-        if not rows:
-            return jsonify({"ok": False, "error": "items_not_found"}), 404
-
-        # Map itm_id -> {price, name, rtr_id, rtr_name}
-        dbmap = {
-            row[0]: {
-                "rtr_id": row[1],
-                "name": row[2],
-                "price_cents": row[3] or 0,
-                "restaurant_name": row[4],
-            }
-            for row in rows
-        }
-        for it in itm_ids:
-            if it not in dbmap:
-                return jsonify({"ok": False, "error": f"item_{it}_not_found"}), 404
-            if int(dbmap[it]["rtr_id"]) != rtr_id:
-                return jsonify({"ok": False, "error": "mixed_restaurants"}), 400
-
-        # Build items array for details; compute charges
-        detail_items = []
-        subtotal = 0.0
-        for it in items_in:
-            iid = int(it.get("itm_id"))
-            qty = int(it.get("qty") or 1)
-            if qty <= 0:
-                qty = 1
-            meta = dbmap[iid]
-            unit_price = _cents_to_dollars(meta["price_cents"])
-            line_total = _money(unit_price * qty)
-            subtotal = _money(subtotal + line_total)
-            detail_items.append(
-                {
-                    "itm_id": iid,
-                    "name": meta["name"],
-                    "qty": qty,
-                    "unit_price": unit_price,
-                    "line_total": line_total,
-                    **({"notes": (it.get("notes") or "")} if it.get("notes") else {}),
-                }
-            )
-
-        charges = _order_charges(subtotal, delivery_type, tip_dollars)
-        tax, delivery_fee = charges["tax"], charges["delivery_fee"]
-        service_fee, total = charges["service_fee"], charges["total"]
-
-        placed_iso = datetime.now().astimezone().isoformat()
-
-        details = {
-            "placed_at": placed_iso,
-            "restaurant_id": int(rtr_id),
-            "items": detail_items,
-            "charges": {
-                "subtotal": subtotal,
-                "tax": tax,
-                "delivery_fee": delivery_fee,
-                "service_fee": service_fee,
-                "tip": tip_dollars,
-                "total": total,
-            },
-            "delivery_type": delivery_type,
-            "eta_minutes": int(eta_minutes),
-            "date": iso_date,
-            "meal": meal,
-        }
-
-        # Insert the single order row with status "Ordered"
-        conn = get_db()
-        new_ord_id = execute_query(
-            conn,
-            'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
-            (rtr_id, usr_id, json.dumps(details), "Ordered"),
-        ).lastrowid
-
-        # Update analytics for this restaurant
-        update_analytics_safe(rtr_id)
-
-        return jsonify({"ok": True, "ord_id": new_ord_id})
-
-    # ---- (optional) legacy GET single-item path, kept for compatibility ----
-    # If you don't need this anymore, you can remove the whole GET section.
-    # Expect query: itm_id, qty, notes, delivery, tip, eta, date, meal
-    itm_id = int(request.args.get("itm_id") or 0)
-    if itm_id <= 0:
+    # GET /order used to place an order from query arguments; a link or prefetch could
+    # buy food. Orders are placed only by POST now.
+    if request.method != "POST" or not request.is_json:
         return redirect(url_for("restaurants"))
 
-    try:
-        qty = max(1, int(request.args.get("qty", "1")))
-    except ValueError:
-        qty = 1
-    delivery_type = (request.args.get("delivery") or "delivery").lower()
-    if delivery_type not in ("delivery", "pickup"):
-        delivery_type = "delivery"
-    try:
-        tip_dollars = _money(float(request.args.get("tip", "0")))
-    except Exception:
-        tip_dollars = 0.0
-    try:
-        eta_minutes = int(request.args.get("eta", "40"))
-    except Exception:
-        eta_minutes = 40
-    iso_date = request.args.get("date") or datetime.now().date().isoformat()
-    try:
-        meal = int(request.args.get("meal", "3"))
-    except Exception:
-        meal = 3
-    notes = (request.args.get("notes") or "").strip()
-
-    # Look up item & restaurant strictly
     conn = get_db()
-    mi = fetch_one(
-        conn,
-        """
-        SELECT m.itm_id, m.rtr_id, m.name, m.price, r.name
-        FROM "MenuItem" m
-        JOIN "Restaurant" r ON r.rtr_id = m.rtr_id
-        WHERE m.itm_id = ?
-    """,
-        (itm_id,),
-    )
-    if not mi:
-        return redirect(url_for("orders"))
-
-    item_id, rtr_id, item_name, price_cents, restaurant_name = mi
-    unit_price = _cents_to_dollars(price_cents)
-    line_total = _money(unit_price * qty)
-
-    charges = _order_charges(line_total, delivery_type, tip_dollars)
-    tax, delivery_fee = charges["tax"], charges["delivery_fee"]
-    service_fee, total = charges["service_fee"], charges["total"]
-
-    details = {
-        "placed_at": datetime.now().astimezone().isoformat(),
-        "restaurant_id": int(rtr_id),
-        "items": [
-            {
-                "itm_id": int(item_id),
-                "name": item_name,
-                "qty": int(qty),
-                "unit_price": unit_price,
-                "line_total": line_total,
-                **({"notes": notes} if notes else {}),
-            }
-        ],
-        "charges": {
-            "subtotal": line_total,
-            "tax": tax,
-            "delivery_fee": delivery_fee,
-            "service_fee": service_fee,
-            "tip": tip_dollars,
-            "total": total,
-        },
-        "delivery_type": delivery_type,
-        "eta_minutes": int(eta_minutes),
-        "date": iso_date,
-        "meal": meal,
-    }
-
-    conn = get_db()
-    new_ord_id = execute_query(
-        conn,
-        'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
-        (rtr_id, usr_id, json.dumps(details), "Ordered"),
-    ).lastrowid
-
-    return redirect(url_for("orders", ordered=new_ord_id) if new_ord_id else url_for("orders"))
+    user = account(conn, usr_id=usr_id)
+    if not user:
+        return redirect(url_for("logout"))
+    try:
+        rtr_id, details = build_order(
+            conn, user, request.get_json(silent=True) or {}, _order_charges
+        )
+    except OrderError as err:
+        return jsonify({"ok": False, "error": err.code, "message": err.message}), err.status
+    new_ord_id = insert_order(conn, usr_id, rtr_id, details)
+    update_analytics_safe(rtr_id)
+    return jsonify({"ok": True, "ord_id": new_ord_id})
 
 
 # Orders route
@@ -2197,9 +2008,37 @@ def _order_date(iso_str: str) -> str:
         return iso_str
 
 
+def _order_for(details_json) -> str:
+    """What a planned order is for, e.g. "Sat Nov 21, dinner" ("" for as-soon-as-possible)."""
+    try:
+        j = json.loads(details_json) if details_json else {}
+        if j.get("asap") or not j.get("date"):
+            return ""
+        day = date.fromisoformat(j["date"])
+        meal = SLOT_NAMES.get(int(j.get("meal") or 3), "dinner").lower()
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return ""
+    return f"{day.strftime('%a %b')} {day.day}, {meal}"
+
+
 def _meal_at(hour: int) -> int:
     """The meal slot an order placed at this hour stands for (1 breakfast, 2 lunch, 3 dinner)."""
     return 1 if hour < 11 else 2 if hour < 16 else 3
+
+
+USER_ACCOUNT_COLUMNS = (
+    "usr_id, first_name, last_name, email, phone, wallet, preferences, allergies, "
+    "generated_menu, address, city, state, zip, breakfast_time, lunch_time, dinner_time"
+)
+
+
+def account(conn, email=None, usr_id=None):
+    """The logged-in user's "User" row (as sqlite3.Row), by email or id; None if gone."""
+    if usr_id:
+        return fetch_one(
+            conn, f'SELECT {USER_ACCOUNT_COLUMNS} FROM "User" WHERE usr_id = ?', (usr_id,)
+        )
+    return fetch_one(conn, f'SELECT {USER_ACCOUNT_COLUMNS} FROM "User" WHERE email = ?', (email,))
 
 
 def order_meals(conn, usr_id) -> list:
@@ -2278,12 +2117,16 @@ def user_orders(conn, usr_id):
                 "id": ord_id,
                 "date": placed,
                 "status": status or "",
-                "progress": order_progress(status),
+                "status_raw": status,
                 "restaurant": r_name,
                 "total": total,
                 "has_review": bool(has_review),
+                "for": _order_for(details),
             }
         )
+    history = status_history(conn, [o["id"] for o in orders])
+    for o in orders:
+        o["progress"] = order_progress(o.pop("status_raw"), history.get(o["id"]))
     return orders
 
 
@@ -2612,6 +2455,7 @@ def generate_menu():
 
     if not user:
         return redirect(url_for('logout'))
+    times = meal_times.times_for(account(conn, usr_id=user[0]))
 
     usr_id = user[0]
     prefs_db = user[2] or ""
@@ -2645,6 +2489,7 @@ def generate_menu():
         meal_numbers = sel or [1,2,3]
         preferences = (request.form.get('preferences') or prefs_db).strip()
         allergies = (request.form.get('allergens') or allergies_db).strip()
+    replace = bool(payload.get("replace")) if request.is_json else bool(request.form.get("replace"))
 
     # Diets and allergies on the account are hard rules; a request can add to them but not drop them.
     preferences = with_account_diets(preferences, prefs_db)
@@ -2676,6 +2521,11 @@ def generate_menu():
     if number_of_days > 14:
         number_of_days = 14
 
+    # "Replace" re-plans the chosen meals on these days instead of only filling gaps.
+    if replace:
+        first, last = plan_edit.days_range(start_date, number_of_days)
+        existing_menu, _ = plan_edit.clear_days(existing_menu, first, last, meal_numbers)
+
     # Generate
     try:
         gen = MenuGenerator(database_path=db_path())
@@ -2688,6 +2538,7 @@ def generate_menu():
             number_of_days=number_of_days,
             weekly_cap_cents=weekly_cap_cents,
             ordered_meals=order_meals(conn, usr_id),
+            meal_times=times,
         )
         start = date.fromisoformat(start_date)
         weeks = list(dict.fromkeys(
@@ -2727,6 +2578,188 @@ def generate_menu():
             "variety": gen.variety.as_json() if gen.variety else None,
         })
     return redirect(url_for('index'))
+
+
+def _plan_owner(conn):
+    """The logged-in user's (usr_id, saved plan), or None."""
+    row = fetch_one(
+        conn, 'SELECT usr_id, generated_menu FROM "User" WHERE email = ?', (session.get("Email"),)
+    )
+    return (row[0], row[1] or "") if row else None
+
+
+def _plan_reply(ok, message, status=200, back_to=None, **extra):
+    """JSON for fetch() callers; otherwise a notice on the calendar and a redirect to it."""
+    if request.is_json or request.accept_mimetypes.best == "application/json":
+        body = {"ok": ok, "message": message, **extra}
+        return jsonify(body), status
+    session["plan_notice"] = ("success" if ok else "danger", message)
+    if back_to:
+        year, month, _ = back_to.split("-")
+        return redirect(url_for("index", year=int(year), month=int(month)))
+    return redirect(url_for("index"))
+
+
+def _plan_form():
+    return (request.get_json(silent=True) or {}) if request.is_json else request.form
+
+
+def _save_plan(conn, usr_id, menu):
+    execute_query(conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (menu, usr_id))
+    session["GeneratedMenu"] = menu
+
+
+@app.route("/menu/remove", methods=["POST"])
+def remove_planned_meal():
+    """
+    Remove one planned meal: date (YYYY-MM-DD) and meal (1|2|3), as JSON or form fields.
+    Every other meal in the plan is left as it was.
+    """
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
+    form = _plan_form()
+    conn = get_db()
+    owner = _plan_owner(conn)
+    if not owner:
+        return redirect(url_for("logout"))
+    try:
+        menu, removed = plan_edit.remove_meal(owner[1], form.get("date"), form.get("meal"))
+    except plan_edit.PlanEditError as err:
+        return _plan_reply(False, str(err), 400)
+    if not removed:
+        return _plan_reply(False, "There is no planned meal in that slot.", 404, form.get("date"))
+    _save_plan(conn, owner[0], menu)
+    meal = SLOT_NAMES[int(form.get("meal"))].capitalize()
+    return _plan_reply(
+        True, f"{meal} on {form.get('date')} removed from your plan.", back_to=form.get("date")
+    )
+
+
+def _range_from(form):
+    """(first day, last day, meals) from the plan form's start_date, days and meal1..3."""
+    try:
+        days = int(form.get("days") or form.get("number_of_days") or 1)
+    except (TypeError, ValueError):
+        days = 1
+    days = min(max(days, 1), 31)
+    if request.is_json:
+        meals = [int(m) for m in (form.get("meal_numbers") or [1, 2, 3])]
+    else:
+        meals = [m for m in (1, 2, 3) if form.get(f"meal{m}")] or [1, 2, 3]
+    first, last = plan_edit.days_range(form.get("start_date") or date.today().isoformat(), days)
+    return first, last, meals
+
+
+@app.route("/menu/clear", methods=["POST"])
+def clear_plan_days():
+    """
+    Remove the planned meals from start_date for `days` days (the plan form's fields,
+    or JSON start_date / number_of_days / meal_numbers). Other days are left alone.
+    """
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
+    form = _plan_form()
+    conn = get_db()
+    owner = _plan_owner(conn)
+    if not owner:
+        return redirect(url_for("logout"))
+    try:
+        first, last, meals = _range_from(form)
+        menu, removed = plan_edit.clear_days(owner[1], first, last, meals)
+    except (plan_edit.PlanEditError, ValueError) as err:
+        return _plan_reply(False, str(err), 400)
+    _save_plan(conn, owner[0], menu)
+    span = first if first == last else f"{first} to {last}"
+    count = len(removed)
+    return _plan_reply(
+        True,
+        (
+            f"Cleared {count} meal{'' if count == 1 else 's'} from {span}."
+            if count
+            else f"Nothing was planned from {span}."
+        ),
+        back_to=first,
+        removed=count,
+    )
+
+
+@app.route("/menu/order-plan", methods=["POST"])
+def order_plan_days():
+    """
+    Order every planned meal from start_date for `days` days that is not ordered yet.
+
+    Each meal becomes its own order, due at the user's time for that meal on its day, so
+    the restaurant sees when it is for. Meals that cannot be ordered (sold out, closed
+    then, an allergen, a day already past) are skipped and reported; the rest are placed.
+    Fields: start_date, days, meal1..3 (or JSON number_of_days / meal_numbers),
+    delivery_type and tip (per order).
+    """
+    if session.get("Username") is None:
+        return redirect(url_for("login"))
+    form = _plan_form()
+    conn = get_db()
+    owner = _plan_owner(conn)
+    if not owner:
+        return redirect(url_for("logout"))
+    usr_id, menu = owner
+    try:
+        first, last, meals = _range_from(form)
+    except (plan_edit.PlanEditError, ValueError) as err:
+        return _plan_reply(False, str(err), 400)
+    user = account(conn, usr_id=usr_id)
+    already = set(order_meals(conn, usr_id))  # (day, itm_id, meal) already on an order
+    wanted = [
+        (day, itm_id, meal)
+        for day, itm_id, meal in plan_entries(menu)
+        if first <= day <= last and meal in meals and (day, itm_id, meal) not in already
+    ]
+    if not wanted:
+        return _plan_reply(
+            False,
+            "Every planned meal on those days is already ordered, or none is planned.",
+            back_to=first,
+        )
+    restaurants = dict(
+        fetch_all(
+            conn,
+            f'SELECT itm_id, rtr_id FROM "MenuItem" WHERE itm_id IN ({",".join("?" * len(wanted))})',
+            tuple(itm for _, itm, _ in wanted),
+        )
+    )
+    placed, skipped = [], []
+    for day, itm_id, meal in wanted:
+        request_body = {
+            "restaurant_id": restaurants.get(itm_id, 0),
+            "items": [{"itm_id": itm_id, "qty": 1}],
+            "delivery_type": form.get("delivery_type") or "delivery",
+            "tip": form.get("tip") or 0,
+            "date": day,
+            "meal": meal,
+        }
+        try:
+            rtr_id, details = build_order(conn, user, request_body, _order_charges)
+        except OrderError as err:
+            skipped.append({"date": day, "meal": meal, "error": err.code, "message": err.message})
+            if err.code == "no_address":
+                break  # the same for every meal
+            continue
+        placed.append(insert_order(conn, usr_id, rtr_id, details))
+        update_analytics_safe(rtr_id)
+    message = f"Ordered {len(placed)} meal{'' if len(placed) == 1 else 's'}."
+    if skipped:
+        reasons = "; ".join(
+            f"{SLOT_NAMES[s['meal']].capitalize()} {s['date']}: {s['message']}" for s in skipped[:3]
+        )
+        more = f" (and {len(skipped) - 3} more)" if len(skipped) > 3 else ""
+        message += f" Not ordered: {reasons}{more}"
+    return _plan_reply(
+        bool(placed),
+        message,
+        200 if placed else 409,
+        back_to=first,
+        ord_ids=placed,
+        skipped=skipped,
+    )
 
 
 @app.route("/menu/swap", methods=["POST"])
@@ -2780,7 +2813,12 @@ def swap_meal():
         return _fail("same_item", "That item is already planned for this slot.", 400)
 
     rejection = swap_rejection(
-        load_swap_item(conn, itm_id), allergies, slot_date, meal, preferences
+        load_swap_item(conn, itm_id),
+        allergies,
+        slot_date,
+        meal,
+        preferences,
+        meal_times.times_for(account(conn, usr_id=usr_id)),
     )
     if rejection:
         code, message = rejection
@@ -2841,7 +2879,13 @@ def swap_meal_options():
     if current_itm_id is None:
         return jsonify({"ok": False, "error": "slot_not_found"}), 404
     eligible = list_swap_options(
-        conn, user[0] or "", slot_date, meal, current_itm_id, user[2] or ""
+        conn,
+        user[0] or "",
+        slot_date,
+        meal,
+        current_itm_id,
+        user[2] or "",
+        meal_times.times_for(account(conn, email=session.get("Email"))),
     )
     # Most varied next to the rest of the plan first (same score as generation)
     eligible = rank_swap_options(

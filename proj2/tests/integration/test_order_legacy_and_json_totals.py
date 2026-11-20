@@ -1,4 +1,6 @@
 # tests/integration/test_order_legacy_and_json_totals.py
+import datetime
+
 import proj2.Flask_app as Flask_app  # noqa: F401 (ensures module loads)
 from proj2.sqlQueries import (
     create_connection,
@@ -98,7 +100,7 @@ def test_orders_json_success_with_weird_delivery_type(
         "delivery_type": "WEIRD",
         "tip": 0.0,
         "eta_minutes": 10,
-        "date": "2025-10-27",
+        "date": (datetime.date.today() + datetime.timedelta(days=1)).isoformat(),
         "meal": 1,
     }
     resp = client.post("/order", json=payload)
