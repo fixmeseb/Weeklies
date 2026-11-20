@@ -177,3 +177,53 @@ def calorie_notice(report):
         "With your diet, allergies and budget, the planner could not reach it on "
         f"{'that day' if outside == 1 else 'those days'}, so it planned as close as it could."
     )
+
+
+## The macro fields estimated for each menu item, as MenuItem columns
+MACRO_FIELDS = ("protein_g", "carbs_g", "fat_g", "sodium_mg")
+
+
+def estimate_macros(calories, parts, foods) -> dict:
+    """
+    Estimates an item's protein, carbs, fat and sodium from USDA foods
+
+    Each part covers a share of the item's calories; its food's per-100 g nutrients are
+    scaled to that many calories. The item's own calorie count is kept, and USDA gives
+    the mix of nutrients.
+
+    Args:
+        calories (float): The item's calories (MenuItem.calories)
+        parts (Iterable[Tuple[int, float]]): (fdc_id, share of calories); shares add to 1
+        foods (Mapping[int, dict]): fdc_id -> per-100 g values (proj2.fndds_foods.FOODS)
+
+    Returns:
+        dict: protein_g, carbs_g, fat_g (rounded to 0.1) and sodium_mg (whole mg)
+
+    Raises:
+        ValueError: if the shares do not add up to 1 or a food has no calories
+    """
+    parts = list(parts)
+    if abs(sum(share for _, share in parts) - 1) > 1e-6:
+        raise ValueError("The shares of an item's calories must add up to 1.")
+    totals = dict.fromkeys(MACRO_FIELDS, 0.0)
+    for fdc_id, share in parts:
+        food = foods[fdc_id]
+        if food["kcal"] <= 0:
+            raise ValueError(f"{food['description']} has no calories to scale by.")
+        hundred_grams = calories * share / food["kcal"]
+        for field in MACRO_FIELDS:
+            totals[field] += food[field] * hundred_grams
+    return {
+        "protein_g": round(totals["protein_g"], 1),
+        "carbs_g": round(totals["carbs_g"], 1),
+        "fat_g": round(totals["fat_g"], 1),
+        "sodium_mg": int(round(totals["sodium_mg"])),
+    }
+
+
+def describe_source(parts, foods, release) -> str:
+    """What an estimate came from, for MenuItem.nutrition_source."""
+    named = "; ".join(
+        f"{foods[fdc_id]['description']} (FDC {fdc_id}, {share:.0%})" for fdc_id, share in parts
+    )
+    return f"Estimated from USDA FoodData Central FNDDS {release}: {named}"

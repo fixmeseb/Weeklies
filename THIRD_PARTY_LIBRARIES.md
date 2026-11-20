@@ -32,6 +32,12 @@ All third-party libraries used in the Weeklies project, along with their version
 |---------|---------|---------|---------|
 | [Cypress](https://www.cypress.io/) | 16.1.1 | MIT | End-to-end UI testing framework |
 
+## Data Sources
+
+| Source | Version | License | Purpose |
+|--------|---------|---------|---------|
+| [USDA FoodData Central](https://fdc.nal.usda.gov/), Survey (FNDDS) | 2024-10-31 | Public domain (CC0 1.0) | Per-100 g nutrients the demo menu's protein, carb, fat and sodium estimates come from (`proj2/fndds_foods.py`, rebuilt by `scripts/build_fndds_snapshot.py`) |
+
 ## License Summary
 
 | License | Count |

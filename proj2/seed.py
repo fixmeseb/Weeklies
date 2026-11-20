@@ -16,10 +16,11 @@ from datetime import date, datetime, timedelta
 
 from werkzeug.security import generate_password_hash
 
-from proj2 import demo_menu
+from proj2 import demo_menu, demo_nutrition, fndds_foods
 from proj2.db_cli import init_database
 from proj2.menu_tags_io import TAG_COLUMNS, canonical_cell, contradictions
 from proj2.meal_tags import tag_clashes
+from proj2.nutrition import describe_source, estimate_macros
 
 CYPRESS_PASSWORD = "password123"
 
@@ -41,7 +42,16 @@ class SeedDataError(ValueError):
 
 
 _RESTAURANT_COLUMNS = (
-    "name", "description", "phone", "email", "address", "city", "state", "zip", "hours", "status"
+    "name",
+    "description",
+    "phone",
+    "email",
+    "address",
+    "city",
+    "state",
+    "zip",
+    "hours",
+    "status",
 )
 _ITEM_COLUMNS = ("rtr_id", "name", "description", "price", "calories", "allergens")
 
@@ -58,7 +68,8 @@ def menu_item_row(item: dict) -> dict:
 
     Raises:
         SeedDataError: if a tag is missing, unknown, or contradicts the item's diets,
-            allergens or other tags
+            allergens or other tags, or the item has no USDA match for its nutrients
+            (proj2/demo_nutrition.py)
     """
     row = {column: item[column] for column in _ITEM_COLUMNS}
     problems = []
@@ -74,8 +85,13 @@ def menu_item_row(item: dict) -> dict:
             row["diet_tags"], row["allergens"], row["protein"], row["contains"]
         )
         problems += tag_clashes(row)
+    parts = demo_nutrition.MATCHES.get(item["name"])
+    if parts is None:
+        problems.append("no USDA match in proj2/demo_nutrition.py")
     if problems:
         raise SeedDataError(f"{item['name']}: {'; '.join(problems)}")
+    row.update(estimate_macros(item["calories"], parts, fndds_foods.FOODS))
+    row["nutrition_source"] = describe_source(parts, fndds_foods.FOODS, fndds_foods.RELEASE)
     row.update(instock=1, restock="")
     return row
 
