@@ -42,6 +42,7 @@ from proj2.dietary import (
     with_account_diets,
 )
 from proj2 import menu_items
+from proj2 import restaurant_signup
 from proj2.meal_swap import (
     SlotNotFoundError,
     find_slot_item,
@@ -870,6 +871,130 @@ def restaurant_logout():
     session.pop("RestaurantName", None)
     session.pop("RestaurantEmail", None)
     return redirect(url_for("restaurant_login"))
+
+
+## The days a new restaurant is offered as open before they change anything, and the
+## times those days start with. Mon-Fri 11:00-21:00 is the commonest shape in the seeded
+## catalog; a weekend-only restaurant unticks two boxes.
+SIGNUP_DEFAULT_OPEN = ("Mon", "Tue", "Wed", "Thu", "Fri")
+SIGNUP_DEFAULT_HOURS = ("11:00", "21:00")
+
+
+def _signup_page(errors=None, submitted=None):
+    """
+    Render the sign-up form, blank or with what was typed and why it was rejected.
+    Args:
+        errors (dict | None): Field name -> message, from restaurant_signup.validate.
+        submitted (Mapping | None): The rejected form, so nothing has to be retyped.
+    Returns:
+        Response: The rendered sign-up page.
+    """
+    return render_template(
+        "restaurant_register.html",
+        schema=restaurant_signup.schema(),
+        errors=errors or {},
+        submitted=submitted,
+        default_open=SIGNUP_DEFAULT_OPEN,
+        default_hours=SIGNUP_DEFAULT_HOURS,
+    )
+
+
+def _sign_in_restaurant(rtr_id, name, email):
+    """
+    Put a restaurant into the session exactly as restaurant_login does.
+    Args:
+        rtr_id (int): The restaurant's id.
+        name (str): The restaurant's name, shown in the owner banner.
+        email (str): The address they signed up with, already lowercased.
+    Returns:
+        None
+    """
+    session["restaurant_mode"] = True
+    session["rtr_id"] = rtr_id
+    session["RestaurantName"] = name
+    session["RestaurantEmail"] = email
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(minutes=30)
+
+
+@app.route("/restaurant/register", methods=["GET", "POST"])
+def restaurant_register():
+    """
+    Sign a restaurant up, then sign it in and send it to its empty menu.
+
+    There was a /restaurant/login with no door behind it: every restaurant came from
+    proj2.seed, so nobody could join. A new restaurant lands on the menu page because a
+    restaurant with no dishes is invisible to the planner, so adding the first dish is
+    the only useful next step.
+    Args:
+        None
+    Returns:
+        Response: The sign-up form, the form again with errors, or a redirect to the
+        new restaurant's menu page.
+    """
+    if request.method == "GET":
+        return _signup_page()
+
+    conn = get_db()
+    checked = restaurant_signup.validate(request.form, conn=conn)
+    if not checked.ok:
+        return _signup_page(errors=checked.errors, submitted=request.form)
+
+    try:
+        rtr_id = restaurant_signup.create(conn, checked.values)
+    except IntegrityError:
+        # Restaurant.email is UNIQUE; another sign-up won the race since validate looked.
+        return _signup_page(
+            errors={"email": "That email already has a restaurant account. Log in instead."},
+            submitted=request.form,
+        )
+
+    _sign_in_restaurant(rtr_id, checked.values["name"], checked.values["email"])
+    return redirect(url_for("restaurant_menu", welcome=1))
+
+
+@app.route("/api/restaurant/register/schema")
+def api_restaurant_register_schema():
+    """
+    The sign-up contract: every field, whether it is required, and how hours are stored.
+
+    Public, like the form it describes: a client cannot have an account yet.
+    Args:
+        None
+    Returns:
+        Response: JSON generated from the validator, so it cannot drift from the server.
+    """
+    return jsonify(restaurant_signup.schema())
+
+
+@app.route("/api/restaurant/register", methods=["POST"])
+def api_restaurant_register():
+    """
+    Sign a restaurant up from a JSON body, through the same validator as the form.
+
+    This does not sign the caller in: a programmatic client posts credentials to
+    /restaurant/login for that.
+    Args:
+        None
+    Returns:
+        Response: 201 with the new restaurant, or 422 with one message per bad field.
+    """
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"errors": {"_body": "Send a JSON object."}}), 400
+
+    conn = get_db()
+    checked = restaurant_signup.validate(body, conn=conn)
+    if not checked.ok:
+        return jsonify({"errors": checked.errors}), 422
+
+    try:
+        rtr_id = restaurant_signup.create(conn, checked.values)
+    except IntegrityError:
+        return jsonify({"errors": {"email": "That email already has a restaurant account."}}), 422
+
+    stored = {key: value for key, value in checked.values.items() if key != "password"}
+    return jsonify({"rtr_id": rtr_id, **stored}), 201
 
 
 @app.route("/restaurant/dashboard")

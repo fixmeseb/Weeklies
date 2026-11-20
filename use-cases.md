@@ -398,13 +398,28 @@ This catalog was derived from the behavior implemented in the Weeklies repositor
 
 > **Project 3 extension (restaurant menu management).** Added in Project 3, closing the last missing CRUD surface: before it, `MenuItem` was only ever written by `proj2/seed.py`, `proj2/demo_menu.py` and the CSV importer. The rules live in `proj2/menu_items.py` and reuse `proj2/menu_tags_io.py`'s `canonical_cell` and `contradictions`, so a dish typed into the form and a dish imported from a spreadsheet are held to one standard. The same validator backs the JSON API, whose `GET /api/restaurant/menu/schema` is generated from it rather than written by hand. Implemented in `proj2/menu_items.py`, the `/restaurant/menu` and `/api/restaurant/menu` routes in `proj2/Flask_app.py`, and `proj2/templates/restaurant_menu.html`; tested in `proj2/tests/unit/test_menu_items.py`, `proj2/tests/integration/test_restaurant_menu_routes.py` and `proj2/cypress/e2e/restaurant_dashboard/menu.cy.js`.
 
+## UC31 — List a new restaurant on Weeklies
+
+| Part | Specification |
+|---|---|
+| **Name** | List a new restaurant on Weeklies |
+| **Primary actor** | Prospective restaurant owner, not yet a user |
+| **Stakeholders & interests** | Restaurant owner—wants to join Weeklies and start receiving orders without a developer editing a seed script. Customers—want a wider catalog to be planned from. Weeklies—wants every new restaurant stored so the planner can actually use it, rather than listed but unreachable. |
+| **Preconditions** | None. The sign-up page is public, because a restaurant cannot be signed in before it exists. |
+| **Trigger** | The owner follows "List your restaurant" from the restaurant login page. |
+| **Main success scenario** | 1. Weeklies asks for the restaurant's name, contact details, address, and an opening and closing time for each day it serves.<br>2. The owner fills the form; weekdays are offered as open by default.<br>3. Weeklies checks every field, converts the per-day times into the hours format the planner reads, and hashes the password.<br>4. Weeklies creates the restaurant, signs the owner in, and sends them to their empty menu, where the first dish can be added at once (UC30). |
+| **Extensions** | 1a. The email already has a restaurant account → Weeklies refuses and offers the login page, so an existing restaurant cannot be taken over.<br>2a. A required field is missing or malformed—state not two letters, ZIP not five digits or ZIP+4, an unparseable phone or email → Weeklies reports every problem at once and keeps everything that was typed except the password.<br>2b. The two passwords differ, or the password is too short → Weeklies reports it and keeps the rest of the form.<br>3a. A day's closing time is not after its opening time → Weeklies refuses that day, because the planner reads a day as a single window and such a window matches no time at all, which would leave the restaurant looking open and never being planned.<br>3b. No day is ticked open → Weeklies refuses, because a restaurant that is never open cannot be planned from.<br>4a. Another sign-up claims the same email between the check and the insert → the UNIQUE constraint on `Restaurant.email` rejects the second, which is reported as the address being taken.<br>4b. The owner lists themselves as not yet taking orders → the restaurant is stored with status `closed` and the planner does not draw from it until they change it. |
+| **Postconditions** | A `Restaurant` row exists with a hashed password and hours in the planner's per-day JSON; the owner holds a restaurant session; the restaurant is in the planner's candidate pool as soon as it has a dish in stock. |
+
+> **Project 3 extension (restaurant sign-up).** Added in Project 3. Before it there was a `/restaurant/login` with no door behind it: every restaurant came from `proj2/seed.py`, so the whole owner-facing half of the product was reachable only by a seeded account. The design decision worth recording is the hours format. `Restaurant.hours` has two consumers that do not agree: `proj2/hours.py`'s `format_hours` renders either per-day JSON or free text, while `proj2/plan_rules.py`'s `is_restaurant_open` parses JSON only and returns `False` for anything else. A restaurant stored with prose hours therefore looks correct on every page a person sees and is silently never planned from—and the seeded catalog has it both ways, 9 rows JSON and 2 rows prose. The form collects a time per day and stores the JSON, so prose stops being a second contract and becomes only a rendering. Implemented in `proj2/restaurant_signup.py`, the `/restaurant/register` and `/api/restaurant/register` routes in `proj2/Flask_app.py`, and `proj2/templates/restaurant_register.html`; tested in `proj2/tests/unit/test_restaurant_signup.py`, `proj2/tests/integration/test_restaurant_signup_routes.py` and `proj2/cypress/e2e/restaurant_dashboard/signup.cy.js`.
+
 ## Coverage summary
 
-The catalog contains 30 use cases:
+The catalog contains 31 use cases:
 
 - 18 customer/visitor goals
-- 12 restaurant-owner goals
-- Full coverage of implemented account, planning, browsing, ordering, receipt, review, fulfillment, and analytics flows
+- 13 restaurant-owner goals
+- Full coverage of implemented account, planning, browsing, ordering, receipt, review, fulfillment, and analytics flows, for both customer and restaurant accounts
 - Explicit extensions for authentication, ownership, invalid lifecycle transitions, malformed serialized data, meals with no eligible item, and best-effort analytics
 
 Capabilities from the old `use_case.md` that remain future scope should receive separate use cases only when the project adopts the relevant actors and subsystems: geolocation/delivery zones, real checkout/payment, promotions, substitutions, driver dispatch/navigation, proof of delivery, refunds, and support disputes.
