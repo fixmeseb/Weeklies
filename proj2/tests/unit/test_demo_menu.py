@@ -5,6 +5,7 @@ that span several tags, and the tagged demo menu (proj2/demo_menu.py, proj2/seed
 
 import datetime
 import io
+import json
 import sqlite3
 from collections import Counter
 
@@ -127,7 +128,7 @@ class TestImportOfNumbers:
 
 class TestDemoMenu:
     def test_new_meals_come_after_the_original_seven(self):
-        assert len(demo_menu.MENU_ITEMS) - 7 == 69
+        assert len(demo_menu.MENU_ITEMS) - 7 == 76
         assert [item["name"] for item in demo_menu.MENU_ITEMS[:2]] == [
             "Margherita Pizza",
             "Penne Arrabbiata",
@@ -136,6 +137,26 @@ class TestDemoMenu:
             "Taste of Italy",
             "Green Garden Bistro",
         ]
+
+    def test_every_restaurant_has_hours_the_planner_can_read(self):
+        # Display text such as "11:00 AM - 10:00 PM" makes the planner treat the
+        # restaurant as always closed, which hid two demo restaurants from every plan.
+        for restaurant in demo_menu.RESTAURANTS:
+            hours = json.loads(restaurant["hours"])
+            assert set(hours) == set(DAYS_OF_WEEK), restaurant["name"]
+
+    def test_kosher_has_several_mains_for_every_meal(self):
+        def kosher_mains(meal_type):
+            return [
+                item["name"]
+                for item in demo_menu.MENU_ITEMS
+                if "kosher" in item["diet_tags"]
+                and item["course"] == "main"
+                and meal_type in item["meal_type"]
+            ]
+
+        assert len(kosher_mains("breakfast")) >= 6
+        assert len(kosher_mains("lunch-dinner")) >= 7
 
     def test_every_item_has_every_tag(self):
         for item in demo_menu.MENU_ITEMS:

@@ -17,6 +17,14 @@ from proj2 import variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
+from proj2.nutrition import (
+    TargetsUnreachableError,
+    form_values,
+    load_saved_targets,
+    nutrition_notice,
+    parse_targets,
+    saved_targets_json,
+)
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
@@ -569,10 +577,12 @@ def index(year, month):
     if not year or not month:
         year, month = today.year, today.month
 
-    # Load current user's generated_menu
+    # Load current user's generated_menu, and the targets the plan form opens with
     conn = get_db()
     user = fetch_one(
-        conn, 'SELECT generated_menu FROM "User" WHERE email = ?', (session.get("Email"),)
+        conn,
+        'SELECT generated_menu, nutrition_targets, strict_targets FROM "User" WHERE email = ?',
+        (session.get("Email"),),
     )
 
     if not user:
@@ -607,6 +617,8 @@ def index(year, month):
         swap_notice = ("danger", SWAP_ERROR_MESSAGES.get(
             request.args.get("swap_error"), "That meal could not be swapped."
         ))
+    elif session.get("plan_notice"):
+        swap_notice = ("warning", session.pop("plan_notice"))
 
     return render_template(
         "index.html",
@@ -625,6 +637,9 @@ def index(year, month):
         today_day=today.day,
         today_menu=today_menu,
         generation_error=session.pop("menu_generation_error", None),
+        # The plan form opens with the targets last planned with (see generate_menu)
+        target_values=form_values(load_saved_targets(user["nutrition_targets"])),
+        strict_saved=bool(user["strict_targets"]),
     )
 
 
@@ -2529,8 +2544,22 @@ def generate_menu():
     try:
         cap_value = payload.get('weekly_cap') if request.is_json else request.form.get('weekly_cap')
         weekly_cap_cents = parse_weekly_cap(cap_value)
+        fields = payload if request.is_json else request.form
+        targets = parse_targets(fields)
+        strict_targets = str(fields.get('strict_targets', '')).strip().lower() in ('1', 'true', 'on', 'yes')
     except ValueError as exc:
         return generation_error(str(exc), 400)
+
+    # The plan form (sent as form data, also by its fetch) remembers its targets on the
+    # account so it opens with them next time, even if this plan is refused. A JSON
+    # client changes them only by asking ("save_targets": true).
+    from_form = not request.is_json
+    if from_form or payload.get('save_targets') in (True, 'true', '1', 1):
+        execute_query(
+            get_db(),
+            'UPDATE "User" SET nutrition_targets = ?, strict_targets = ? WHERE usr_id = ?',
+            (saved_targets_json(targets), int(strict_targets), usr_id),
+        )
 
     # Validate start_date
     try:
@@ -2555,6 +2584,8 @@ def generate_menu():
             meal_numbers=meal_numbers,
             number_of_days=number_of_days,
             weekly_cap_cents=weekly_cap_cents,
+            targets=targets,
+            strict_targets=strict_targets,
         )
         start = date.fromisoformat(start_date)
         weeks = list(dict.fromkeys(
@@ -2567,7 +2598,7 @@ def generate_menu():
                 raise
             # Uncapped plans can retain old meals whose catalog prices are unavailable.
             totals = None
-    except BudgetExceededError as exc:
+    except (BudgetExceededError, TargetsUnreachableError) as exc:
         return generation_error(str(exc), 422)
     except ValueError as exc:
         return generation_error(str(exc), 400)
@@ -2581,6 +2612,12 @@ def generate_menu():
 
     session['GeneratedMenu'] = updated_menu
 
+    # The calendar shows the miss once after a form submission, including the form's own
+    # fetch, which asks for JSON and then opens the calendar
+    notice = nutrition_notice(gen.nutrition_report())
+    if notice and from_form:
+        session['plan_notice'] = notice
+
     if want_json:
         return jsonify({
             "ok": True,
@@ -2592,6 +2629,7 @@ def generate_menu():
             "item_total_cents": sum(totals.values()) if totals is not None else None,
             "weekly_item_totals_cents": totals,
             "variety": gen.variety.as_json() if gen.variety else None,
+            "nutrition": gen.nutrition_report(),
         })
     return redirect(url_for('index'))
 

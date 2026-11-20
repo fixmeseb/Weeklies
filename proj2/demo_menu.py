@@ -26,8 +26,7 @@ def _daily(opens: int, closes: int) -> str:
 _RALEIGH = {"city": "Raleigh", "state": "NC", "status": "open"}
 
 RESTAURANTS = [
-    # 1-2: the original demo restaurants. Their hours are display text, which the meal
-    # planner cannot read, so it treats them as closed; Cypress checks the text as is.
+    # 1-2: the original demo restaurants; Cypress refers to them by name and ID
     dict(
         _RALEIGH,
         name="Taste of Italy",
@@ -36,7 +35,7 @@ RESTAURANTS = [
         email="owner@tasteofitaly.com",
         address="100 Main Street",
         zip="27601",
-        hours="11:00 AM - 10:00 PM",
+        hours=_daily(1100, 2200),
     ),
     dict(
         _RALEIGH,
@@ -46,9 +45,10 @@ RESTAURANTS = [
         email="owner@greengarden.com",
         address="200 Hillsborough Street",
         zip="27603",
-        hours="10:00 AM - 9:00 PM",
+        hours=_daily(1000, 2100),
     ),
-    # 3-10: open at the planner's meal times (breakfast 10:00, lunch 14:00, dinner 20:00)
+    # 3-10: more restaurants open at the planner's meal times (breakfast 10:00, lunch
+    # 14:00, dinner 20:00)
     dict(
         _RALEIGH,
         name="Sunrise Griddle",
@@ -710,5 +710,66 @@ MENU_ITEMS = [
          carb_base="none", cooking_method="simmered", course="dessert", spice_level=0,
          temperature="cold", texture="crunchy", heaviness="light", nutrition="low-fat",
          contains="none", travels_well=1, reheats_well=0),
+    # ------------------------------------------------- more kosher main dishes
+    # Kosher had only three mains per meal, so a kosher week repeated dishes. These
+    # sit at the end so earlier itm_ids stay where the Cypress specs expect them.
+    # None mixes meat with dairy or uses shellfish or pork.
+    dict(rtr_id=2, name="Avocado Toast on Sourdough",
+         description="Smashed avocado, lemon, chili flakes and microgreens on toasted sourdough",
+         price=899, calories=420, allergens="gluten", diet_tags="halal, kosher, vegan",
+         cuisine="american", protein="plant-based", flavor="fresh, savory",
+         meal_type="breakfast", carb_base="bread", cooking_method="baked", course="main",
+         spice_level=1, temperature="cold", texture="creamy, crunchy", heaviness="light",
+         nutrition="high-fiber", contains="none", travels_well=0, reheats_well=0),
+    dict(rtr_id=3, name="Shakshuka",
+         description="Eggs poached in a spiced tomato and pepper sauce with cumin and parsley",
+         price=1149, calories=380, allergens="eggs",
+         diet_tags="gluten-free, halal, kosher, vegetarian", cuisine="middle-eastern",
+         protein="egg", flavor="savory, spicy", meal_type="breakfast", carb_base="none",
+         cooking_method="simmered", course="main", spice_level=1, temperature="hot",
+         texture="soft", heaviness="regular", nutrition="high-protein", contains="none",
+         travels_well=0, reheats_well=1),
+    dict(rtr_id=10, name="Bagel with Lox and Cream Cheese",
+         description="Toasted everything bagel with smoked salmon, cream cheese, capers and "
+                     "red onion",
+         price=1099, calories=520, allergens="dairy, fish, gluten, sesame",
+         diet_tags="kosher, pescatarian", cuisine="american", protein="dairy, fish",
+         flavor="salty, savory", meal_type="breakfast", carb_base="bread",
+         cooking_method="raw", course="main", spice_level=0, temperature="cold",
+         texture="chewy, creamy", heaviness="regular", nutrition="high-protein",
+         contains="none", travels_well=1, reheats_well=0),
+    dict(rtr_id=1, name="Pasta e Fagioli",
+         description="Ditalini and cannellini beans in a rosemary tomato broth",
+         price=1199, calories=540, allergens="gluten", diet_tags="halal, kosher, vegan",
+         cuisine="italian", protein="legumes", flavor="herby, savory",
+         meal_type="lunch-dinner", carb_base="pasta", cooking_method="simmered",
+         course="main", spice_level=0, temperature="hot", texture="soft, tender",
+         heaviness="hearty", nutrition="high-fiber", contains="none", travels_well=1,
+         reheats_well=1),
+    dict(rtr_id=2, name="Lentil and Roasted Vegetable Bowl",
+         description="French lentils, roasted squash and beets over farro with a lemon "
+                     "tahini dressing",
+         price=1249, calories=590, allergens="gluten, sesame", diet_tags="halal, kosher, vegan",
+         cuisine="mediterranean", protein="legumes", flavor="fresh, herby, tangy",
+         meal_type="lunch-dinner", carb_base="grain", cooking_method="roasted",
+         course="main", spice_level=0, temperature="hot", texture="chewy, tender",
+         heaviness="regular", nutrition="high-fiber, high-protein", contains="none",
+         travels_well=1, reheats_well=1),
+    dict(rtr_id=6, name="Chana Masala with Basmati Rice",
+         description="Chickpeas simmered with onion, tomato, ginger and garam masala",
+         price=1299, calories=640, allergens="none",
+         diet_tags="gluten-free, halal, kosher, vegan", cuisine="indian", protein="legumes",
+         flavor="savory, spicy", meal_type="lunch-dinner", carb_base="rice",
+         cooking_method="simmered", course="main", spice_level=2, temperature="hot",
+         texture="soft, tender", heaviness="hearty", nutrition="high-fiber", contains="none",
+         travels_well=1, reheats_well=1),
+    dict(rtr_id=8, name="Teriyaki Salmon Bento",
+         description="Glazed grilled salmon with steamed rice, pickled cucumber and edamame",
+         price=1649, calories=710, allergens="fish, gluten, soy",
+         diet_tags="halal, kosher, pescatarian", cuisine="japanese", protein="fish",
+         flavor="salty, sweet", meal_type="lunch-dinner", carb_base="rice",
+         cooking_method="grilled", course="main", spice_level=0, temperature="hot",
+         texture="flaky, tender", heaviness="regular", nutrition="high-protein",
+         contains="none", travels_well=1, reheats_well=1),
 ]
 # fmt: on

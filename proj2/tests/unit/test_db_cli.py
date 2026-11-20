@@ -132,7 +132,7 @@ def test_seed_creates_the_documented_demo_data(tmp_path):
         assert counts == {
             "User": 2,
             "Restaurant": 11,
-            "MenuItem": 76,
+            "MenuItem": 83,
             "Order": 4,
             "Review": 1,
             "Analytics": 2,
