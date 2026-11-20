@@ -48,12 +48,6 @@
                     <a class="variable" href="#SLOT_COURSE">SLOT_COURSE</a>
             </li>
             <li>
-                    <a class="variable" href="#NO_ALLERGENS">NO_ALLERGENS</a>
-            </li>
-            <li>
-                    <a class="function" href="#parse_allergens">parse_allergens</a>
-            </li>
-            <li>
                     <a class="function" href="#is_restaurant_open">is_restaurant_open</a>
             </li>
             <li>
@@ -85,7 +79,7 @@ against item_rejection before the plan is saved; meal swaps check the replacemen
 with the same function. A new way of choosing meals (another model, a manual editor)
 should also call item_rejection before saving.</p>
 
-<p>Imports only pandas, <a href="dietary.html">proj2.dietary</a> and <a href="meal_tags.html">proj2.meal_tags</a> so menu_generation and meal_swap
+<p>Imports only <a href="allergens.html">proj2.allergens</a>, <a href="dietary.html">proj2.dietary</a> and <a href="meal_tags.html">proj2.meal_tags</a> so menu_generation and meal_swap
 can both use it.</p>
 </div>
 
@@ -157,40 +151,6 @@ can both use it.</p>
     <a class="headerlink" href="#SLOT_COURSE"></a>
     
     
-
-                </section>
-                <section id="NO_ALLERGENS">
-                    <div class="attr variable">
-            <span class="name">NO_ALLERGENS</span>        =
-<span class="default_value">frozenset({&#39;n/a&#39;, &#39;none&#39;, &#39;-&#39;})</span>
-
-        
-    </div>
-    <a class="headerlink" href="#NO_ALLERGENS"></a>
-    
-    
-
-                </section>
-                <section id="parse_allergens">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">parse_allergens</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">allergens</span></span><span class="return-annotation">) -> <span class="nb">set</span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#parse_allergens"></a>
-    
-            <div class="docstring"><p>Normalizes a comma-separated allergen string into a set of casefolded tags</p>
-
-<p>Args:
-    allergens (str | None): A comma-separated string such as "Gluten, Soy" (None/NaN allowed)</p>
-
-<p>Returns:
-    set: The allergen tags, stripped and casefolded, without empty entries or
-        placeholders such as "none" (see NO_ALLERGENS)</p>
-</div>
-
 
                 </section>
                 <section id="is_restaurant_open">

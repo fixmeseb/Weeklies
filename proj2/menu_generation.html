@@ -36,6 +36,12 @@
                     <a class="variable" href="#DAYS_OF_WEEK">DAYS_OF_WEEK</a>
             </li>
             <li>
+                    <a class="variable" href="#MAX_IMPROVEMENT_SWEEPS">MAX_IMPROVEMENT_SWEEPS</a>
+            </li>
+            <li>
+                    <a class="variable" href="#RESTART_OPENINGS">RESTART_OPENINGS</a>
+            </li>
+            <li>
                     <a class="variable" href="#BREAKFAST_TIME">BREAKFAST_TIME</a>
             </li>
             <li>
@@ -58,6 +64,9 @@
             </li>
             <li>
                     <a class="function" href="#filter_allergens">filter_allergens</a>
+            </li>
+            <li>
+                    <a class="function" href="#map_distinct">map_distinct</a>
             </li>
             <li>
                     <a class="function" href="#filter_closed_restaurants">filter_closed_restaurants</a>
@@ -110,7 +119,9 @@ meal type), and, with a weekly cap, that leave enough budget for the meals still
 plan. Among them the planner picks the one that adds the most variety next to the meals
 already in the plan (<a href="variety.html">proj2.variety</a>), with soft preferences such as "Italian" breaking
 near-ties, then the lower price, then the lower itm_id. After every slot is filled it
-makes one improvement pass, re-picking each new slot with the rest of the plan fixed.</p>
+re-picks each slot with the rest of the plan fixed, and repeats that sweep until one
+changes nothing: filling a slot changes what its neighbours should be, so a single pass
+leaves stale picks behind.</p>
 
 <p>The result is deterministic: the same catalog and request always give the same plan.</p>
 </div>
@@ -127,6 +138,30 @@ makes one improvement pass, re-picking each new slot with the rest of the plan f
         
     </div>
     <a class="headerlink" href="#DAYS_OF_WEEK"></a>
+    
+    
+
+                </section>
+                <section id="MAX_IMPROVEMENT_SWEEPS">
+                    <div class="attr variable">
+            <span class="name">MAX_IMPROVEMENT_SWEEPS</span>        =
+<span class="default_value">20</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MAX_IMPROVEMENT_SWEEPS"></a>
+    
+    
+
+                </section>
+                <section id="RESTART_OPENINGS">
+                    <div class="attr variable">
+            <span class="name">RESTART_OPENINGS</span>        =
+<span class="default_value">12</span>
+
+        
+    </div>
+    <a class="headerlink" href="#RESTART_OPENINGS"></a>
     
     
 
@@ -265,6 +300,31 @@ makes one improvement pass, re-picking each new slot with the rest of the plan f
 
 <p>Returns:
     pd.DataFrame: The filtered DataFrame with menu items containing the specified allergens removed</p>
+</div>
+
+
+                </section>
+                <section id="map_distinct">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">map_distinct</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">values</span><span class="p">:</span> <span class="n">pandas</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">series</span><span class="o">.</span><span class="n">Series</span>, </span><span class="param"><span class="n">check</span></span><span class="return-annotation">) -> <span class="n">pandas</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">series</span><span class="o">.</span><span class="n">Series</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#map_distinct"></a>
+    
+            <div class="docstring"><p>Applies a check to each distinct value of a column once, rather than to every row</p>
+
+<p>Menu columns repeat heavily (many items share one allergen list, course or opening
+hours), and the checks parse strings, so this is much faster on a large catalog.</p>
+
+<p>Args:
+    values (pd.Series): The column to check
+    check (Callable): Returns a truthy value for a cell that passes</p>
+
+<p>Returns:
+    pd.Series: A boolean mask aligned with values</p>
 </div>
 
 

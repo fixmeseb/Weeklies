@@ -78,6 +78,30 @@
                     <a class="function" href="#slot_gain">slot_gain</a>
             </li>
             <li>
+                    <a class="class" href="#ItemDistances">ItemDistances</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ItemDistances.__init__">ItemDistances</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ItemDistances.rows">rows</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ItemDistances.weights">weights</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ItemDistances.features">features</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ItemDistances.distance">distance</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ItemDistances.slot_gain">slot_gain</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="function" href="#soft_preferences">soft_preferences</a>
             </li>
             <li>
@@ -386,6 +410,112 @@ is like to eat).</p>
 </div>
 
 
+                </section>
+                <section id="ItemDistances">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">ItemDistances</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances"></a>
+    
+            <div class="docstring"><p>distance() between catalog items by itm_id, each pair computed once</p>
+
+<p>A planner compares every candidate with the same few planned meals slot after slot,
+so features and pair distances are cached. Build a new one whenever the catalog or
+the weights change.</p>
+</div>
+
+
+                            <div id="ItemDistances.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ItemDistances</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">rows</span>,</span><span class="param">	<span class="n">weights</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'protein'</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">,</span> <span class="s1">'cuisine'</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">,</span> <span class="s1">'carb_base'</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span> <span class="s1">'cooking_method'</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span> <span class="s1">'restaurant'</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span> <span class="s1">'flavor'</span><span class="p">:</span> <span class="mf">1.5</span><span class="p">,</span> <span class="s1">'texture'</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s1">'spice_level'</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s1">'item'</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">,</span> <span class="s1">'heaviness'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">'temperature'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">}</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances.__init__"></a>
+    
+            <div class="docstring"><p>Args:
+    rows (Mapping[int, Mapping]): MenuItem rows by itm_id
+    weights (dict): Weight per tag kind</p>
+</div>
+
+
+                            </div>
+                            <div id="ItemDistances.rows" class="classattr">
+                                <div class="attr variable">
+            <span class="name">rows</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances.rows"></a>
+    
+    
+
+                            </div>
+                            <div id="ItemDistances.weights" class="classattr">
+                                <div class="attr variable">
+            <span class="name">weights</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances.weights"></a>
+    
+    
+
+                            </div>
+                            <div id="ItemDistances.features" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">features</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">itm_id</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances.features"></a>
+    
+    
+
+                            </div>
+                            <div id="ItemDistances.distance" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">distance</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">a</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">b</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">float</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances.distance"></a>
+    
+    
+
+                            </div>
+                            <div id="ItemDistances.slot_gain" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">slot_gain</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">itm_id</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">position</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">neighbours</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ItemDistances.slot_gain"></a>
+    
+            <div class="docstring"><p>slot_gain() for one catalog item</p>
+
+<p>Args:
+    itm_id (int): The candidate item
+    position (int): slot_position() of the slot it would fill
+    neighbours (Iterable[Tuple[int, int]]): (position, itm_id) of the other planned meals</p>
+
+<p>Returns:
+    Tuple[float, float]: (sum of closeness * distance, sum of closeness)</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="soft_preferences">
                     <div class="attr function">

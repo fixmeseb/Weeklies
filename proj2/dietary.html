@@ -108,7 +108,7 @@ requests may not drop the account's allergies either (with_account_allergies).</
                 <section id="KNOWN_DIETS">
                     <div class="attr variable">
             <span class="name">KNOWN_DIETS</span>        =
-<span class="default_value">frozenset({&#39;gluten-free&#39;, &#39;pescatarian&#39;, &#39;kosher&#39;, &#39;vegetarian&#39;, &#39;halal&#39;, &#39;vegan&#39;})</span>
+<span class="default_value">frozenset({&#39;vegetarian&#39;, &#39;pescatarian&#39;, &#39;vegan&#39;, &#39;kosher&#39;, &#39;halal&#39;, &#39;gluten-free&#39;})</span>
 
         
     </div>
@@ -339,7 +339,8 @@ diet the account requires.</p>
             <div class="docstring"><p>Adds the allergies on the user's account to allergens supplied with a request</p>
 
 <p>A request may add allergens to avoid, but it cannot drop one the account lists.
-Matching ignores case and surrounding spaces, like menu_generation.filter_allergens.</p>
+Matching uses <a href="allergens.html">proj2.allergens</a> spellings, so "Milk" on the request keeps "dairy"
+from the account from being added again.</p>
 
 <p>Args:
     allergies (str | None): Comma-separated allergens sent with the request
