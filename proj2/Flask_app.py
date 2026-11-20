@@ -17,7 +17,14 @@ from proj2 import variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
-from proj2.nutrition import TargetsUnreachableError, nutrition_notice, parse_targets
+from proj2.nutrition import (
+    TargetsUnreachableError,
+    form_values,
+    load_saved_targets,
+    nutrition_notice,
+    parse_targets,
+    saved_targets_json,
+)
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
@@ -1443,7 +1450,8 @@ def profile():
     conn = get_db()
     row = fetch_one(
         conn,
-        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies FROM "User" WHERE email = ?',
+        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,'
+        'nutrition_targets,strict_targets FROM "User" WHERE email = ?',
         (email,),
     )
     if not row:
@@ -1460,6 +1468,9 @@ def profile():
         "preferences": row[7] or "",
         "allergies": row[8] or "",
     }
+    # The plan form opens with the targets last planned with (see generate_menu)
+    target_values = form_values(load_saved_targets(row[9]))
+    strict_saved = bool(row[10])
 
     session["usr_id"] = user["usr_id"]
 
@@ -1517,6 +1528,7 @@ def profile():
     return render_template(
         "profile.html", user=user, orders=orders, pw_updated=pw_updated, pw_error=pw_error,
         generation_error=session.pop("menu_generation_error", None),
+        target_values=target_values, strict_saved=strict_saved,
     )
 
 
@@ -2558,6 +2570,17 @@ def generate_menu():
     except ValueError as exc:
         return generation_error(str(exc), 400)
 
+    # The plan form (sent as form data, also by its fetch) remembers its targets on the
+    # account so it opens with them next time, even if this plan is refused. A JSON
+    # client changes them only by asking ("save_targets": true).
+    from_form = not request.is_json
+    if from_form or payload.get('save_targets') in (True, 'true', '1', 1):
+        execute_query(
+            get_db(),
+            'UPDATE "User" SET nutrition_targets = ?, strict_targets = ? WHERE usr_id = ?',
+            (saved_targets_json(targets), int(strict_targets), usr_id),
+        )
+
     # Validate start_date
     try:
         _ = date.fromisoformat(start_date)
@@ -2609,6 +2632,12 @@ def generate_menu():
 
     session['GeneratedMenu'] = updated_menu
 
+    # The calendar shows the miss once after a form submission, including the form's own
+    # fetch, which asks for JSON and then opens the calendar
+    notice = nutrition_notice(gen.nutrition_report())
+    if notice and from_form:
+        session['plan_notice'] = notice
+
     if want_json:
         return jsonify({
             "ok": True,
@@ -2622,9 +2651,6 @@ def generate_menu():
             "variety": gen.variety.as_json() if gen.variety else None,
             "nutrition": gen.nutrition_report(),
         })
-    notice = nutrition_notice(gen.nutrition_report())
-    if notice:
-        session['plan_notice'] = notice
     return redirect(url_for('index'))
 
 

@@ -18,10 +18,13 @@ from proj2.nutrition import (
     NutritionTargetError,
     TargetsUnreachableError,
     describe_range,
+    form_values,
     item_amount,
+    load_saved_targets,
     nutrition_notice,
     parse_range,
     parse_targets,
+    saved_targets_json,
 )
 
 MONDAY = "2026-11-16"
@@ -408,3 +411,40 @@ def test_strict_repair_refuses_a_day_with_an_unknown_existing_meal():
         plan_strict(
             make_generator(items), targets, menu=f"[{MONDAY},{unknown},1]", days=1, meals=(2, 3)
         )
+
+
+# ---------------------------------------------------------------- saved targets
+
+
+def test_saved_targets_round_trip_in_display_order():
+    targets = {"sodium_mg": DailyRange(0, 2300), "calories": DailyRange(1800, 2200)}
+    text = saved_targets_json(targets)
+    assert text == '{"calories":{"min":1800,"max":2200},"sodium_mg":{"min":null,"max":2300}}'
+    assert load_saved_targets(text) == targets
+
+
+def test_no_targets_saves_as_empty():
+    assert saved_targets_json({}) == ""
+    assert load_saved_targets("") == {}
+    assert load_saved_targets(None) == {}
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["not json", "[1, 2]", '{"vitamin_c": {"min": 90}}', '{"calories": 2000}',
+     '{"calories": {"min": 0}}', '{"protein_g": {"min": 200, "max": 100}}',
+     '{"calories": {"min": null, "max": null}}'],
+)  # fmt: skip
+def test_bad_saved_targets_are_skipped(text):
+    assert load_saved_targets(text) == {}
+
+
+def test_bad_entries_do_not_hide_good_ones():
+    text = '{"calories": {"min": "lots"}, "protein_g": {"min": 120, "max": null}}'
+    assert load_saved_targets(text) == {"protein_g": DailyRange(120, math.inf)}
+
+
+def test_form_values_fill_only_bounds_that_are_set():
+    targets = {"calories": DailyRange(1800, 2200), "protein_g": DailyRange(120, math.inf)}
+    assert form_values(targets) == {"calorie_min": 1800, "calorie_max": 2200, "protein_min": 120}
+

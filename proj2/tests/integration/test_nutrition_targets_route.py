@@ -146,3 +146,88 @@ def test_strict_target_within_reach_plans_normally(client, login_session, nutrit
 
 def test_profile_form_offers_strict_targets(client, login_session):
     assert 'name="strict_targets"' in client.get("/profile").get_data(as_text=True)
+
+
+# ---------------------------------------------------------------- saved targets
+
+
+def saved_targets(temp_db_path):
+    with sqlite3.connect(temp_db_path) as conn:
+        text, strict = conn.execute(
+            'SELECT nutrition_targets, strict_targets FROM "User" WHERE email="test@x.com"'
+        ).fetchone()
+    return (json.loads(text) if text else {}), strict
+
+
+FORM = {"start_date": "2026-10-05", "days": "2", "meal3": "on"}
+
+
+def test_form_saves_its_targets_and_the_profile_opens_with_them(
+    client, login_session, nutrition_catalog, temp_db_path
+):
+    form = dict(FORM, calorie_min="600", calorie_max="800", sodium_max="2300", protein_min="")
+    assert client.post("/menu/generate", data=form).status_code in (302, 303)
+    assert saved_targets(temp_db_path) == (
+        {"calories": {"min": 600, "max": 800}, "sodium_mg": {"min": None, "max": 2300}},
+        0,
+    )
+    page = client.get("/profile").get_data(as_text=True)
+    assert 'name="calorie_min" min="1"' in page  # sanity: the field is there
+    assert 'value="600"' in page and 'value="800"' in page and 'value="2300"' in page
+    assert "checked" not in page.split('id="strict_targets"')[1].split(">")[0]
+
+
+def test_the_forms_own_fetch_saves_too(client, login_session, nutrition_catalog, temp_db_path):
+    # profile.html's script posts the form data asking for JSON
+    form = dict(FORM, protein_min="30", strict_targets="on")
+    response = client.post("/menu/generate", data=form, headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    assert saved_targets(temp_db_path) == ({"protein_g": {"min": 30, "max": None}}, 1)
+    page = client.get("/profile").get_data(as_text=True)
+    assert 'value="30"' in page
+    assert "checked" in page.split('id="strict_targets"')[1].split(">")[0]
+
+
+def test_clearing_the_form_clears_the_saved_targets(
+    client, login_session, nutrition_catalog, temp_db_path
+):
+    client.post("/menu/generate", data=dict(FORM, calorie_min="600"))
+    client.post("/menu/generate", data=FORM)
+    assert saved_targets(temp_db_path) == ({}, 0)
+
+
+def test_a_refused_strict_plan_still_remembers_what_was_asked(
+    client, login_session, nutrition_catalog, temp_db_path
+):
+    form = dict(FORM, protein_min="50", strict_targets="on")
+    response = client.post("/menu/generate", data=form, headers={"Accept": "application/json"})
+    assert response.status_code == 422
+    assert saved_menu(temp_db_path) == ""
+    assert saved_targets(temp_db_path) == ({"protein_g": {"min": 50, "max": None}}, 1)
+
+
+def test_a_bad_target_is_not_saved(client, login_session, nutrition_catalog, temp_db_path):
+    client.post("/menu/generate", data=dict(FORM, calorie_min="600"))
+    client.post("/menu/generate", data=dict(FORM, calorie_min="lots"))
+    assert saved_targets(temp_db_path) == ({"calories": {"min": 600, "max": None}}, 0)
+
+
+def test_json_clients_change_saved_targets_only_when_asked(
+    client, login_session, nutrition_catalog, temp_db_path
+):
+    client.post("/menu/generate", json=payload(protein_min=30))
+    assert saved_targets(temp_db_path) == ({}, 0)
+    client.post("/menu/generate", json=payload(protein_min=30, save_targets=True))
+    assert saved_targets(temp_db_path) == ({"protein_g": {"min": 30, "max": None}}, 0)
+
+
+def test_the_forms_fetch_gets_the_calendar_notice(client, login_session, nutrition_catalog):
+    form = dict(FORM, calorie_min="2000")
+    response = client.post("/menu/generate", data=form, headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    assert "miss your daily targets" in client.get("/").get_data(as_text=True)
+
+
+def test_json_clients_get_no_calendar_notice(client, login_session, nutrition_catalog):
+    client.post("/menu/generate", json=payload(calorie_min=2000))
+    assert "miss your daily targets" not in client.get("/").get_data(as_text=True)

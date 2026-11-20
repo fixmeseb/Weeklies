@@ -14,6 +14,7 @@ a targeted nutrient is not planned, the same way a missing price is never treate
 free.
 """
 
+import json
 import math
 from dataclasses import dataclass
 
@@ -52,7 +53,6 @@ TARGET_WEIGHT = 30.0
 ## closest total it can reach (DailyRange.within_reach), rather than repeating the
 ## single richest (or leanest) meals to chase it.
 REACH_SLACK = 0.05
-
 
 ## With strict targets, a day that misses a range after planning is searched exactly
 ## over this many of each slot's most varied candidates (25 per slot is at most 15,625
@@ -227,6 +227,78 @@ def targets_from_json(data: dict) -> dict:
         )
         for column, bounds in data.items()
     }
+
+
+def saved_targets_json(targets: dict) -> str:
+    """
+    Targets as stored in User.nutrition_targets
+
+    Args:
+        targets (dict): MenuItem column -> DailyRange (parse_targets)
+
+    Returns:
+        str: A JSON object, column -> {"min", "max"}, in NUTRIENTS order; '' for no targets
+    """
+    if not targets:
+        return ""
+    return json.dumps(
+        {column: targets[column].as_json() for column in NUTRIENTS if column in targets},
+        separators=(",", ":"),
+    )
+
+
+def load_saved_targets(text) -> dict:
+    """
+    Targets from User.nutrition_targets
+
+    A value that is not valid JSON, or a nutrient that is unknown or out of range, is
+    skipped rather than raised: a saved target only fills in the plan form, and the form
+    is checked again when it is sent.
+
+    Args:
+        text (str | None): The stored JSON, or ''/None for none
+
+    Returns:
+        dict: MenuItem column -> DailyRange
+    """
+    try:
+        data = json.loads(text or "{}")
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    targets = {}
+    for column, bounds in data.items():
+        if column not in NUTRIENTS or not isinstance(bounds, dict):
+            continue
+        try:
+            found = parse_range(NUTRIENTS[column], bounds.get("min"), bounds.get("max"))
+        except NutritionTargetError:
+            continue
+        if found is not None:
+            targets[column] = found
+    return targets
+
+
+def form_values(targets: dict) -> dict:
+    """
+    The plan form's field values for some targets
+
+    Args:
+        targets (dict): MenuItem column -> DailyRange
+
+    Returns:
+        dict: e.g. {"calorie_min": 1800, "calorie_max": 2200, "protein_min": 120}; a field
+            with no bound is left out
+    """
+    values = {}
+    for column, target in targets.items():
+        field = NUTRIENTS[column].field
+        bounds = target.as_json()
+        for side in ("min", "max"):
+            if bounds[side] is not None:
+                values[f"{field}_{side}"] = bounds[side]
+    return values
 
 
 def nutrition_notice(report):

@@ -168,10 +168,10 @@
                     <th scope="row">{{ label }} ({{ unit }})</th>
                     <td><input class="input" type="number" id="{{ field }}_min" name="{{ field }}_min" min="1"
                                max="{{ largest }}" step="1" style="width:140px;" aria-label="{{ label }} at least, {{ unit }}"
-                               {% if low_example %}placeholder="e.g., {{ low_example }}"{% endif %} aria-describedby="nutrition-help"></td>
+                               value="{{ (target_values or {}).get(field ~ '_min', '') }}" {% if low_example %}placeholder="e.g., {{ low_example }}"{% endif %} aria-describedby="nutrition-help"></td>
                     <td><input class="input" type="number" id="{{ field }}_max" name="{{ field }}_max" min="1"
                                max="{{ largest }}" step="1" style="width:140px;" aria-label="{{ label }} at most, {{ unit }}"
-                               {% if high_example %}placeholder="e.g., {{ high_example }}"{% endif %} aria-describedby="nutrition-help"></td>
+                               value="{{ (target_values or {}).get(field ~ '_max', '') }}" {% if high_example %}placeholder="e.g., {{ high_example }}"{% endif %} aria-describedby="nutrition-help"></td>
                   </tr>
                   {% endfor %}
                 </tbody>
@@ -180,9 +180,9 @@
             <p id="nutrition-help" class="muted">Each day's meals aim for these ranges, including meals already
               planned. Protein, carbs, fat and sodium are estimates from USDA data. If your diet, allergies or budget
               make a range unreachable, the plan comes as close as it can and tells you which days miss. Leave blank
-              for no target.</p>
+              for no target. Your targets are saved on your account each time you plan.</p>
             <label style="display:flex; gap:8px; align-items:center;">
-              <input type="checkbox" id="strict_targets" name="strict_targets" value="on" aria-describedby="strict-help">
+              <input type="checkbox" id="strict_targets" name="strict_targets" value="on" aria-describedby="strict-help"{% if strict_saved %} checked{% endif %}>
               Strict targets
             </label>
             <p id="strict-help" class="muted">Every planned day must land inside every range. If one can't, nothing is
