@@ -516,7 +516,12 @@ hours), and the checks parse strings, so this is much faster on a large catalog.
     strict_targets (bool): Make the targets hard limits: every requested day must
         end up inside every range, or nothing is planned (see _repair_day).
     objective_weights (tuple | None): Normalized priorities in OBJECTIVES order.
-        None uses the default planner unless a search strategy is selected.</p>
+        None uses the default planner unless a search strategy is selected.
+    strategy (str | None): A method from STRATEGIES, including simulated annealing.
+    max_evaluations (int): Shared limit on scored starting plans and neighbors.
+    starts (int): Up to this many distinct starts, starting with the greedy plan.
+        Nutrition targets use a single start built to respect those targets.
+    seed (int): Seed for randomized starts and move selection.</p>
 
 <p>Returns:
     str: The updated menu string. Also sets self.variety (<a href="variety.html#PlanVariety">proj2.variety.PlanVariety</a>

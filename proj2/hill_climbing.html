@@ -36,6 +36,21 @@
                     <a class="variable" href="#EPSILON">EPSILON</a>
             </li>
             <li>
+                    <a class="variable" href="#INITIAL_TEMPERATURE">INITIAL_TEMPERATURE</a>
+            </li>
+            <li>
+                    <a class="variable" href="#FINAL_TEMPERATURE">FINAL_TEMPERATURE</a>
+            </li>
+            <li>
+                    <a class="variable" href="#TABU_TENURE">TABU_TENURE</a>
+            </li>
+            <li>
+                    <a class="variable" href="#LATE_ACCEPTANCE_HISTORY">LATE_ACCEPTANCE_HISTORY</a>
+            </li>
+            <li>
+                    <a class="variable" href="#PERTURBATION_STEPS">PERTURBATION_STEPS</a>
+            </li>
+            <li>
                     <a class="class" href="#Candidate">Candidate</a>
                             <ul class="memberlist">
                         <li>
@@ -74,6 +89,18 @@
                         <li>
                                 <a class="variable" href="#SearchResult.trace">trace</a>
                         </li>
+                        <li>
+                                <a class="variable" href="#SearchResult.initial_score">initial_score</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SearchResult.best_start_score">best_start_score</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SearchResult.sideways_moves">sideways_moves</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SearchResult.downhill_moves">downhill_moves</a>
+                        </li>
                 </ul>
 
             </li>
@@ -85,6 +112,18 @@
             </li>
             <li>
                     <a class="function" href="#stochastic_improvement">stochastic_improvement</a>
+            </li>
+            <li>
+                    <a class="function" href="#annealing_move">annealing_move</a>
+            </li>
+            <li>
+                    <a class="function" href="#tabu_search">tabu_search</a>
+            </li>
+            <li>
+                    <a class="function" href="#late_acceptance">late_acceptance</a>
+            </li>
+            <li>
+                    <a class="function" href="#iterated_local_search">iterated_local_search</a>
             </li>
             <li>
                     <a class="variable" href="#STRATEGIES">STRATEGIES</a>
@@ -123,6 +162,66 @@
         
     </div>
     <a class="headerlink" href="#EPSILON"></a>
+    
+    
+
+                </section>
+                <section id="INITIAL_TEMPERATURE">
+                    <div class="attr variable">
+            <span class="name">INITIAL_TEMPERATURE</span>        =
+<span class="default_value">0.04</span>
+
+        
+    </div>
+    <a class="headerlink" href="#INITIAL_TEMPERATURE"></a>
+    
+    
+
+                </section>
+                <section id="FINAL_TEMPERATURE">
+                    <div class="attr variable">
+            <span class="name">FINAL_TEMPERATURE</span>        =
+<span class="default_value">0.0002</span>
+
+        
+    </div>
+    <a class="headerlink" href="#FINAL_TEMPERATURE"></a>
+    
+    
+
+                </section>
+                <section id="TABU_TENURE">
+                    <div class="attr variable">
+            <span class="name">TABU_TENURE</span>        =
+<span class="default_value">7</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TABU_TENURE"></a>
+    
+    
+
+                </section>
+                <section id="LATE_ACCEPTANCE_HISTORY">
+                    <div class="attr variable">
+            <span class="name">LATE_ACCEPTANCE_HISTORY</span>        =
+<span class="default_value">20</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LATE_ACCEPTANCE_HISTORY"></a>
+    
+    
+
+                </section>
+                <section id="PERTURBATION_STEPS">
+                    <div class="attr variable">
+            <span class="name">PERTURBATION_STEPS</span>        =
+<span class="default_value">3</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PERTURBATION_STEPS"></a>
     
     
 
@@ -191,7 +290,7 @@
                             <div id="SearchResult.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">SearchResult</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">best</span><span class="p">:</span> <span class="n"><a href="#Candidate">Candidate</a></span>,</span><span class="param">	<span class="n">evaluations</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">moves</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">starts</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">trace</span><span class="p">:</span> <span class="nb">tuple</span></span>)</span>
+        <span class="name">SearchResult</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">best</span><span class="p">:</span> <span class="n"><a href="#Candidate">Candidate</a></span>,</span><span class="param">	<span class="n">evaluations</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">moves</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">starts</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">trace</span><span class="p">:</span> <span class="nb">tuple</span>,</span><span class="param">	<span class="n">initial_score</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">best_start_score</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">sideways_moves</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">downhill_moves</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
 
         
     </div>
@@ -266,6 +365,50 @@
     
 
                             </div>
+                            <div id="SearchResult.initial_score" class="classattr">
+                                <div class="attr variable">
+            <span class="name">initial_score</span><span class="annotation">: float</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchResult.initial_score"></a>
+    
+    
+
+                            </div>
+                            <div id="SearchResult.best_start_score" class="classattr">
+                                <div class="attr variable">
+            <span class="name">best_start_score</span><span class="annotation">: float</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchResult.best_start_score"></a>
+    
+    
+
+                            </div>
+                            <div id="SearchResult.sideways_moves" class="classattr">
+                                <div class="attr variable">
+            <span class="name">sideways_moves</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchResult.sideways_moves"></a>
+    
+    
+
+                            </div>
+                            <div id="SearchResult.downhill_moves" class="classattr">
+                                <div class="attr variable">
+            <span class="name">downhill_moves</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchResult.downhill_moves"></a>
+    
+    
+
+                            </div>
                 </section>
                 <section id="first_improvement">
                     <div class="attr function">
@@ -306,11 +449,71 @@
     
 
                 </section>
+                <section id="annealing_move">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">annealing_move</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">candidates</span>, </span><span class="param"><span class="n">current</span>, </span><span class="param"><span class="n">rng</span>, </span><span class="param"><span class="n">temperature</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#annealing_move"></a>
+    
+            <div class="docstring"><p>Test a random feasible proposal and keep the current plan on rejection.</p>
+</div>
+
+
+                </section>
+                <section id="tabu_search">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">tabu_search</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">_start</span>, </span><span class="param"><span class="n">neighbors</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#tabu_search"></a>
+    
+            <div class="docstring"><p>Take the best admissible move and temporarily block reversal of recent assignments.</p>
+</div>
+
+
+                </section>
+                <section id="late_acceptance">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">late_acceptance</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">start</span>, </span><span class="param"><span class="n">neighbors</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#late_acceptance"></a>
+    
+            <div class="docstring"><p>Compare each random proposal with both the current and an earlier score.</p>
+</div>
+
+
+                </section>
+                <section id="iterated_local_search">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">iterated_local_search</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">_start</span>, </span><span class="param"><span class="n">neighbors</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#iterated_local_search"></a>
+    
+            <div class="docstring"><p>Alternate best-improvement climbs to local optima with random perturbations.</p>
+</div>
+
+
+                </section>
                 <section id="STRATEGIES">
                     <div class="attr variable">
             <span class="name">STRATEGIES</span>        =
 <input id="STRATEGIES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="STRATEGIES-view-value"></label><span class="default_value">{&#39;first&#39;: &lt;function first_improvement&gt;, &#39;best&#39;: &lt;function best_improvement&gt;, &#39;stochastic&#39;: &lt;function stochastic_improvement&gt;, &#39;sideways&#39;: &lt;function best_improvement&gt;}</span>
+            <label class="view-value-button pdoc-button" for="STRATEGIES-view-value"></label><span class="default_value">{&#39;first&#39;: &lt;function first_improvement&gt;, &#39;best&#39;: &lt;function best_improvement&gt;, &#39;stochastic&#39;: &lt;function stochastic_improvement&gt;, &#39;sideways&#39;: &lt;function best_improvement&gt;, &#39;annealing&#39;: &lt;function annealing_move&gt;, &#39;tabu&#39;: &lt;function tabu_search&gt;, &#39;late-acceptance&#39;: &lt;function late_acceptance&gt;, &#39;iterated&#39;: &lt;function iterated_local_search&gt;}</span>
 
         
     </div>
@@ -323,7 +526,7 @@
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">climb</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">starts</span>,</span><span class="param">	<span class="n">neighbors</span>,</span><span class="param">	<span class="n">select</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_evaluations</span>,</span><span class="param">	<span class="n">seed</span><span class="o">=</span><span class="mi">0</span>,</span><span class="param">	<span class="n">sideways_limit</span><span class="o">=</span><span class="mi">0</span>,</span><span class="param">	<span class="n">max_starts</span><span class="o">=</span><span class="mi">1</span></span><span class="return-annotation">):</span></span>
+        <span class="name">climb</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">starts</span>,</span><span class="param">	<span class="n">neighbors</span>,</span><span class="param">	<span class="n">select</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_evaluations</span>,</span><span class="param">	<span class="n">seed</span><span class="o">=</span><span class="mi">0</span>,</span><span class="param">	<span class="n">sideways_limit</span><span class="o">=</span><span class="mi">0</span>,</span><span class="param">	<span class="n">max_starts</span><span class="o">=</span><span class="mi">1</span>,</span><span class="param">	<span class="n">randomized_neighbors</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -332,8 +535,10 @@
             <div class="docstring"><p>Search scored neighbors lazily and share the evaluation budget across starts.</p>
 
 <p>A selector receives the candidate stream, current state, seeded RNG, and whether a
-sideways move is available. Starts and neighborhood generation are independent of
-the selector. The trace records incumbent improvements as (evaluations, seconds, score).</p>
+sideways move is available. Annealing instead receives the temperature, can revisit
+plans, and uses randomized_neighbors(current, rng) to propose a feasible random move
+when provided. Stateful strategies initialize their own move rules at each start.
+The trace records incumbent improvements as (evaluations, seconds, score).</p>
 </div>
 
 
