@@ -49,10 +49,24 @@ NUTRIENTS = {
 ## short to vary the menu.)
 TARGET_WEIGHT = 30.0
 
-## When a day cannot reach a target at all, it aims to come within this share of the
-## closest total it can reach (DailyRange.within_reach), rather than repeating the
-## single richest (or leanest) meals to chase it.
-REACH_SLACK = 0.05
+## How close to the best it can do a day must come when it cannot meet its targets.
+## A day that cannot reach a target at all aims within this share of the closest total
+## its meals can reach (DailyRange.within_reach), rather than repeating the single
+## richest (or leanest) meals to chase it. At 0.05 a vegetarian week chasing 160 g of
+## protein had 3 distinct dishes (variety 0.44); at 0.10 it has 7 (0.69) at about 13 g
+## less protein a day.
+REACH_SLACK = 0.10
+
+
+## When a day cannot meet every target at once, it may come within this much summed
+## relative miss of the closest its meals can get (0.10 = 10% off one target), and
+## variety chooses among the meals that do. Without it the planner repeats the single
+## closest combination every day. Days that can meet every target get no allowance.
+JOINT_SLACK = REACH_SLACK
+
+## The most combinations of a day's candidates searched for its closest reachable miss;
+## beyond it, the day is planned as if it could meet them (no allowance)
+JOINT_SEARCH_LIMIT = 2_000_000
 
 ## With strict targets, a day that misses a range after planning is searched exactly
 ## over this many of each slot's most varied candidates (25 per slot is at most 15,625

@@ -15,9 +15,11 @@ The result is deterministic: the same catalog and request always give the same p
 import datetime
 import itertools
 import json
+import math
 import statistics
 from typing import Tuple
 
+import numpy as np
 import pandas as pd
 
 from proj2 import variety
@@ -32,6 +34,8 @@ from proj2.allergens import avoided_allergens, parse_allergens
 from proj2.db import connect
 from proj2.dietary import DietaryConstraintError, filter_diets, required_diets
 from proj2.nutrition import (
+    JOINT_SEARCH_LIMIT,
+    JOINT_SLACK,
     NUTRIENTS,
     REPAIR_CANDIDATES,
     TARGET_WEIGHT,
@@ -428,6 +432,62 @@ class MenuGenerator:
 
     # ---------------------------------------------------------------- strict targets
 
+    def _day_miss(self, positions, planned, aims) -> float:
+        """A day's total miss against its aims, summed over nutrients (unknowns count 0)."""
+        return sum(
+            aim.miss(sum(self._amount(planned[p], column) or 0 for p in positions))
+            for column, aim in aims.items()
+        )
+
+    def _best_day_miss(self, positions, new_slots, fixed_meals, aims) -> float:
+        """
+        The smallest total miss any combination of a day's candidates can reach
+
+        Combines the new slots' candidates' nutrient amounts one slot at a time, keeping
+        only distinct totals. If the combinations would exceed JOINT_SEARCH_LIMIT, gives
+        up and returns None.
+
+        Args:
+            positions (set): The day's slot positions
+            new_slots (dict): position -> slot being planned
+            fixed_meals (dict): position -> itm_id of meals already in the plan
+            aims (dict): column -> DailyRange the day aims for
+
+        Returns:
+            float | None: The smallest summed miss (0.0 when every aim can be met), or
+                None if the search was too large
+        """
+        columns = list(aims)
+        fixed = np.array(
+            [
+                sum(
+                    self._amount(fixed_meals[p], c) or 0
+                    for p in positions
+                    if p not in new_slots and p in fixed_meals
+                )
+                for c in columns
+            ]
+        )
+        sums = fixed[None, :]
+        for position in sorted(p for p in positions if p in new_slots):
+            ids = new_slots[position]["candidates"]["itm_id"]
+            amounts = np.unique(
+                np.array([[self._amount(int(i), c) for c in columns] for i in ids]), axis=0
+            )
+            if len(sums) * len(amounts) > JOINT_SEARCH_LIMIT:
+                return None
+            sums = np.unique(
+                (sums[:, None, :] + amounts[None, :, :]).reshape(-1, len(columns)), axis=0
+            )
+        miss = np.zeros(len(sums))
+        for k, column in enumerate(columns):
+            aim, total = aims[column], sums[:, k]
+            if aim.low > 0:
+                miss += np.where(total < aim.low, (aim.low - total) / aim.low, 0.0)
+            if not math.isinf(aim.high):
+                miss += np.where(total > aim.high, (total - aim.high) / aim.high, 0.0)
+        return float(miss.min())
+
     def _day_misses(self, positions, planned, targets) -> bool:
         """Whether a day's planned meals miss any target (or a meal's amount is unknown)."""
         for column, target in targets.items():
@@ -709,8 +769,11 @@ class MenuGenerator:
                         self._out_of_reach(positions, new_slots, planned, column, target, low, high)
                     )
 
-        def target_miss(slot):
-            """How far the slot's day misses its aims with each item (None: no targets)."""
+        def target_miss(slot, allowance):
+            """
+            How far the slot's day misses its aims with each item, beyond the day's
+            allowance (None: no targets)
+            """
             if not targets:
                 return None
             position = slot["position"]
@@ -723,56 +786,105 @@ class MenuGenerator:
                     else:  # a new slot not chosen yet (pass 1): its candidates' median
                         others[column] += new_slots[other]["estimate"][column]
             aims = day_targets[day]
-            return lambda itm_id: sum(
-                aims[column].miss(others[column] + self._amount(itm_id, column))
-                for column in targets
+            allowed = allowance.get(day, 0.0)
+            return lambda itm_id: max(
+                0.0,
+                sum(
+                    aims[column].miss(others[column] + self._amount(itm_id, column))
+                    for column in targets
+                )
+                - allowed,
             )
 
-        # Pass 1: fill slots in time order, each next to the meals already planned.
-        chosen = []
-        for slot in slots:
-            pool = slot["candidates"]
-            if capped:
-                # Keep enough for the cheapest meal in every later slot of this week.
-                minimum_remaining[slot["week"]] -= slot["minimum"]
-                available = cap - totals[slot["week"]] - minimum_remaining[slot["week"]]
-                pool = pool[pool.price_cents <= available]
-            ranked = self._ranked(
-                pool,
-                slot["position"],
-                self._neighbours(planned, slot["position"]),
-                preferences,
-                target_miss(slot),
-            )
-            itm_id = ranked[0][1]
-            check(itm_id, slot)
-            planned[slot["position"]] = itm_id
-            chosen.append(itm_id)
-            if capped:
-                totals[slot["week"]] += price(itm_id)
+        start_planned = dict(planned)
+        start_totals = dict(totals) if capped else None
+        start_remaining = dict(minimum_remaining)
 
-        # Pass 2: re-pick each new slot with the rest of the plan fixed; keep strict gains.
-        for i, slot in enumerate(slots):
-            current = chosen[i]
-            pool = slot["candidates"]
+        def plan_passes(allowance):
+            """
+            Picks every new slot (passes 1 and 2) from the plan as it stood before
+
+            Args:
+                allowance (dict): day -> how much total miss the day may have before it
+                    counts against a slot (see day_allowance)
+
+            Returns:
+                list: The itm_id chosen for each new slot, in slot order
+            """
+            planned.clear()
+            planned.update(start_planned)
             if capped:
-                available = cap - totals[slot["week"]] + price(current)
-                pool = pool[pool.price_cents <= available]
-            ranked = self._ranked(
-                pool,
-                slot["position"],
-                self._neighbours(planned, slot["position"]),
-                preferences,
-                target_miss(slot),
-            )
-            best_key, best = ranked[0]
-            current_score = next(key[0] for key, itm_id in ranked if itm_id == current)
-            if best != current and best_key[0] < current_score:
-                check(best, slot)
-                planned[slot["position"]] = best
-                chosen[i] = best
+                totals.clear()
+                totals.update(start_totals)
+            minimum_remaining.clear()
+            minimum_remaining.update(start_remaining)
+            # Pass 1: fill slots in time order, each next to the meals already planned.
+            chosen = []
+            for slot in slots:
+                pool = slot["candidates"]
                 if capped:
-                    totals[slot["week"]] += price(best) - price(current)
+                    # Keep enough for the cheapest meal in every later slot of this week.
+                    minimum_remaining[slot["week"]] -= slot["minimum"]
+                    available = cap - totals[slot["week"]] - minimum_remaining[slot["week"]]
+                    pool = pool[pool.price_cents <= available]
+                ranked = self._ranked(
+                    pool,
+                    slot["position"],
+                    self._neighbours(planned, slot["position"]),
+                    preferences,
+                    target_miss(slot, allowance),
+                )
+                itm_id = ranked[0][1]
+                check(itm_id, slot)
+                planned[slot["position"]] = itm_id
+                chosen.append(itm_id)
+                if capped:
+                    totals[slot["week"]] += price(itm_id)
+
+            # Pass 2: re-pick each new slot with the rest of the plan fixed; keep strict gains.
+            for i, slot in enumerate(slots):
+                current = chosen[i]
+                pool = slot["candidates"]
+                if capped:
+                    available = cap - totals[slot["week"]] + price(current)
+                    pool = pool[pool.price_cents <= available]
+                ranked = self._ranked(
+                    pool,
+                    slot["position"],
+                    self._neighbours(planned, slot["position"]),
+                    preferences,
+                    target_miss(slot, allowance),
+                )
+                best_key, best = ranked[0]
+                current_score = next(key[0] for key, itm_id in ranked if itm_id == current)
+                if best != current and best_key[0] < current_score:
+                    check(best, slot)
+                    planned[slot["position"]] = best
+                    chosen[i] = best
+                    if capped:
+                        totals[slot["week"]] += price(best) - price(current)
+
+            return chosen
+
+        chosen = plan_passes({})
+
+        if targets and not strict_targets:
+            # A day that cannot meet every target at once would otherwise chase the one
+            # closest combination every day. It may instead come within JOINT_SLACK of
+            # the closest its meals can get (day_allowance), and variety picks among
+            # those. Days that meet their targets keep their plans.
+            allowance = {}
+            for day in sorted({slot["position"] // variety.SLOTS_PER_DAY for slot in slots}):
+                if self._day_miss(day_slots[day], planned, day_targets[day]) > 0:
+                    best = self._best_day_miss(
+                        day_slots[day], new_slots, start_planned, day_targets[day]
+                    )
+                    # Only a day that truly cannot meet them all (best > 0) is eased; a
+                    # day that could, or one too large to search (None), keeps chasing
+                    if best:
+                        allowance[day] = best + JOINT_SLACK
+            if allowance:
+                chosen = plan_passes(allowance)
 
         if strict_targets and targets:
             index = {slot["position"]: i for i, slot in enumerate(slots)}

@@ -11,6 +11,7 @@ import pytest
 
 from proj2.meal_budget import plan_entries
 from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator, NoEligibleMealError
+from proj2.variety import slot_position as variety_slot
 from proj2.nutrition import (
     NUTRIENTS,
     REACH_SLACK,
@@ -448,3 +449,95 @@ def test_form_values_fill_only_bounds_that_are_set():
     targets = {"calories": DailyRange(1800, 2200), "protein_g": DailyRange(120, math.inf)}
     assert form_values(targets) == {"calorie_min": 1800, "calorie_max": 2200, "protein_min": 120}
 
+
+# ---------------------------------------------------------------- targets that conflict
+
+
+## In INDEPENDENT, 1,300-1,400 kcal and 170 g protein can each be met, but no day
+## meets both (the closest misses by 0.059): high-protein meals are also high-calorie.
+CONFLICTING = {"calories": DailyRange(1300, 1400), "protein_g": DailyRange(170, math.inf)}
+
+
+def test_a_day_that_could_meet_every_target_gets_no_allowance(monkeypatch):
+    # 1,800-1,900 kcal with 170 g protein can be met on a day, though the greedy
+    # planner misses it; easing it would loosen a target the menu can meet
+    reachable = {"calories": DailyRange(1800, 1900), "protein_g": DailyRange(170, math.inf)}
+    with_allowance = plan(make_generator(INDEPENDENT), reachable, days=7)
+    monkeypatch.setattr("proj2.menu_generation.JOINT_SLACK", 0.0)
+    assert plan(make_generator(INDEPENDENT), reachable, days=7) == with_allowance
+
+
+def test_conflicting_targets_keep_variety_instead_of_one_repeated_day(monkeypatch):
+    monkeypatch.setattr("proj2.menu_generation.JOINT_SLACK", 0.0)
+    gen = make_generator(INDEPENDENT)
+    chasing = {itm_id for _, itm_id, _ in plan_entries(plan(gen, CONFLICTING, days=7))}
+    chasing_variety = gen.variety.score
+    monkeypatch.undo()
+    gen = make_generator(INDEPENDENT)
+    menu = plan(gen, CONFLICTING, days=7)
+    assert len({itm_id for _, itm_id, _ in plan_entries(menu)}) > len(chasing) == 2
+    assert gen.variety.score > chasing_variety + 0.1  # 0.38 -> 0.55
+    report = gen.nutrition_report()
+    assert report["days_outside"] == 7  # the notice still tells the user
+
+
+def test_conflicting_targets_stay_close_to_the_best_reachable(monkeypatch):
+    from proj2.nutrition import JOINT_SLACK
+
+    gen = make_generator(INDEPENDENT)
+    plan(gen, CONFLICTING, days=7)
+    misses = [sum(day["miss"].values()) for day in gen.nutrition_report()["days"]]
+    positions = {variety_slot(MONDAY, meal) for meal in (1, 2, 3)}
+    new_slots = {p: {"candidates": gen.catalog} for p in positions}
+    best = gen._best_day_miss(positions, new_slots, {}, CONFLICTING)
+    assert best > 0
+    # Past the allowance a miss is only penalized as usual, so a day may go a hair over
+    assert all(best <= miss <= best + JOINT_SLACK + 0.01 for miss in misses)
+    assert min(misses) < best + JOINT_SLACK
+
+
+def test_best_day_miss_matches_a_brute_force_search():
+    import itertools
+
+    gen = make_generator(INDEPENDENT)
+    positions = {variety_slot(MONDAY, meal) for meal in (1, 2, 3)}
+    new_slots = {p: {"candidates": gen.catalog} for p in positions}
+    amounts = [(item["calories"], item["protein_g"]) for item in INDEPENDENT]
+    brute = min(
+        CONFLICTING["calories"].miss(sum(a[0] for a in combo))
+        + CONFLICTING["protein_g"].miss(sum(a[1] for a in combo))
+        for combo in itertools.product(amounts, repeat=3)
+    )
+    assert gen._best_day_miss(positions, new_slots, {}, CONFLICTING) == pytest.approx(brute)
+
+
+def test_best_day_miss_counts_meals_already_planned():
+    gen = make_generator(INDEPENDENT)
+    breakfast = variety_slot(MONDAY, 1)
+    positions = {breakfast, variety_slot(MONDAY, 2), variety_slot(MONDAY, 3)}
+    new_slots = {p: {"candidates": gen.catalog} for p in positions - {breakfast}}
+    aims = {"calories": DailyRange(5000, math.inf)}
+    # The richest two meals are 1,250 + 1,250 kcal; a 300 kcal breakfast leaves 2,800
+    best = gen._best_day_miss(positions, new_slots, {breakfast: 10}, aims)
+    assert best == pytest.approx((5000 - 2800) / 5000)
+
+
+def test_best_day_miss_gives_up_on_too_many_combinations(monkeypatch):
+    monkeypatch.setattr("proj2.menu_generation.JOINT_SEARCH_LIMIT", 50)
+    gen = make_generator(INDEPENDENT)
+    positions = {variety_slot(MONDAY, meal) for meal in (1, 2, 3)}
+    new_slots = {p: {"candidates": gen.catalog} for p in positions}
+    assert gen._best_day_miss(positions, new_slots, {}, CONFLICTING) is None
+
+
+def test_a_day_too_large_to_search_is_planned_without_allowance(monkeypatch):
+    monkeypatch.setattr("proj2.menu_generation.JOINT_SLACK", 0.0)
+    chasing = plan(make_generator(INDEPENDENT), CONFLICTING, days=7)
+    monkeypatch.undo()
+    monkeypatch.setattr("proj2.menu_generation.JOINT_SEARCH_LIMIT", 50)
+    assert plan(make_generator(INDEPENDENT), CONFLICTING, days=7) == chasing
+
+
+def test_strict_targets_get_no_allowance():
+    with pytest.raises(TargetsUnreachableError):
+        plan_strict(make_generator(INDEPENDENT), CONFLICTING, days=1)
