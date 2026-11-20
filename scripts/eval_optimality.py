@@ -179,7 +179,9 @@ def _entries(menu: str):
     return list(plan_entries(menu))
 
 
-def solve_exactly(slots, pools, items, prices, scenario, seconds: float, hint=None) -> tuple:
+def solve_exactly(
+    slots, pools, items, prices, scenario, seconds: float, hint=None, distinct=True
+) -> tuple:
     """Maximise the reported variety score exactly, over the planner's candidate sets.
 
     Each slot gets an index variable over its own candidate list. For every pair of slots
@@ -195,6 +197,22 @@ def solve_exactly(slots, pools, items, prices, scenario, seconds: float, hint=No
 
     features = {itm_id: variety.features(row) for itm_id, row in items.items()}
     choice = [model.NewIntVar(0, len(pool) - 1, f"slot_{s}") for s, pool in enumerate(pools)]
+
+    # The planner will not repeat a meal while it still has an unused one, so the solver
+    # must not either; without this the gap would credit the optimum with freedom the
+    # planner does not have. Slots have different pools, so the choice indices cannot be
+    # compared directly and the chosen item id is modelled explicitly.
+    if distinct:
+        chosen_item = []
+        for s, pool in enumerate(pools):
+            item_var = model.NewIntVarFromDomain(
+                cp_model.Domain.FromValues(sorted(set(pool))), f"item_{s}"
+            )
+            model.AddAllowedAssignments(
+                [choice[s], item_var], [(a, item) for a, item in enumerate(pool)]
+            )
+            chosen_item.append(item_var)
+        model.AddAllDifferent(chosen_item)
 
     positions = [position for _, _, _, position in slots]
     weight_total = 0.0
@@ -291,6 +309,14 @@ def evaluate(scenario: Scenario, database: str, seconds: float) -> Outcome:
     exact_entries, best, bound, status, exact_seconds, notes = solve_exactly(
         slots, pools, items, prices, scenario, seconds, hint=hint
     )
+    if status == "INFEASIBLE":
+        # Not enough different meals to fill the week, which is the one case where the
+        # planner is allowed to repeat. Drop the rule on both sides rather than report
+        # a week as impossible.
+        exact_entries, best, bound, status, exact_seconds, extra = solve_exactly(
+            slots, pools, items, prices, scenario, seconds, hint=hint, distinct=False
+        )
+        notes = extra + ["no all-different solution exists; repeats allowed, as the planner does"]
     # Score the solver's own plan through plan_variety too, so both numbers come from the
     # product's scorer rather than from the model's arithmetic.
     if exact_entries:
