@@ -185,10 +185,11 @@ From the repository root on macOS, run the meeting demo with the project virtual
 .venv/bin/python scripts/demo_planner.py
 ```
 
-The demo runs the strategy comparisons, then saves and tests each of the six sliders through
-**Profile → II. Diet** on a fresh demo account. The results compare the same five dinners under
-a vegetarian diet, a peanut allergy, and a $60 weekly cap. The script verifies the weights the
-optimizer received and shows how it responds to an infeasible $1 cap.
+The demo first compares cost and variety for three dinners, then compares search methods on a
+full week of vegetarian meals with a peanut allergy, a $245 weekly cap, and all six objectives.
+It prints the active settings and normalized weights before each comparison. The final example
+saves each slider through **Profile → II. Diet**, compares the same five dinners under a $60 cap,
+and shows the planner rejecting an infeasible $1 cap.
 
 The printed URL opens the demo account with the combined settings already saved. Generate the
 suggested dinners from the calendar to see the applied priorities and results. Press Ctrl+C
@@ -199,11 +200,20 @@ To configure a comparison directly, run it from the activated project environmen
 
 ```sh
 python scripts/compare_planners.py --trace --tradeoffs
-python scripts/compare_planners.py --days 7 --meals 1 2 3 --cap 245 --seed 7
+python scripts/compare_planners.py --days 7 --meals 1 2 3 --cap 245 --starts 8 --seed 7
+python scripts/compare_planners.py --days 7 --meals 1 2 3 --catalog-copies 2 \
+  --diets vegetarian --allergens Peanuts --food-matches Italian --cap 245 \
+  --weight variety=60 --weight cost=25 --weight preference=35
 ```
 
-The comparison uses a temporary demo catalog and reports runtime, variety, item cost,
-and search effort. The trade-off run compares weighted objectives with weekly cost caps.
+Each search method gets the same seeded starting plans and evaluation budget. The first
+start is greedy. Additional starts build randomized feasible plans across all slots. The table
+compares the greedy score, best start, and best score reached, alongside the number of scored
+plans and accepted uphill, flat, and downhill moves. Alongside the hill-climbing variants
+and simulated annealing, the demo compares tabu search (blocks recent reversals), late
+acceptance hill climbing (uses recent scores to accept proposals), and iterated local
+search (perturbs plans between climbs). Extra catalog copies repeat the same dishes under
+new restaurant entries, so those runs measure search effort with larger pools.
 Use the [CP-SAT harness](evals/optimality/README.md) to check small variety-only cases
 against the solver's integer-scaled objective.
 

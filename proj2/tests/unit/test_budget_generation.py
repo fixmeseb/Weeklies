@@ -148,3 +148,15 @@ def test_variety_never_buys_past_the_cap(generator):
 def test_unknown_saved_price_does_not_silently_become_zero(generator):
     with pytest.raises(ValueError, match="no longer in the catalog"):
         generate(generator, menu="[2026-10-11,999,3]")
+
+
+@pytest.mark.parametrize("strategy", ["best", "annealing", "tabu", "late-acceptance", "iterated"])
+def test_restarts_find_distinct_feasible_plans_even_when_no_single_swap_is_possible(
+    generator, strategy
+):
+    menu = generate(generator, strategy=strategy, starts=4, max_evaluations=20, seed=7)
+    assert menu == "[2026-10-05,2,3],[2026-10-06,3,3]"
+    assert generator.item_total_cents == 1000
+    result = generator.search_result
+    assert result.starts == result.evaluations == 2
+    assert result.moves == 0

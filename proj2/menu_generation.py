@@ -756,6 +756,11 @@ class MenuGenerator:
                 end up inside every range, or nothing is planned (see _repair_day).
             objective_weights (tuple | None): Normalized priorities in OBJECTIVES order.
                 None uses the default planner unless a search strategy is selected.
+            strategy (str | None): A method from STRATEGIES, including simulated annealing.
+            max_evaluations (int): Shared limit on scored starting plans and neighbors.
+            starts (int): Up to this many distinct starts, starting with the greedy plan.
+                Nutrition targets use a single start built to respect those targets.
+            seed (int): Seed for randomized starts and move selection.
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
@@ -958,7 +963,7 @@ class MenuGenerator:
         def requested_items(planned):
             return {item for pos, item in planned.items() if first_slot <= pos <= last_slot}
 
-        def build(opening, allowance, improve=True):
+        def build(opening, allowance, improve=True, rng=None):
             """Fill every slot, then improve it, starting the first slot with `opening`.
 
             Returns (chosen, planned, totals). Each call works on its own copies, so a
@@ -977,7 +982,12 @@ class MenuGenerator:
                     remaining[slot["week"]] -= slot["minimum"]
                     available = cap - totals_here[slot["week"]] - remaining[slot["week"]]
                     pool = pool[pool.price_cents <= available]
-                if index == 0 and opening is not None and opening in set(pool["itm_id"]):
+                if rng is not None:
+                    items = pool["itm_id"].tolist()
+                    used = requested_items(planned) | self._recent_items(recent, slot["position"])
+                    unused = [item for item in items if item not in used]
+                    itm_id = int(rng.choice(unused or items))
+                elif index == 0 and opening is not None and opening in set(pool["itm_id"]):
                     itm_id = opening
                 else:
                     ranked = self._ranked(
@@ -1186,41 +1196,31 @@ class MenuGenerator:
                 history=tuple(sorted(recent)),
                 replacement_allowed=replacement_allowed,
             )
-            openings = []
-            if starts > 1 and slots and not targets:
-                openings = [
-                    item
-                    for item in problem.pools[0]
-                    if item != chosen[0]
-                    and (
-                        item not in recent_by_slot[slots[0]["position"]]
-                        or chosen[0] in recent_by_slot[slots[0]["position"]]
-                    )
-                ]
-                if capped:
-                    first = slots[0]
-                    available = (
-                        cap
-                        - saved_totals[first["week"]]
-                        - minimum_remaining[first["week"]]
-                        + first["minimum"]
-                    )
-                    openings = [item for item in openings if problem.prices[item] <= available]
-                Random(seed).shuffle(openings)
-
-            def starting_plans():
-                yield problem.candidate(tuple(chosen))
-                for opening in openings:
-                    yield problem.candidate(tuple(build(opening, {}, improve=False)[0]))
+            starting_states = {tuple(chosen): None}
+            start_limit = min(starts, max_evaluations)
+            if start_limit > 1 and slots and not targets:
+                start_rng = Random(seed)
+                # Different full-plan starts expose more of the search space. Retry duplicates
+                # in tightly constrained catalogs, then report the starts actually available.
+                duplicate_attempts = 0
+                while len(starting_states) < start_limit and duplicate_attempts < 32:
+                    picks, _, _ = build(None, {}, improve=False, rng=start_rng)
+                    state = tuple(picks)
+                    if state in starting_states:
+                        duplicate_attempts += 1
+                    else:
+                        starting_states[state] = None
+                        duplicate_attempts = 0
 
             self.search_result = climb(
-                starting_plans(),
+                (problem.candidate(state) for state in starting_states),
                 problem.neighbors,
                 STRATEGIES[strategy],
                 max_evaluations=max_evaluations,
-                max_starts=min(starts, len(openings) + 1),
+                max_starts=min(starts, len(starting_states)),
                 seed=seed,
                 sideways_limit=8 if strategy == "sideways" else 0,
+                randomized_neighbors=problem.neighbors,
             )
             chosen = self.search_result.best.state
             self.optimization = problem.measure(chosen)

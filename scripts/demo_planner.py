@@ -151,8 +151,26 @@ def main(argv=None):
 
     print("\nExample 1 — Three dinners and the cost–variety trade-off")
     compare(["--tradeoffs"])
-    print("\nExample 2 — A full week of meals under a $245 item cap")
-    compare(["--days", "7", "--meals", "1", "2", "3", "--cap", "245"])
+    print("\nExample 2 — Search strategies on a full week with all six objectives")
+    comparison = [
+        "--days",
+        "7",
+        "--meals",
+        "1",
+        "2",
+        "3",
+        "--cap",
+        "245",
+        "--diets",
+        DEMO_DIET,
+        "--allergens",
+        DEMO_ALLERGY,
+        "--food-matches",
+        DEMO_FOOD_MATCH,
+    ]
+    for name, value in DEMO_WEIGHTS.items():
+        comparison.extend(("--weight", f"{name}={value}"))
+    compare(comparison)
 
     with TemporaryDirectory(prefix="weeklies-demo-") as directory:
         database = str(Path(directory) / "demo.db")

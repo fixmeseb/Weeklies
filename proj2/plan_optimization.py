@@ -144,7 +144,8 @@ class MealSearch:
         )
         return Candidate(state, score)
 
-    def neighbors(self, current):
+    def neighbors(self, current, rng=None):
+        """Yield the feasible replacements, optionally in randomized slot and dish order."""
         state = current.state
         planned = self.fixed | dict(zip(self.positions, state))
         counts = Counter(self.all_saved.values())
@@ -155,7 +156,14 @@ class MealSearch:
         if self.weekly_cap is not None:
             for slot, item in zip(self.slots, state):
                 totals[slot["week"]] += self.prices[item]
-        for index, (slot, pool, old) in enumerate(zip(self.slots, self.pools, state)):
+        indexes = list(range(len(self.slots)))
+        if rng is not None:
+            rng.shuffle(indexes)
+        for index in indexes:
+            slot, pool, old = self.slots[index], self.pools[index], state[index]
+            if rng is not None:
+                pool = list(pool)
+                rng.shuffle(pool)
             links = [
                 (planned[position], weight) for position, weight in self.links[slot["position"]]
             ]
