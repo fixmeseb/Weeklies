@@ -10,9 +10,12 @@ Flask_app.parse_generated_menu.
 import datetime
 import re
 
+import pandas as pd
+
 from proj2 import variety
-from proj2.meal_budget import item_price_cents, plan_entries
+from proj2.meal_budget import item_price_cents, plan_entries, weekly_item_totals, week_start
 from proj2.meal_tags import has_column
+from proj2.plan_optimization import MealSearch
 from proj2.plan_rules import (  # noqa: F401  parse_allergens/is_restaurant_open re-exported
     is_restaurant_open,
     item_rejection,
@@ -198,45 +201,78 @@ def list_swap_options(
     return options
 
 
-def rank_swap_options(options, catalog: dict, menu: str, date: str, meal: int, preferences=None):
-    """
-    Orders swap options by how much variety each adds next to the rest of the plan
+def swap_price_limit(menu, day, meal, cap, catalog):
+    """Find how much can be spent on the replacement after counting the other meals."""
+    week = week_start(day)
+    prices = {item: row["price"] for item, row in catalog.items()}
+    totals = weekly_item_totals(menu, prices, [week], excluding_slot=(day, meal))
+    return cap - totals[week]
 
-    Uses the same score as generation (proj2.variety): the option's weighted distance
-    to the other planned meals around the slot, plus the soft-preference bonus; ties go
-    to the cheaper item, then the lower itm_id.
 
-    Args:
-        options (List[dict]): Eligible items from list_swap_options
-        catalog (dict): itm_id -> MenuItem row (proj2.variety.catalog_rows)
-        menu (str): The user's generated menu string
-        date (str): The slot date in YYYY-MM-DD format
-        meal (int): The slot meal number (1, 2, or 3)
-        preferences (str | None): The user's comma-separated preferences
+def swap_fits_budget(item, catalog, limit):
+    """Whether the replacement has a known price within the available budget."""
+    try:
+        return item_price_cents(catalog.get(item, {}).get("price")) <= limit
+    except ValueError:
+        return False
 
-    Returns:
-        List[dict]: The options, best first, each with a "variety" score from 0 to about 1
-    """
+
+def rank_swap_options(
+    options, catalog: dict, menu: str, date: str, meal: int, preferences=None, *, weights=None
+):
+    """Rank eligible swaps using the saved objectives or the default variety score."""
     position = variety.slot_position(date, meal)
-    neighbours = [
-        (variety.slot_position(day, slot_meal), variety.features(catalog[itm_id]))
+    nearby = [
+        (other, itm_id)
         for day, itm_id, slot_meal in plan_entries(menu)
-        if itm_id in catalog and variety.slot_position(day, slot_meal) != position
+        if itm_id in catalog
+        and (other := variety.slot_position(day, slot_meal)) != position
+        and variety.closeness(position, other)
     ]
-
-    def price(option):
+    distances = variety.ItemDistances(catalog)
+    prices = {}
+    for option in options:
+        itm_id = option["itm_id"]
         try:
-            return item_price_cents(catalog.get(option["itm_id"], {}).get("price"))
+            prices[itm_id] = item_price_cents(catalog.get(itm_id, {}).get("price"))
         except ValueError:
-            return float("inf")
+            pass
 
+    search = None
+    if weights is not None and prices:
+        search = MealSearch(
+            slots=[{"position": position, "candidates": pd.DataFrame({"itm_id": list(prices)})}],
+            fixed={},
+            all_saved={},
+            prices=prices,
+            catalog={item: catalog[item] for item in prices},
+            preference={
+                item: variety.preference_match(catalog[item], preferences) for item in prices
+            },
+            distances=distances,
+            weights=weights,
+            weekly_cap=None,
+            saved_totals=None,
+            history=tuple(nearby),
+            existing_restaurants=frozenset(catalog[item]["rtr_id"] for _, item in nearby),
+        )
+
+    neighbours = [(other, distances.features(item)) for other, item in nearby]
     ranked = []
     for option in options:
-        row = catalog.get(option["itm_id"], option)
+        itm_id = option["itm_id"]
+        row = catalog.get(itm_id, option)
         gain, weight_sum = variety.slot_gain(variety.features(row), position, neighbours)
-        score = variety.candidate_score(
-            gain, weight_sum, variety.preference_match(row, preferences)
+        match = variety.preference_match(row, preferences)
+        variety_score = variety.candidate_score(gain, weight_sum, match if weights is None else 0)
+        score = variety_score
+        if search is not None:
+            score = search.candidate((itm_id,)).score if itm_id in prices else float("-inf")
+        ranked.append(
+            (
+                (-score, prices.get(itm_id, float("inf")), itm_id),
+                dict(option, variety=variety_score),
+            )
         )
-        ranked.append(((-score, price(option), option["itm_id"]), dict(option, variety=score)))
     ranked.sort(key=lambda pair: pair[0])
     return [option for _, option in ranked]

@@ -102,3 +102,120 @@ def test_request_allergens_cannot_drop_account_allergies(client, diet_catalog, t
     assert response.status_code == 200, response.get_json()
     assert diet_catalog["veg"] in planned_ids(response)
     assert diet_catalog["meat"] not in planned_ids(response)
+
+
+def test_profile_saves_hard_limits_and_soft_priorities_together(client, diet_catalog, temp_db_path):
+    with sqlite3.connect(temp_db_path) as conn:
+        affordable = conn.execute(
+            """INSERT INTO MenuItem (rtr_id, name, price, instock, allergens, diet_tags, spice_level)
+               SELECT rtr_id, 'Mild vegan dinner', 300, 1, '', 'vegan', 0
+               FROM MenuItem WHERE itm_id=?""",
+            (diet_catalog["veg"],),
+        ).lastrowid
+        hot = conn.execute(
+            """INSERT INTO MenuItem (rtr_id, name, price, instock, allergens, diet_tags, spice_level)
+               SELECT rtr_id, 'Hot vegan dinner', 250, 1, '', 'vegan', 3
+               FROM MenuItem WHERE itm_id=?""",
+            (diet_catalog["veg"],),
+        ).lastrowid
+        conn.execute("UPDATE MenuItem SET diet_tags='vegan' WHERE itm_id=?", (diet_catalog["veg"],))
+        conn.execute(
+            "UPDATE MenuItem SET diet_tags='vegan', allergens='Soy' WHERE itm_id=?",
+            (diet_catalog["meat"],),
+        )
+
+    response = client.post(
+        "/profile/edit",
+        data={
+            "diet_constraints": "1",
+            "allergies[]": "Soy",
+            "diets[]": "vegan",
+            "weekly_cap": "8.00",
+            "mildness_weight": "100",
+        },
+        follow_redirects=True,
+    )
+    assert b"Diet settings saved." in response.data
+    assert b'value="8.00"' in response.data
+
+    options = client.get(f"/menu/swap/options?date={MONDAY}&meal=3").json["options"]
+    assert [item["itm_id"] for item in options] == [affordable, hot]
+
+    response = generate(client, weekly_cap="100.00", allergens="Milk", preferences="Italian")
+    assert response.status_code == 200, response.json
+    assert response.json["weekly_cap_cents"] == 800
+    assert response.json["optimization"]["average_spice"] == 0
+    assert response.json["optimization"]["constraints"] == {
+        "diets": ["vegan"],
+        "allergies": ["dairy", "soy"],
+        "weekly_cap_cents": 800,
+    }
+    assert f"[2026-10-06,{affordable},3]" in response.json["generated_menu"]
+
+    response = client.post(
+        "/menu/swap", json={"date": "2026-10-06", "meal": 3, "itm_id": diet_catalog["veg"]}
+    )
+    assert response.status_code == 409
+    assert response.json["error"] == "weekly_cap"
+
+    response = generate(client, start_date="2026-10-07", weekly_cap="")
+    assert response.status_code == 422
+
+
+def test_invalid_diet_save_is_atomic_and_zero_disables_food_matching(client, diet_catalog):
+    initial = {
+        "diet_constraints": "1",
+        "diets[]": "vegetarian",
+        "allergies[]": "Soy",
+        "weekly_cap": "10.00",
+        "food_matches": "Indian",
+        "preference_weight": "0",
+    }
+    client.post("/profile/edit", data=initial)
+
+    bad = client.post(
+        "/profile/edit",
+        data={**initial, "allergies[]": "Milk", "weekly_cap": "", "preference_weight": "101"},
+        follow_redirects=True,
+    )
+    assert b"Use whole-number weights from 0 to 100." in bad.data
+    assert b'value="Soy" checked' in bad.data
+    assert b'value="Milk" checked' not in bad.data
+    assert b'value="10.00"' in bad.data
+
+    response = generate(client)
+    assert response.status_code == 200, response.json
+    assert response.json["weekly_cap_cents"] == 1000
+    assert response.json["optimization"] is None
+
+    cleared = client.post("/profile/edit", data={"diet_constraints": "1"}, follow_redirects=True)
+    assert b'value="Soy" checked' not in cleared.data
+    assert b'value="vegetarian" checked' not in cleared.data
+    response = generate(client, start_date="2026-10-07")
+    assert response.status_code == 200, response.json
+    assert response.json["weekly_cap_cents"] is None
+
+
+def test_generation_cannot_save_against_a_stale_account_cap(
+    client, diet_catalog, temp_db_path, monkeypatch
+):
+    from proj2.menu_generation import MenuGenerator
+
+    generate_plan = MenuGenerator.update_menu
+
+    def change_cap_during_generation(self, **kwargs):
+        plan = generate_plan(self, **kwargs)
+        with sqlite3.connect(temp_db_path) as conn:
+            conn.execute(
+                'UPDATE "User" SET weekly_cap_cents=0 WHERE usr_id=?', (diet_catalog["usr_id"],)
+            )
+        return plan
+
+    monkeypatch.setattr(MenuGenerator, "update_menu", change_cap_during_generation)
+    response = generate(client)
+    assert response.status_code == 409
+    with sqlite3.connect(temp_db_path) as conn:
+        plan = conn.execute(
+            'SELECT generated_menu FROM "User" WHERE usr_id=?', (diet_catalog["usr_id"],)
+        ).fetchone()[0]
+    assert plan == f"[{MONDAY},{diet_catalog['veg']},3]"

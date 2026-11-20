@@ -1,5 +1,3 @@
-
-
 def test_profile_requires_login_redirects(client):
     resp = client.get("/profile", follow_redirects=False)
     # Should redirect unauthenticated users to login
@@ -41,10 +39,12 @@ def test_edit_profile_get_opens_the_profile_pop_up(client, login_session):
     assert r.status_code in (302, 303)
     assert r.headers["Location"].endswith("/profile#edit")
     html = client.get("/profile").get_data(as_text=True)
-    assert 'id="editModal"' in html and 'id="openEditBtn"' in html
+    assert 'id="editModal"' in html and 'id="openEditBtn"' not in html
     form = html.split('id="editProfileForm"')[1].split("</form>")[0]
-    assert 'name="phone"' in form and 'name="allergies[]"' in form
-    assert 'id="allergiesField"' in form and 'id="preferencesField"' in form
+    assert 'name="phone"' in form and 'name="allergies[]"' not in form
+    diet_form = html.split('id="dietProfileForm"')[1].split("</form>")[0]
+    assert 'name="allergies[]"' in diet_form and 'name="diets[]"' in diet_form
+    assert 'name="mildness_weight"' in diet_form
 
 
 def test_edit_profile_requires_login(client):

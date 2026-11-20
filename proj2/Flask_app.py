@@ -35,7 +35,12 @@ from proj2.meal_budget import (
     weekly_item_totals,
 )
 from proj2.order_progress import order_progress
-from proj2.dietary import with_account_allergies, with_account_diets
+from proj2.dietary import (
+    KNOWN_DIETS,
+    required_diets,
+    with_account_allergies,
+    with_account_diets,
+)
 from proj2 import menu_items
 from proj2.meal_swap import (
     SlotNotFoundError,
@@ -45,6 +50,8 @@ from proj2.meal_swap import (
     rank_swap_options,
     replace_menu_slot,
     slot_weekday_and_time,
+    swap_fits_budget,
+    swap_price_limit,
     swap_rejection,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -485,6 +492,9 @@ SWAP_ERROR_MESSAGES = {
     "restaurant_unavailable": "That restaurant is not currently taking orders.",
     "restaurant_closed": "That restaurant is closed at that meal time.",
     "allergen": "That item contains one of your allergens.",
+    "diet": "That item does not satisfy your required diets.",
+    "plan_changed": "Your plan or Diet settings changed. Refresh the calendar and try again.",
+    "weekly_cap": "That swap would exceed your weekly item-price cap or the week could not be priced.",
 }
 
 
@@ -582,7 +592,7 @@ def index(year, month):
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT generated_menu, nutrition_targets, strict_targets FROM "User" WHERE email = ?',
+        'SELECT generated_menu, nutrition_targets, strict_targets, weekly_cap_cents FROM "User" WHERE email = ?',
         (session.get("Email"),),
     )
 
@@ -653,9 +663,11 @@ def index(year, month):
         generation_error=session.pop("menu_generation_error", None),
         almanac_weeks=almanac_weeks,
         optimization=session.pop("menu_optimization", None),
+        optimization_objectives=OBJECTIVES,
         # The plan form opens with the targets last planned with (see generate_menu)
         target_values=form_values(load_saved_targets(user["nutrition_targets"])),
         strict_saved=bool(user["strict_targets"]),
+        saved_weekly_cap=user["weekly_cap_cents"],
     )
 
 
@@ -705,6 +717,32 @@ def insights(year, month):
     )
 
 
+def find_customer_for_login(email):
+    """Find the customer and account fields needed to start a session."""
+    return fetch_one(
+        get_db(),
+        "SELECT usr_id, first_name, last_name, phone, password_HS, wallet, preferences, "
+        'allergies, generated_menu FROM "User" WHERE email = ?',
+        (email,),
+    )
+
+
+def start_customer_session(user, email):
+    """Copy an authenticated customer account into the current session."""
+    session["usr_id"] = user["usr_id"]
+    session["Fname"] = user["first_name"]
+    session["Lname"] = user["last_name"]
+    session["Username"] = user["first_name"] + " " + user["last_name"]
+    session["Email"] = email
+    session["Phone"] = user["phone"]
+    session["Wallet"] = user["wallet"]
+    session["Preferences"] = user["preferences"] or ""
+    session["Allergies"] = user["allergies"] or ""
+    session["GeneratedMenu"] = user["generated_menu"] or ""
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(minutes=30)
+
+
 # Login route
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -719,27 +757,9 @@ def login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        conn = get_db()
-        user = fetch_one(
-            conn,
-            "SELECT usr_id, first_name, last_name, phone, password_HS, wallet, preferences, "
-            'allergies, generated_menu FROM "User" WHERE email = ?',
-            (email,),
-        )
-
+        user = find_customer_for_login(email)
         if user and check_password_hash(user["password_HS"], password):
-            session["usr_id"] = user["usr_id"]
-            session["Fname"] = user["first_name"]
-            session["Lname"] = user["last_name"]
-            session["Username"] = user["first_name"] + " " + user["last_name"]
-            session["Email"] = email
-            session["Phone"] = user["phone"]
-            session["Wallet"] = user["wallet"]
-            session["Preferences"] = user["preferences"] or ""
-            session["Allergies"] = user["allergies"] or ""
-            session["GeneratedMenu"] = user["generated_menu"] or ""
-            session.permanent = True
-            app.permanent_session_lifetime = timedelta(minutes=30)
+            start_customer_session(user, email)
             return redirect(url_for("index"))
         return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
@@ -1430,6 +1450,17 @@ def register():
     Returns:
         Response: Renders registration page or redirects to login on success.
     """
+    allergies, preferences = submitted_diet_constraints()
+
+    def registration_page(error=None):
+        return render_template(
+            "register.html",
+            error=error,
+            submitted_allergies=allergies,
+            diet_options=DIET_OPTIONS,
+            selected_diets=required_diets(preferences),
+        )
+
     if request.method == "POST":
         fname = (request.form.get("fname") or "").strip()
         lname = (request.form.get("lname") or "").strip()
@@ -1437,28 +1468,26 @@ def register():
         phone = (request.form.get("phone") or "").strip()
         password = request.form.get("password") or ""
         confirm_password = request.form.get("confirm_password") or ""
-        allergies = (request.form.get("allergies") or "").strip()
-        preferences = (request.form.get("preferences") or "").strip()
 
         # Basic validations
         if not fname or not lname:
-            return render_template("register.html", error="First and last name are required")
+            return registration_page("First and last name are required")
         if not email or not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
-            return render_template("register.html", error="Please enter a valid email address")
+            return registration_page("Please enter a valid email address")
         if password != confirm_password:
-            return render_template("register.html", error="Passwords do not match")
+            return registration_page("Passwords do not match")
         if len(password) < 6:
-            return render_template("register.html", error="Password must be at least 6 characters")
+            return registration_page("Password must be at least 6 characters")
 
         digits_only = re.sub(r"\D+", "", phone)
         if len(digits_only) < 7:
-            return render_template("register.html", error="Please enter a valid phone number")
+            return registration_page("Please enter a valid phone number")
 
         conn = get_db()
         try:
             exists = fetch_one(conn, 'SELECT 1 FROM "User" WHERE email = ?', (email,))
             if exists:
-                return render_template("register.html", error="Email already registered")
+                return registration_page("Email already registered")
 
             password_hashed = generate_password_hash(password)
 
@@ -1474,11 +1503,57 @@ def register():
                 (fname, lname, email, digits_only, password_hashed, 0, preferences, allergies),
             )
         except IntegrityError:
-            return render_template("register.html", error="Email already registered")
+            return registration_page("Email already registered")
 
         return redirect(url_for("login"))
 
-    return render_template("register.html")
+    return registration_page()
+
+
+DIET_OPTIONS = {tag: tag.title() for tag in sorted(KNOWN_DIETS)}
+
+
+def submitted_diet_constraints():
+    """Read the checkbox editor or the existing CSV fields used by older clients."""
+    if "diet_constraints" not in request.form:
+        return tuple(
+            (request.form.get(name) or "").strip() for name in ("allergies", "preferences")
+        )
+    allergies = ", ".join(request.form.getlist("allergies[]"))
+    diets = ", ".join(sorted(KNOWN_DIETS.intersection(request.form.getlist("diets[]"))))
+    return allergies, diets
+
+
+def profile_weights(stored, preferences):
+    """Give legacy food tags a weight when the account has never set any sliders."""
+    weights = json.loads(stored)
+    if not variety.soft_preferences(preferences):
+        weights.pop("preference", None)
+    elif not weights:
+        return {"variety": 100, "preference": round(100 * variety.PREFERENCE_WEIGHT)}
+    return weights
+
+
+def configured_weights(stored, preferences):
+    weights = profile_weights(stored, preferences)
+    return parse_weights(tuple(weights.get(name) or None for name in OBJECTIVES))
+
+
+def submitted_weights():
+    """Read whole-number priorities. An all-zero set selects the default planner."""
+    weights = {}
+    for name in OBJECTIVES:
+        value = request.form.get(f"{name}_weight")
+        if value in (None, ""):
+            continue
+        try:
+            weight = int(value)
+            if not 0 <= weight <= 100:
+                raise ValueError
+        except ValueError:
+            raise ValueError("Use whole-number weights from 0 to 100.") from None
+        weights[name] = weight
+    return weights
 
 
 # Profile route
@@ -1503,7 +1578,7 @@ def profile():
     conn = get_db()
     row = fetch_one(
         conn,
-        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,optimization_weights FROM "User" WHERE email = ?',
+        'SELECT usr_id,first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,optimization_weights,weekly_cap_cents FROM "User" WHERE email = ?',
         (email,),
     )
     if not row:
@@ -1527,14 +1602,22 @@ def profile():
     pw_error = request.args.get("pw_error")
 
     recent = user_orders(conn, user["usr_id"])
+    food_matches = [tag for tag in _csv_list(user["preferences"]) if variety.soft_preferences(tag)]
+    cap = row["weekly_cap_cents"]
+    selected_diets = required_diets(user["preferences"])
     return render_template(
         "profile.html",
         user=user,
         diet=diet_summary(conn, user["allergies"], user["preferences"]),
         last_order=recent[0] if recent else None,
         optimization_objectives=OBJECTIVES,
-        optimization_weights=json.loads(row["optimization_weights"]),
-        optimization_notice=session.pop("optimization_notice", None),
+        optimization_weights=profile_weights(row["optimization_weights"], user["preferences"]),
+        food_matches=", ".join(food_matches),
+        diet_options=DIET_OPTIONS,
+        selected_diets=selected_diets,
+        selected_diet_labels=[DIET_OPTIONS[code] for code in sorted(selected_diets)],
+        weekly_cap=f"{cap // 100}.{cap % 100:02d}" if cap is not None else "",
+        diet_notice=session.pop("diet_notice", None),
         pw_updated=pw_updated,
         pw_error=pw_error,
     )
@@ -1573,24 +1656,17 @@ def save_optimization():
     if session.get("Username") is None:
         return redirect(url_for("login"))
 
-    values = tuple(request.form.get(f"{name}_weight") for name in OBJECTIVES)
     try:
-        weights = {
-            name: int(value) for name, value in zip(OBJECTIVES, values) if value not in (None, "")
-        }
-        parse_weights(tuple(weights.values()))
-    except ValueError:
-        session["optimization_notice"] = (
-            "danger",
-            "Use whole-number weights from 0 to 100 and give at least one at least 1.",
-        )
+        weights = submitted_weights()
+    except ValueError as exc:
+        session["diet_notice"] = ("danger", str(exc))
     else:
         execute_query(
             get_db(),
             'UPDATE "User" SET optimization_weights = ? WHERE email = ?',
             (json.dumps(weights), session.get("Email")),
         )
-        session["optimization_notice"] = ("success", "Optimization preferences saved.")
+        session["diet_notice"] = ("success", "Optimization preferences saved.")
     return redirect(url_for("profile", _anchor="optimization-preferences"))
 
 
@@ -1598,7 +1674,7 @@ def save_optimization():
 @app.route("/profile/edit", methods=["GET", "POST"])
 def edit_profile():
     """
-    Save the Profile page's edit pop-up (phone, preferences, allergies).
+    Save the profile's phone, preferences, or allergies.
     Args:
         None
     Returns:
@@ -1615,51 +1691,62 @@ def edit_profile():
     conn = get_db()
     row = fetch_one(
         conn,
-        """
-        SELECT usr_id, first_name, last_name, email, phone, wallet, preferences, allergies
-        FROM "User" WHERE usr_id = ?
-    """,
+        'SELECT usr_id FROM "User" WHERE usr_id = ?',
         (usr_id,),
     )
 
     if not row:
         return redirect(url_for("logout"))
 
-    user = {
-        "usr_id": row[0],
-        "first_name": row[1],
-        "last_name": row[2],
-        "email": row[3],
-        "phone": row[4],
-        "wallet": (row[5] or 0) / 100.0,
-        "preferences": row[6] or "",
-        "allergies": row[7] or "",
-    }
-
     if request.method == "POST":
-        new_phone = request.form.get("phone") or user["phone"]
-        new_prefs = request.form.get("preferences") or user["preferences"]
-        new_allergies = request.form.get("allergies") or user["allergies"]
+        if "diet_constraints" in request.form:
+            return save_diet_settings(conn, usr_id)
 
-        conn = get_db()
-        execute_query(
-            conn,
-            """
-            UPDATE "User"
-            SET phone = ?, preferences = ?, allergies = ?
-            WHERE usr_id = ?
-        """,
-            (new_phone, new_prefs, new_allergies, usr_id),
-        )
-
-        # Refresh session values
-        session["Phone"] = new_phone
-        session["Preferences"] = new_prefs
-        session["Allergies"] = new_allergies
-
-        return redirect(url_for("profile"))
+        # Older clients can still submit the original CSV fields. The phone form
+        # updates only the columns it sends, so it cannot overwrite a concurrent diet edit.
+        fields = {"phone": request.form.get("phone") or None}
+        fields.update({name: request.form.get(name) for name in ("preferences", "allergies")})
+        updates = {name: value for name, value in fields.items() if value is not None}
+        if updates:
+            assignments = ", ".join(f"{name} = ?" for name in updates)
+            execute_query(
+                conn,
+                f'UPDATE "User" SET {assignments} WHERE usr_id = ?',
+                (*updates.values(), usr_id),
+            )
+            session.update({name.title(): value for name, value in updates.items()})
+        anchor = "diet" if request.form.get("section") == "diet" else None
+        return redirect(url_for("profile", _anchor=anchor))
 
     return redirect(url_for("profile", _anchor="edit"))
+
+
+def save_diet_settings(conn, usr_id):
+    """Validate both groups before committing any Diet settings."""
+    allergies, diets = submitted_diet_constraints()
+    food_matches = [
+        tag for tag in _csv_list(request.form.get("food_matches")) if variety.soft_preferences(tag)
+    ]
+    preferences = ", ".join(filter(None, (diets, ", ".join(food_matches))))
+    try:
+        cap = parse_weekly_cap(request.form.get("weekly_cap"))
+        weights = submitted_weights()
+        if weights.get("preference") and not food_matches:
+            raise ValueError("Enter foods to match or set the food-match slider to zero.")
+    except ValueError as exc:
+        session["diet_notice"] = ("danger", str(exc))
+    else:
+        # Record an explicit zero so clearing the sliders doesn't restore legacy food matching.
+        weights.setdefault("preference", 0)
+        execute_query(
+            conn,
+            """UPDATE "User" SET allergies = ?, preferences = ?, weekly_cap_cents = ?,
+               optimization_weights = ? WHERE usr_id = ?""",
+            (allergies, preferences, cap, json.dumps(weights), usr_id),
+        )
+        session.update({"Allergies": allergies, "Preferences": preferences})
+        session["diet_notice"] = ("success", "Diet settings saved.")
+    return redirect(url_for("profile", _anchor="diet"))
 
 
 @app.route("/profile/change-password", methods=["POST"])
@@ -2649,6 +2736,28 @@ def db_view():
     )
 
 
+def save_generated_plan(conn, user, updated_menu):
+    """Persist a plan only if its starting plan and account constraints are still current."""
+    return (
+        execute_query(
+            conn,
+            """UPDATE "User" SET generated_menu = ? WHERE usr_id = ?
+           AND generated_menu IS ? AND allergies IS ? AND preferences IS ?
+           AND weekly_cap_cents IS ? AND optimization_weights IS ?""",
+            (
+                updated_menu,
+                user["usr_id"],
+                user["generated_menu"],
+                user["allergies"],
+                user["preferences"],
+                user["weekly_cap_cents"],
+                user["optimization_weights"],
+            ),
+        ).rowcount
+        == 1
+    )
+
+
 # ----------- Meal Plan Generation Route -----------
 @app.route("/menu/generate", methods=["POST"])
 def generate_menu():
@@ -2664,7 +2773,7 @@ def generate_menu():
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT usr_id, email, preferences, allergies, generated_menu, optimization_weights FROM "User" WHERE email = ?',
+        'SELECT usr_id, email, preferences, allergies, generated_menu, optimization_weights, weekly_cap_cents FROM "User" WHERE email = ?',
         (session.get("Email"),),
     )
 
@@ -2721,15 +2830,18 @@ def generate_menu():
 
     try:
         cap_value = payload.get("weekly_cap") if request.is_json else request.form.get("weekly_cap")
-        weekly_cap_cents = parse_weekly_cap(cap_value)
-        inputs = payload if request.is_json else request.form
-        if any(f"{name}_weight" in inputs for name in OBJECTIVES):
-            values = tuple(inputs.get(f"{name}_weight") for name in OBJECTIVES)
-        else:
-            saved_weights = json.loads(user[5])
-            values = tuple(saved_weights.get(name) for name in OBJECTIVES)
-        objective_weights = parse_weights(values)
+        caps = (parse_weekly_cap(cap_value), user["weekly_cap_cents"])
+        weekly_cap_cents = min((cap for cap in caps if cap is not None), default=None)
         fields = payload if request.is_json else request.form
+        explicit_weights = any(f"{name}_weight" in fields for name in OBJECTIVES)
+        if explicit_weights:
+            objective_weights = parse_weights(
+                tuple(fields.get(f"{name}_weight") for name in OBJECTIVES)
+            )
+        else:
+            objective_weights = configured_weights(user["optimization_weights"], preferences)
+        if objective_weights is None and not explicit_weights:
+            preferences = ", ".join(sorted(required_diets(preferences)))
         targets = parse_targets(fields)
         strict_targets = str(fields.get("strict_targets", "")).strip().lower() in (
             "1",
@@ -2800,11 +2912,8 @@ def generate_menu():
         app.logger.exception("Menu generation failed")
         return generation_error("Menu generation failed. Please try again.", 500)
 
-    # Persist
-    conn = get_db()
-    execute_query(
-        conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id)
-    )
+    if not save_generated_plan(conn, user, updated_menu):
+        return generation_error(SWAP_ERROR_MESSAGES["plan_changed"], 409)
 
     session["GeneratedMenu"] = updated_menu
     if gen.optimization is not None and from_form:
@@ -2840,9 +2949,9 @@ def swap_meal():
     """
     Replace the item in one date/meal slot of the logged-in user's plan.
 
-    Accepts JSON {"date", "meal", "itm_id"} or the same form fields. The replacement must
-    be in stock, at an open restaurant that serves that meal time, and free of the
-    allergens stored on the user's account. Every other slot is left unchanged.
+    Accepts JSON {"date", "meal", "itm_id"} or the same form fields. The replacement
+    must be available for the meal time and satisfy the user's allergies, required
+    diets, and saved weekly cap.
     """
     want_json = request.is_json
     payload = (request.get_json(silent=True) or {}) if want_json else request.form
@@ -2871,13 +2980,15 @@ def swap_meal():
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT usr_id, allergies, generated_menu, preferences FROM "User" WHERE email = ?',
+        "SELECT usr_id, allergies, generated_menu, preferences, weekly_cap_cents, optimization_weights "
+        'FROM "User" WHERE email = ?',
         (session.get("Email"),),
     )
     if not user:
         return redirect(url_for("logout"))
-    usr_id, allergies, menu = user[0], user[1] or "", user[2] or ""
-    preferences = user[3] or ""
+    allergies = user["allergies"] or ""
+    menu = user["generated_menu"] or ""
+    preferences = user["preferences"] or ""
 
     current_itm_id = find_slot_item(menu, slot_date, meal)
     if current_itm_id is None:
@@ -2892,13 +3003,22 @@ def swap_meal():
         code, message = rejection
         return _fail(code, message, 404 if code == "item_not_found" else 409)
 
+    cap = user["weekly_cap_cents"]
+    if cap is not None:
+        catalog = variety.catalog_rows(conn)
+        try:
+            limit = swap_price_limit(menu, slot_date, meal, cap, catalog)
+        except ValueError as exc:
+            return _fail("weekly_cap", str(exc), 409)
+        if not swap_fits_budget(itm_id, catalog, limit):
+            return _fail("weekly_cap", SWAP_ERROR_MESSAGES["weekly_cap"], 409)
+
     try:
         updated_menu = replace_menu_slot(menu, slot_date, meal, itm_id)
     except SlotNotFoundError:
         return _fail("slot_not_found", "There is no planned meal in that slot.", 404)
-    execute_query(
-        conn, 'UPDATE "User" SET generated_menu = ? WHERE usr_id = ?', (updated_menu, usr_id)
-    )
+    if not save_generated_plan(conn, user, updated_menu):
+        return _fail("plan_changed", SWAP_ERROR_MESSAGES["plan_changed"], 409)
 
     session["GeneratedMenu"] = updated_menu
 
@@ -2922,8 +3042,8 @@ def swap_meal_options():
     """
     List the items that could replace one planned slot for the logged-in user.
 
-    Query args: date (YYYY-MM-DD) and meal (1|2|3). Only items that pass the same
-    availability, allergen and diet checks as POST /menu/swap are returned.
+    Query args: date (YYYY-MM-DD) and meal (1|2|3). Eligible options are ranked
+    using the account's saved optimization preferences.
     """
     if session.get("Username") is None:
         return jsonify({"ok": False, "error": "login_required"}), 401
@@ -2938,7 +3058,7 @@ def swap_meal_options():
     conn = get_db()
     user = fetch_one(
         conn,
-        'SELECT allergies, generated_menu, preferences FROM "User" WHERE email = ?',
+        'SELECT allergies, generated_menu, preferences, weekly_cap_cents, optimization_weights FROM "User" WHERE email = ?',
         (session.get("Email"),),
     )
     if not user:
@@ -2949,9 +3069,25 @@ def swap_meal_options():
     eligible = list_swap_options(
         conn, user[0] or "", slot_date, meal, current_itm_id, user[2] or ""
     )
-    # Most varied next to the rest of the plan first (same score as generation)
+    catalog = variety.catalog_rows(conn)
+    cap = user["weekly_cap_cents"]
+    if cap is not None:
+        try:
+            limit = swap_price_limit(user["generated_menu"], slot_date, meal, cap, catalog)
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": "weekly_cap", "message": str(exc)}), 409
+        eligible = [item for item in eligible if swap_fits_budget(item["itm_id"], catalog, limit)]
+
+    preferences = user["preferences"] or ""
+    weights = configured_weights(user["optimization_weights"], preferences)
     eligible = rank_swap_options(
-        eligible, variety.catalog_rows(conn), user[1] or "", slot_date, meal, user[2] or ""
+        eligible,
+        catalog,
+        user["generated_menu"],
+        slot_date,
+        meal,
+        preferences if weights is not None and weights[2] else "",
+        weights=weights,
     )
 
     details = fetch_menu_items_by_ids([o["itm_id"] for o in eligible])

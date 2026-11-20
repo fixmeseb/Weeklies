@@ -1,15 +1,16 @@
 # Weekly budget for generated meal plans
 
-The meal generation form accepts an optional **Weekly item-price cap**. A week
-runs Monday through Sunday. For a cap of `$75.00`, every week affected by the
+Set a standing **Weekly item-price cap** in **Profile → Diet**. The meal generation
+form also accepts an optional cap for a single request. The planner uses the lower
+amount when both are set. A week runs Monday through Sunday. For a cap of `$75.00`, every week affected by the
 request must contain at most 7,500 cents in planned menu items after generation.
 The generator counts meals already saved anywhere in those calendar weeks,
 including meals outside the dates requested.
 
 The cap applies to one serving of each planned meal at the catalog price. It
-does not include tax, delivery or service charges, or tips. A blank cap keeps
-the existing uncapped behavior. The chosen cap is used for that generation
-request; it is not saved as a standing account budget.
+excludes tax, delivery or service charges, and tips. Clearing the cap in Profile
+removes the standing limit. The calendar filters swap options against the standing
+cap and checks it again when saving a swap.
 
 ## How candidate selection respects the cap
 
@@ -54,9 +55,7 @@ prevent generation or saving the plan; both total fields are `null` when the
 affected weeks cannot be priced. Capped requests still require valid prices
 for all saved meals in those weeks.
 An impossible plan returns HTTP 422 and an explanation. An invalid cap returns
-HTTP 400. HTML form users see the same message on the profile page.
-Form errors are carried in the session and shown once after redirecting, rather
-than read from URL text. Unexpected failures return a fixed retry message and
+HTTP 400. The calendar displays errors from the generation form. Unexpected failures return a fixed retry message and
 log the exception on the server.
 
 The home calendar shows saved item totals by Monday-start week for weeks that

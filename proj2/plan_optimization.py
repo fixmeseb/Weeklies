@@ -8,11 +8,11 @@ from proj2.hill_climbing import Candidate
 from proj2.variety import ItemDistances, closeness
 
 OBJECTIVES = {
-    "variety": "More variety",
-    "cost": "Lower item cost",
+    "variety": "Variety preference",
+    "cost": "Cost sensitivity",
     "preference": "Match food preferences",
     "calories": "Lower calories",
-    "mildness": "Milder meals",
+    "mildness": "Spice sensitivity",
     "restaurants": "More distinct restaurants",
 }
 VARIETY_ONLY = (1.0, 0.0, 0.0)
@@ -48,6 +48,7 @@ class MealSearch:
     saved_totals: dict | None
     history: tuple = ()
     replacement_allowed: object = None
+    existing_restaurants: frozenset = frozenset()
 
     def __post_init__(self):
         # Keep accepting the original three weights from existing planner callers.
@@ -121,7 +122,9 @@ class MealSearch:
             ),
             "average_calories": sum(calories) / len(calories) if calories else None,
             "average_spice": sum(spice) / len(spice) if spice else None,
-            "distinct_restaurants": len({self.restaurants[item] for item in state}),
+            "distinct_restaurants": len(
+                {self.restaurants[item] for item in state} - self.existing_restaurants
+            ),
         }
 
     def candidate(self, state):
@@ -146,7 +149,8 @@ class MealSearch:
         planned = self.fixed | dict(zip(self.positions, state))
         counts = Counter(self.all_saved.values())
         counts.update(state)
-        restaurant_counts = Counter(self.restaurants[item] for item in state)
+        restaurant_counts = Counter(self.existing_restaurants)
+        restaurant_counts.update(self.restaurants[item] for item in state)
         totals = dict(self.saved_totals or {})
         if self.weekly_cap is not None:
             for slot, item in zip(self.slots, state):

@@ -175,7 +175,7 @@ def test_profile_diet_sentence(client, temp_db_path):
     diet = html.split('id="dietSummary"')[1].split("</p>")[0]
     assert "Allergic to <strong>Peanuts</strong> and <strong>Soy</strong>, which sets aside" in diet
     assert re.search(r"sets aside \d+ of the \d+ dishes on offer", diet)
-    assert "Prefers <strong>Vegan</strong>, and meal plans favour it." in diet
+    assert "Required diets include <strong>Vegan</strong>." in diet
 
 
 def test_profile_diet_sentence_without_choices(client, temp_db_path):
@@ -183,7 +183,7 @@ def test_profile_diet_sentence_without_choices(client, temp_db_path):
     diet = (
         client.get("/profile").get_data(as_text=True).split('id="dietSummary"')[1].split("</p>")[0]
     )
-    assert "No allergies recorded" in diet and "No preferences recorded yet." in diet
+    assert "No allergies recorded" in diet and "Required diets include" not in diet
 
 
 def test_profile_wallet_names_the_last_order(client, temp_db_path, seed_minimal_data):
@@ -218,7 +218,22 @@ def test_phone_change_opens_the_edit_pop_up(client, temp_db_path):
     html = client.get("/profile").get_data(as_text=True)
     particulars = html.split('id="particulars"')[1].split("</section>")[0]
     assert "js-open-edit" in particulars
-    assert 'id="openEditBtn"' in html.split('id="diet"')[1].split("</section>")[0]
+    phone_form = html.split('id="editProfileForm"')[1].split("</form>")[0]
+    assert 'name="phone"' in phone_form
+    assert 'name="allergies[]"' not in phone_form
+
+
+def test_diet_chapter_contains_one_form_for_constraints_and_sliders(client, temp_db_path):
+    _fresh_user(client, temp_db_path)
+    html = client.get("/profile").get_data(as_text=True)
+    chapter = html.split('id="diet"')[1].split("</section>")[0]
+    assert 'id="dietProfileForm"' in chapter
+    assert 'name="allergies[]"' in chapter
+    assert 'name="diets[]"' in chapter
+    assert 'name="weekly_cap"' in chapter
+    assert 'id="optimization-preferences"' in chapter
+    assert chapter.count("<form") == 1
+    assert 'name="variety_weight" type="range" min="0" max="100"' in chapter
 
 
 def test_dishes_are_numbered_per_restaurant(client, login_session):

@@ -47,7 +47,7 @@ from proj2.nutrition import (
     item_amount,
 )
 from proj2.hill_climbing import STRATEGIES, climb
-from proj2.plan_optimization import MealSearch, VARIETY_ONLY
+from proj2.plan_optimization import MealSearch, OBJECTIVES, VARIETY_ONLY
 from proj2.plan_rules import (
     SLOT_NAMES,
     PlanRuleError,
@@ -754,6 +754,8 @@ class MenuGenerator:
                 nutrient are not planned. None or empty plans as before.
             strict_targets (bool): Make the targets hard limits: every requested day must
                 end up inside every range, or nothing is planned (see _repair_day).
+            objective_weights (tuple | None): Normalized priorities in OBJECTIVES order.
+                None uses the default planner unless a search strategy is selected.
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
@@ -772,6 +774,8 @@ class MenuGenerator:
         self.optimization = None
         self.search_result = None
         use_search = objective_weights is not None or strategy is not None
+        weights = objective_weights if objective_weights is not None else VARIETY_ONLY
+        ranking_preferences = preferences if not use_search or weights[2] else ""
         targets = dict(targets or {})
         try:
             start = datetime.date.fromisoformat(date)
@@ -980,7 +984,7 @@ class MenuGenerator:
                         pool,
                         slot["position"],
                         self._neighbours(planned, slot["position"]) + extra,
-                        preferences,
+                        ranking_preferences,
                         target_miss(slot, planned, allowance),
                         avoid=requested_items(planned),
                         recent=recent,
@@ -1013,7 +1017,7 @@ class MenuGenerator:
                         pool,
                         slot["position"],
                         self._neighbours(planned, slot["position"]) + extra,
-                        preferences,
+                        ranking_preferences,
                         target_miss(slot, planned, allowance),
                         # The slot's own meal is not a repeat of itself.
                         avoid=requested_items(planned) - {current},
@@ -1106,7 +1110,7 @@ class MenuGenerator:
                         new_slots,
                         planned,
                         targets,
-                        preferences,
+                        ranking_preferences,
                         (
                             (cap - totals[new_slots[min(positions & set(new_slots))]["week"]])
                             if capped
@@ -1125,7 +1129,6 @@ class MenuGenerator:
             strategy = strategy or "best"
             if strategy not in STRATEGIES:
                 raise ValueError(f"Unknown hill-climbing strategy: {strategy}")
-            weights = objective_weights if objective_weights is not None else VARIETY_ONLY
             has_preferences = bool(variety.soft_preferences(preferences))
             if weights[2] and not has_preferences:
                 raise ValueError(
@@ -1222,6 +1225,12 @@ class MenuGenerator:
             chosen = self.search_result.best.state
             self.optimization = problem.measure(chosen)
             self.optimization["score"] = problem.candidate(chosen).score
+            self.optimization["weights"] = dict(zip(OBJECTIVES, problem.weights))
+            self.optimization["constraints"] = {
+                "diets": sorted(required_diets(preferences)),
+                "allergies": sorted(parse_allergens(allergens)),
+                "weekly_cap_cents": problem.weekly_cap,
+            }
             if capped:
                 totals = saved_totals.copy()
                 for slot, item in zip(slots, chosen):

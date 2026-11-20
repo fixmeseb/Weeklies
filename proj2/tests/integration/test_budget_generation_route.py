@@ -18,7 +18,9 @@ def budget_catalog(app, temp_db_path, seed_minimal_data):
             (json.dumps({day: [0, 2359] for day in DAYS_OF_WEEK}), restaurant),
         )
         conn.execute(
-            'UPDATE "User" SET generated_menu="" WHERE usr_id=?', (seed_minimal_data["usr_id"],)
+            """UPDATE "User" SET generated_menu='', preferences='', allergies='',
+               nutrition_targets='', strict_targets=0, optimization_weights='{}' WHERE usr_id=?""",
+            (seed_minimal_data["usr_id"],),
         )
         item = conn.execute(
             "SELECT itm_id FROM MenuItem WHERE rtr_id=? ORDER BY itm_id LIMIT 1", (restaurant,)
@@ -345,29 +347,77 @@ def test_form_displays_optimization_metrics_after_generation(client, login_sessi
     )
     assert response.status_code == 200
     assert b"New meals cost $10.00" in response.data
-    assert b"Edit optimization preferences in Profile" in response.data
+    assert b"Applied priorities" in response.data and b"Cost sensitivity 100.0%" in response.data
+    assert b"Edit diet constraints and preferences in Profile" in response.data
     assert b'name="preference_weight"' not in response.data
 
 
-def test_saved_optimization_sliders_apply_to_generation_and_can_be_removed(
+def test_saved_optimization_sliders_apply_to_generation_and_can_be_reset(
     client, login_session, budget_catalog
 ):
     profile = client.post(
-        "/profile/optimization",
-        data={"cost_weight": "25", "restaurants_weight": "75"},
+        "/profile/edit",
+        data={
+            "diet_constraints": "1",
+            "food_matches": "Italian",
+            "variety_weight": "10",
+            "cost_weight": "25",
+            "preference_weight": "20",
+            "calories_weight": "30",
+            "mildness_weight": "40",
+            "restaurants_weight": "75",
+        },
         follow_redirects=True,
     )
     assert profile.status_code == 200
     assert b'for="restaurants-priority">75</output>' in profile.data
     assert b'type="range"' in profile.data
-    assert b"Add preference" in profile.data
-    assert b"Remove More distinct restaurants" in profile.data
+    assert b"Diet settings saved." in profile.data
 
     response = client.post("/menu/generate", json=payload())
     assert response.status_code == 200
     assert response.json["optimization"]["distinct_restaurants"] == 1
+    assert response.json["optimization"]["weights"] == pytest.approx(
+        {
+            "variety": 0.05,
+            "cost": 0.125,
+            "preference": 0.10,
+            "calories": 0.15,
+            "mildness": 0.20,
+            "restaurants": 0.375,
+        }
+    )
 
-    client.post("/profile/optimization", data={})
+    client.post(
+        "/profile/edit",
+        data={"diet_constraints": "1", "cost_weight": "0", "restaurants_weight": "0"},
+    )
     response = client.post("/menu/generate", json=payload(start_date="2026-10-12"))
     assert response.status_code == 200
     assert response.json["optimization"] is None
+
+
+def test_inactive_food_match_is_measured_without_influencing_the_plan(
+    client, login_session, budget_catalog, temp_db_path
+):
+    with sqlite3.connect(temp_db_path) as conn:
+        conn.execute("UPDATE MenuItem SET cuisine='Mexican' WHERE itm_id=?", (budget_catalog,))
+        italian = conn.execute(
+            """INSERT INTO MenuItem (rtr_id, name, price, instock, allergens, cuisine)
+               SELECT rtr_id, 'Italian dinner', price, 1, '', 'Italian'
+               FROM MenuItem WHERE itm_id=?""",
+            (budget_catalog,),
+        ).lastrowid
+
+    settings = {"diet_constraints": "1", "food_matches": "Italian", "variety_weight": "100"}
+    client.post("/profile/edit", data=settings)
+    baseline = client.post("/menu/generate", json=payload(number_of_days=1)).json
+    assert f",{budget_catalog},3]" in baseline["generated_menu"]
+    assert baseline["optimization"]["preference_match"] == 0
+
+    client.post("/profile/edit", data={**settings, "preference_weight": "100"})
+    weighted = client.post(
+        "/menu/generate", json=payload(start_date="2026-10-19", number_of_days=1)
+    ).json
+    assert f",{italian},3]" in weighted["generated_menu"]
+    assert weighted["optimization"]["preference_match"] == 1

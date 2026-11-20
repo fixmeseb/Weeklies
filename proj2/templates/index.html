@@ -86,6 +86,16 @@
 
     {% if optimization %}
       <div class="flash success" role="status">
+        {% set constraints = optimization.constraints %}
+        {% if constraints and (constraints.diets or constraints.allergies or constraints.weekly_cap_cents is not none) %}
+          <p>
+            {% if constraints.diets %}Required diets {{ constraints.diets|join(', ') }}.{% endif %}
+            {% if constraints.allergies %}Avoid {{ constraints.allergies|join(', ') }}.{% endif %}
+            {% if constraints.weekly_cap_cents is not none %}
+              Weekly cap {{ '$%.2f'|format(constraints.weekly_cap_cents / 100) }}.
+            {% endif %}
+          </p>
+        {% endif %}
         Variety in the selected dates
         {{ '%.1f%%' | format(100 * optimization.variety) if optimization.variety is not none else 'unavailable' }}.
         New meals cost {{ '$%.2f' | format(optimization.item_cost_cents / 100) }}.
@@ -98,6 +108,13 @@
           Average listed spice {{ '%.1f' | format(optimization.average_spice) }}/3.
         {% endif %}
         Distinct restaurants for new meals {{ optimization.distinct_restaurants }}.
+        {% if optimization.weights %}
+          <p><strong>Applied priorities</strong>
+            {% for name, weight in optimization.weights.items() if weight > 0 %}
+              {{ optimization_objectives[name] }} {{ '%.1f%%'|format(weight * 100) }}{{ ', ' if not loop.last else '.' }}
+            {% endfor %}
+          </p>
+        {% endif %}
       </div>
     {% endif %}
 
@@ -391,11 +408,13 @@
           </div>
           <!-- Optional overrides; leave blank to use your saved profile -->
           <div class="form-row">
-            <label for="weekly_cap">Weekly item-price cap ($, optional)</label>
+            <label for="weekly_cap">Weekly item-price cap for this plan ($, optional)</label>
             <input class="input" type="number" id="weekly_cap" name="weekly_cap" min="0" step="0.01"
                    placeholder="e.g., 100.00" aria-describedby="weekly-cap-help">
             <p id="weekly-cap-help" class="muted">Applies to each Monday–Sunday week, including meals already planned.
-              One serving per meal; taxes, delivery fees, and tips are extra. Leave blank for no cap.</p>
+              One serving per meal; taxes, delivery fees, and tips are extra. {% if saved_weekly_cap is not none %}
+              Your Profile cap is {{ '$%.2f'|format(saved_weekly_cap / 100) }}. You can set a lower cap for this plan.
+              {% else %}Leave blank for no cap.{% endif %}</p>
           </div>
           <fieldset class="form-row" style="border:0; padding:0; margin:0;">
             <legend style="padding:0;">Daily nutrition targets (optional)</legend>
@@ -437,15 +456,7 @@
             <p id="strict-help" class="muted">Every planned day must land inside every range. If one can't, nothing is
               planned and you'll see which day and target is the problem.</p>
           </fieldset>
-          <div class="form-row">
-            <label for="preferences">Preferences (override)</label>
-            <input class="input" type="text" id="preferences" name="preferences" placeholder="e.g., high protein, low carb">
-          </div>
-          <div class="form-row">
-            <label for="allergens">Allergens (override)</label>
-            <input class="input" type="text" id="allergens" name="allergens" placeholder="e.g., Peanuts,Shellfish">
-          </div>
-          <p class="muted"><a href="{{ url_for('profile', _anchor='optimization-preferences') }}">Edit optimization preferences in Profile</a></p>
+          <p class="muted"><a href="{{ url_for('profile', _anchor='diet') }}">Edit diet constraints and preferences in Profile</a></p>
           <div class="form-row" style="margin-top: 10px;">
             <button type="submit" class="btn btn-primary" id="generateMenuBtn">Generate Plan</button>
           </div>

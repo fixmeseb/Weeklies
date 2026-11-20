@@ -84,18 +84,51 @@
             {%- if diet.allergies -%}
               Allergic to {{ joined(diet.allergies) }}, which sets aside {{ diet.set_aside }} of the {{ diet.dishes }} dishes on offer.
             {%- else -%}
-              No allergies recorded, so all {{ diet.dishes }} dishes on offer are open to you.
+              No allergies recorded.
             {%- endif %}
-            {% if diet.preferences -%}
-              Prefers {{ joined(diet.preferences) }}, and meal plans favour {{ 'it' if diet.preferences|length == 1 else 'them' }}.
-            {%- else -%}
-              No preferences recorded yet.
-            {%- endif -%}
+            {% if selected_diets %}
+              Required diets include {{ joined(selected_diet_labels) }}.
+            {% endif %}
           </p>
-          <div class="px-row">
-            <button type="button" class="btn btn-primary" id="openEditBtn">Edit allergies &amp; preferences</button>
-            <span class="px-note">They decide what plans and the Restaurants page show you.</span>
-          </div>
+          {% if diet_notice %}
+            <div class="flash {{ diet_notice[0] }}" role="status">{{ diet_notice[1] }}</div>
+          {% endif %}
+          <form method="POST" action="{{ url_for('edit_profile') }}" id="dietProfileForm">
+            <input type="hidden" name="section" value="diet">
+            <fieldset class="diet-settings">
+              <legend>Hard constraints</legend>
+              {% with diet_allergies=user.allergies %}{% include "_diet_editor.html" %}{% endwith %}
+              <label for="profile-weekly-cap">Weekly item-price cap ($, optional)</label>
+              <input class="input" id="profile-weekly-cap" name="weekly_cap" type="number"
+                     min="0" step="0.01" value="{{ weekly_cap }}" aria-describedby="profile-cap-help">
+              <p id="profile-cap-help" class="muted">Applies to each Monday–Sunday week, including meals already planned. Leave blank for no account cap.</p>
+            </fieldset>
+
+            <fieldset class="diet-settings" id="optimization-preferences">
+              <legend>Soft preferences</legend>
+              <p class="muted">Use the sliders to set relative priorities. Zero turns off a preference. All zeros use the default planner.</p>
+              {% for name, label in optimization_objectives.items() %}
+                {% set weight = optimization_weights.get(name, 0) %}
+                <div class="optimization-row">
+                  <label for="{{ name }}-priority">{{ label }}</label>
+                  <input id="{{ name }}-priority" name="{{ name }}_weight" type="range" min="0" max="100"
+                         value="{{ weight }}" {% if name in ['preference', 'mildness'] %}aria-describedby="{{ name }}-help"{% endif %}>
+                  <output for="{{ name }}-priority">{{ weight }}</output>
+                  {% if name == 'mildness' %}
+                    <p id="mildness-help" class="muted">Increase this priority if you prefer milder meals.</p>
+                  {% elif name == 'preference' %}
+                    <div class="food-matches">
+                      <label for="food-matches">Foods to match (optional)</label>
+                      <input class="input" id="food-matches" name="food_matches" value="{{ food_matches }}"
+                             placeholder="e.g., Italian, tofu, smoky" aria-describedby="preference-help">
+                      <p id="preference-help" class="muted">Enter cuisines, proteins or flavors separated by commas.</p>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </fieldset>
+            <div><button type="submit" class="btn btn-primary">Save diet settings</button></div>
+          </form>
         </section>
 
         <section id="wallet" aria-labelledby="ch3">
@@ -133,49 +166,13 @@
         <p class="px-orn" aria-hidden="true">❦ ❦ ❦</p>
       </div>
     </div>
-    <section class="card optimization-card" id="optimization-preferences" aria-labelledby="optimization-title">
-      <div class="card-header">
-        <h2 id="optimization-title">Optimization preferences</h2>
-      </div>
-      <div class="card-body">
-        <p class="muted">Use the 0–100 sliders to set the relative importance of each preference when generating new meals.</p>
-        {% if optimization_notice %}
-          <div class="flash {{ optimization_notice[0] }}" role="status">{{ optimization_notice[1] }}</div>
-        {% endif %}
-        <form id="optimization-form" method="POST" action="{{ url_for('save_optimization') }}">
-          <p id="optimization-empty" class="muted" {% if optimization_weights %}hidden{% endif %}>
-            Add a preference to customize meal planning. An empty list uses the default planner.
-          </p>
-          {% for name, label in optimization_objectives.items() %}
-            {% set active = name in optimization_weights %}
-            <div class="optimization-row" data-objective="{{ name }}" {% if not active %}hidden{% endif %}>
-              <label for="{{ name }}-priority">{{ label }}</label>
-              <input id="{{ name }}-priority" name="{{ name }}_weight" type="range" min="0" max="100"
-                     value="{{ optimization_weights.get(name, 50) }}" {% if not active %}disabled{% endif %}>
-              <output for="{{ name }}-priority">{{ optimization_weights.get(name, 50) }}</output>
-              <button type="button" class="btn btn-outline btn-sm" data-remove-preference
-                      aria-label="Remove {{ label }}">Remove</button>
-            </div>
-          {% endfor %}
-          <div class="optimization-add">
-            <select class="input" id="optimization-objective" aria-label="Preference to add">
-              {% for name, label in optimization_objectives.items() %}
-                <option value="{{ name }}" {% if name in optimization_weights %}hidden disabled{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            <button type="button" class="btn btn-outline" id="add-optimization">Add preference</button>
-          </div>
-          <div><button type="submit" class="btn btn-primary">Save preferences</button></div>
-        </form>
-      </div>
-    </section>
   </div>
 
   <!-- Edit Profile Modal (posts to /profile/edit) -->
   <div id="editModalBackdrop" class="modal-backdrop" aria-hidden="true"></div>
   <div id="editModal" class="modal-sheet modal-wide" role="dialog" aria-modal="true" aria-labelledby="editModalTitle" aria-hidden="true">
     <div class="modal-head">
-      <h3 id="editModalTitle" style="margin:0; font-size:18px;">Edit Profile</h3>
+      <h3 id="editModalTitle" style="margin:0; font-size:18px;">Change phone number</h3>
       <button type="button" class="btn btn-outline btn-sm" id="closeEditModalBtn" aria-label="Close">Close</button>
     </div>
     <form method="POST" action="{{ url_for('edit_profile') }}" id="editProfileForm" novalidate>
@@ -186,7 +183,6 @@
             <input class="input" id="editPhone" name="phone" type="tel" value="{{ user.phone }}" placeholder="(555) 555-5555">
           </div>
         </div>
-        {% with diet_allergies=user.allergies, diet_prefs=user.preferences %}{% include "_diet_editor.html" %}{% endwith %}
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" id="cancelEditBtn">Cancel</button>
@@ -201,16 +197,16 @@
 </footer>
 
 <style>
-  .optimization-card { margin-top:24px; scroll-margin-top:5rem; }
-  .optimization-card .card-header h2 { margin:0; }
-  #optimization-form { margin:0; max-width:720px; gap:14px; }
-  .optimization-row { display:grid; grid-template-columns:minmax(0, 1fr) 3ch auto; gap:8px 12px; align-items:center; }
-  .optimization-row[hidden] { display:none; }
-  .optimization-row label { grid-column:1 / -1; font-weight:600; }
-  .optimization-row input { width:100%; accent-color:var(--accent); }
-  .optimization-row output { text-align:right; font-variant-numeric:tabular-nums; }
-  .optimization-add { display:flex; flex-wrap:wrap; gap:8px; }
-  .optimization-add select { width:auto; max-width:100%; }
+  #dietProfileForm { margin:0; max-width:none; }
+  .diet-settings { border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 0; min-width: 0; }
+  .diet-settings legend { font-weight: 600; }
+  #optimization-preferences { scroll-margin-top: 5rem; }
+  .optimization-row { display: grid; grid-template-columns: minmax(0, 1fr) 3ch; gap: 4px 12px; align-items: center; margin-bottom: 14px; }
+  .optimization-row > label, .optimization-row > p, .food-matches { grid-column: 1 / -1; }
+  .optimization-row > label { font-weight: 600; }
+  .optimization-row p { margin: 0; }
+  .optimization-row input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .optimization-row output { text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Profile as chapters: a contents list beside one sheet holding every section.
      Colours and fonts come from the theme; the Almanac style adds the ornament. */
@@ -313,7 +309,7 @@
     sections.forEach(s => io.observe(s));
   })();
 
-  // Edit pop-up: opened by the Diet button, the phone's "change", or /profile#edit (old edit-page links)
+  // Phone editor, also available through legacy /profile#edit links
   (function () {
     const modal = document.getElementById('editModal');
     const backdrop = document.getElementById('editModalBackdrop');
@@ -331,7 +327,6 @@
       if (location.hash === '#edit') history.replaceState(null, '', location.pathname + location.search);
       if (opener) opener.focus();
     }
-    document.getElementById('openEditBtn').addEventListener('click', show);
     document.querySelectorAll('.js-open-edit').forEach(b => b.addEventListener('click', show));
     document.getElementById('closeEditModalBtn').addEventListener('click', hide);
     document.getElementById('cancelEditBtn').addEventListener('click', () => { form.reset(); hide(); });

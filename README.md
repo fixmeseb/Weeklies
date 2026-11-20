@@ -185,12 +185,15 @@ From the repository root on macOS, run the meeting demo with the project virtual
 .venv/bin/python scripts/demo_planner.py
 ```
 
-The command runs a three-dinner comparison and a capped full-week example, then prints
-the URL, demo login, and a sample set of priorities to try in the app. It uses a fresh
-temporary database. Press Ctrl+C to stop, or pass `--console-only` to run just the examples.
-The live walkthrough saves priorities in **Profile → Optimization preferences**. Choose
-**Seed Catalog & Almanac** in the **Style** picker to see the calendar as an almanac.
-For an existing development database, run `flask migrate` once to add saved priorities.
+The demo runs the strategy comparisons, then saves and tests each of the six sliders through
+**Profile → II. Diet** on a fresh demo account. The results compare the same five dinners under
+a vegetarian diet, a peanut allergy, and a $60 weekly cap. The script verifies the weights the
+optimizer received and shows how it responds to an infeasible $1 cap.
+
+The printed URL opens the demo account with the combined settings already saved. Generate the
+suggested dinners from the calendar to see the applied priorities and results. Press Ctrl+C
+to stop, or pass `--console-only` to run the examples without starting the server.
+For an existing development database, run `flask migrate` to add the saved weekly cap.
 
 To configure a comparison directly, run it from the activated project environment.
 

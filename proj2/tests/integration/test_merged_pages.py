@@ -162,18 +162,20 @@ def test_profile_pop_up_starts_from_saved_choices(client, seed_minimal_data, tem
     )
     _login(client)
     html = client.get("/profile").get_data(as_text=True)
-    form = html.split('id="editProfileForm"')[1].split("</form>")[0]
+    form = html.split('id="dietProfileForm"')[1].split("</form>")[0]
     assert 'value="Peanuts" checked' in form and 'value="Milk" checked' in form
     assert 'value="Eggs">' in form  # not chosen
-    assert 'data-existing="Spicy,Vegan"' in form
-    assert 'action="/profile/edit"' in html.split('id="editProfileForm"')[0].rsplit("<form", 1)[1]
+    assert 'value="vegan" checked' in form
+    assert 'name="food_matches" value="Spicy"' in form
+    assert 'for="preference-priority">15</output>' in form
+    assert 'action="/profile/edit"' in html.split('id="dietProfileForm"')[0].rsplit("<form", 1)[1]
 
 
 def test_register_uses_the_shared_editor(client):
     html = client.get("/register").get_data(as_text=True)
     assert html.count('class="diet-editor"') == 1
-    assert html.count("const DEFAULT_PREFS") == 1
-    assert 'id="allergiesField"' in html and 'id="preferencesField"' in html
+    assert 'name="allergies[]"' in html and 'name="diets[]"' in html
+    assert 'name="food_matches"' not in html
 
 
 # ---------------------------------------------------------------- restaurant owners

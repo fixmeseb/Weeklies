@@ -138,9 +138,11 @@ def _insert_order(bug_db, status, total):
 # ---------------------------------------------------------------- profile
 
 
-@_known_bug(3, "an empty form field falls back to the old value (Flask_app.py:1525-1527)")
 def test_profile_edit_can_clear_allergies(user_client, bug_db):
-    user_client.post("/profile/edit", data={"phone": "5550000", "preferences": "", "allergies": ""})
+    response = user_client.post(
+        "/profile/edit", data={"section": "diet", "preferences": "", "allergies": ""}
+    )
+    assert response.headers["Location"].endswith("/profile#diet")
     assert _rows(bug_db["path"], 'SELECT allergies FROM "User"')[0][0] == ""
 
 

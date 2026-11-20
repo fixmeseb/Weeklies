@@ -4,23 +4,38 @@ describe("Profile Editing & Password Change", () => {
     cy.loginAsUser("testuser@example.com", "password123");
   });
 
-  it("updates user phone number and allergies from the edit pop-up", () => {
+  it("updates the phone in its pop-up and allergies in the Diet section", () => {
     cy.visit("/profile");
-    cy.get("#openEditBtn").click();
+    cy.get("#particulars .js-open-edit").click();
     cy.get("#editModal").should("be.visible");
 
     // Change phone number
     cy.get('input[name="phone"]').clear().type("9195557788");
 
-    // Select additional allergy (e.g. Soy)
-    cy.get('input[type="checkbox"][value="Soy"]').check();
-
-    cy.get('#editProfileForm').submit();
+    cy.get("#editProfileForm").submit();
 
     // Redirects back to profile
     cy.location("pathname").should("eq", "/profile");
     cy.contains("9195557788").should("be.visible");
+    cy.get('#diet input[value="Soy"]').check();
+    cy.get("#dietProfileForm").submit();
+    cy.location("hash").should("eq", "#diet");
     cy.get("#dietSummary").should("contain.text", "Soy");
+  });
+
+  it("saves a spending cap, a required diet, and a slider together", () => {
+    cy.visit("/profile#diet");
+    cy.get('#diet input[value="vegan"]').check();
+    cy.get("#profile-weekly-cap").clear().type("50.25");
+    cy.get("#cost-priority").invoke("val", "75").trigger("input");
+    cy.get('output[for="cost-priority"]').should("have.text", "75");
+    cy.get("#dietProfileForm").submit();
+    cy.get('#diet input[value="vegan"]').should("be.checked");
+    cy.get("#profile-weekly-cap").should("have.value", "50.25");
+    cy.get("#cost-priority").should("have.value", "75");
+    cy.get("#cost-priority").invoke("val", "0").trigger("input");
+    cy.get("#dietProfileForm").submit();
+    cy.get("#cost-priority").should("have.value", "0");
   });
 
   it("successfully changes user password from the Password chapter", () => {

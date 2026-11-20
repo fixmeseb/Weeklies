@@ -28,7 +28,9 @@ Stores customer account information, preferences, and AI-generated meal plans.
 | `phone` | TEXT | UNIQUE, NOT NULL | User's phone number |
 | `password_HS` | TEXT | NOT NULL | Hashed password (scrypt format) |
 | `wallet` | INTEGER | NOT NULL | User's wallet balance in **cents** |
-| `preferences` | TEXT | NULL | Comma-separated food preferences (e.g., "vegetarian, spicy") |
+| `preferences` | TEXT | NULL | Comma-separated required diets and optional food-match tags |
+| `optimization_weights` | TEXT | NOT NULL | JSON map of relative slider priorities |
+| `weekly_cap_cents` | INTEGER | NULL | Standing weekly item-price cap in cents |
 | `allergies` | TEXT | NULL | Comma-separated allergens to avoid |
 | `generated_menu` | TEXT | NULL | Serialized AI-generated meal plan: `[YYYY-MM-DD,itm_id,meal_number]` format |
 
