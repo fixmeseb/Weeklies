@@ -204,6 +204,39 @@
                     <a class="function" href="#swap_meal_options">swap_meal_options</a>
             </li>
             <li>
+                    <a class="function" href="#restaurant_menu">restaurant_menu</a>
+            </li>
+            <li>
+                    <a class="function" href="#restaurant_menu_new">restaurant_menu_new</a>
+            </li>
+            <li>
+                    <a class="function" href="#restaurant_menu_edit">restaurant_menu_edit</a>
+            </li>
+            <li>
+                    <a class="function" href="#restaurant_menu_stock">restaurant_menu_stock</a>
+            </li>
+            <li>
+                    <a class="function" href="#restaurant_menu_delete">restaurant_menu_delete</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_menu_schema">api_menu_schema</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_menu_list">api_menu_list</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_menu_create">api_menu_create</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_menu_update">api_menu_update</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_menu_stock">api_menu_stock</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_menu_delete">api_menu_delete</a>
+            </li>
+            <li>
                     <a class="function" href="#parse_args">parse_args</a>
             </li>
     </ul>
@@ -693,7 +726,7 @@ Returns:
     <a class="headerlink" href="#inject_owner_nav"></a>
     
             <div class="docstring"><p>Give the owner banner (templates/_owner_header.html) its tab notes: how many
-orders are in progress and the restaurant's review rating.
+orders are in progress, how many dishes are on the menu, and the review rating.
 Returns:
     dict: {"owner_nav": {...}} on restaurant-owner pages, else {"owner_nav": None}.</p>
 </div>
@@ -1282,6 +1315,242 @@ allergens stored on the user's account. Every other slot is left unchanged.</p>
 
 <p>Query args: date (YYYY-MM-DD) and meal (1|2|3). Only items that pass the same
 availability, allergen and diet checks as POST /menu/swap are returned.</p>
+</div>
+
+
+                </section>
+                <section id="restaurant_menu">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/restaurant/menu&#39;)</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">restaurant_menu</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#restaurant_menu"></a>
+    
+            <div class="docstring"><p>The owner's menu page: every dish they serve, with forms to add and edit.</p>
+
+<p>Editing is <code>?edit=&lt;itm_id&gt;</code> rather than a script, so exactly one edit form is on
+the page and the page works without JavaScript. <code>?q=</code> searches and <code>?show=</code>
+narrows (see menu_items.FILTERS).
+Args:
+    None
+Returns:
+    Response: Renders the restaurant menu page, or 404 for an ?edit id that is not
+    this restaurant's.</p>
+</div>
+
+
+                </section>
+                <section id="restaurant_menu_new">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/restaurant/menu/new&#39;, methods=[&#39;POST&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">restaurant_menu_new</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#restaurant_menu_new"></a>
+    
+            <div class="docstring"><p>Add a dish to the signed-in restaurant's menu.
+Args:
+    None
+Returns:
+    Response: Redirect to the menu on success, or the page with per-field errors.</p>
+</div>
+
+
+                </section>
+                <section id="restaurant_menu_edit">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/restaurant/menu/&lt;int:itm_id&gt;/edit&#39;, methods=[&#39;POST&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">restaurant_menu_edit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">itm_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#restaurant_menu_edit"></a>
+    
+            <div class="docstring"><p>Save changes to one dish.
+Args:
+    itm_id (int): The dish being edited.
+Returns:
+    Response: Redirect to the menu on success, or the page with per-field errors.</p>
+</div>
+
+
+                </section>
+                <section id="restaurant_menu_stock">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/restaurant/menu/&lt;int:itm_id&gt;/stock&#39;, methods=[&#39;POST&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">restaurant_menu_stock</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">itm_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#restaurant_menu_stock"></a>
+    
+            <div class="docstring"><p>Put a dish back on the menu or take it off, which is how a dish is withdrawn.
+Args:
+    itm_id (int): The dish to change.
+Returns:
+    Response: Redirect to the menu.</p>
+</div>
+
+
+                </section>
+                <section id="restaurant_menu_delete">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/restaurant/menu/&lt;int:itm_id&gt;/delete&#39;, methods=[&#39;POST&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">restaurant_menu_delete</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">itm_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#restaurant_menu_delete"></a>
+    
+            <div class="docstring"><p>Remove a dish for good, refusing when a saved plan or order still names it.
+Args:
+    itm_id (int): The dish to remove.
+Returns:
+    Response: Redirect to the menu, or the page explaining why it was refused.</p>
+</div>
+
+
+                </section>
+                <section id="api_menu_schema">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/menu/schema&#39;)</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">api_menu_schema</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_menu_schema"></a>
+    
+            <div class="docstring"><p>The field contract: every field, whether it is required, and its vocabulary.
+Args:
+    None
+Returns:
+    Response: JSON generated from the validator, so it cannot drift from the server.</p>
+</div>
+
+
+                </section>
+                <section id="api_menu_list">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/menu&#39;)</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">api_menu_list</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_menu_list"></a>
+    
+            <div class="docstring"><p>Every dish on the signed-in restaurant's menu.
+Args:
+    None
+Returns:
+    Response: JSON <code>{"items": [...]}</code>.</p>
+</div>
+
+
+                </section>
+                <section id="api_menu_create">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/menu&#39;, methods=[&#39;POST&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">api_menu_create</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_menu_create"></a>
+    
+            <div class="docstring"><p>Add a dish.
+Args:
+    None
+Returns:
+    Response: 201 and the new dish, or 422 and one message per bad field.</p>
+</div>
+
+
+                </section>
+                <section id="api_menu_update">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/menu/&lt;int:itm_id&gt;&#39;, methods=[&#39;PATCH&#39;, &#39;POST&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">api_menu_update</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">itm_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_menu_update"></a>
+    
+            <div class="docstring"><p>Change the fields the body carries, leaving the rest alone.
+Args:
+    itm_id (int): The dish to change.
+Returns:
+    Response: The saved dish, 404 when it is not theirs, or 422 for a bad field.</p>
+</div>
+
+
+                </section>
+                <section id="api_menu_stock">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/menu/&lt;int:itm_id&gt;/stock&#39;, methods=[&#39;POST&#39;, &#39;PUT&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">api_menu_stock</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">itm_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_menu_stock"></a>
+    
+            <div class="docstring"><p>Put a dish back on the menu or take it off.
+Args:
+    itm_id (int): The dish to change.
+Returns:
+    Response: The saved dish, or 404 when it is not theirs.</p>
+</div>
+
+
+                </section>
+                <section id="api_menu_delete">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/menu/&lt;int:itm_id&gt;&#39;, methods=[&#39;DELETE&#39;])</div>
+        <div class="decorator">@restaurant_required</div>
+
+        <span class="def">def</span>
+        <span class="name">api_menu_delete</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">itm_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_menu_delete"></a>
+    
+            <div class="docstring"><p>Remove a dish for good, refusing when a saved plan or order still names it.
+Args:
+    itm_id (int): The dish to remove.
+Returns:
+    Response: 200 on removal, 404 when it is not theirs, 409 when something holds it.</p>
 </div>
 
 
