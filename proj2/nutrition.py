@@ -54,8 +54,18 @@ TARGET_WEIGHT = 30.0
 REACH_SLACK = 0.05
 
 
+## With strict targets, a day that misses a range after planning is searched exactly
+## over this many of each slot's most varied candidates (25 per slot is at most 15,625
+## combinations for a three-meal day)
+REPAIR_CANDIDATES = 25
+
+
 class NutritionTargetError(ValueError):
     """A nutrition target from a request is malformed."""
+
+
+class TargetsUnreachableError(ValueError):
+    """With strict targets, no meals the user may have keep a day inside every range."""
 
 
 @dataclass(frozen=True)

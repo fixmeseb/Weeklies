@@ -17,7 +17,7 @@ from proj2 import variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
-from proj2.nutrition import nutrition_notice, parse_targets
+from proj2.nutrition import TargetsUnreachableError, nutrition_notice, parse_targets
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
@@ -2554,6 +2554,7 @@ def generate_menu():
         weekly_cap_cents = parse_weekly_cap(cap_value)
         fields = payload if request.is_json else request.form
         targets = parse_targets(fields)
+        strict_targets = str(fields.get('strict_targets', '')).strip().lower() in ('1', 'true', 'on', 'yes')
     except ValueError as exc:
         return generation_error(str(exc), 400)
 
@@ -2581,6 +2582,7 @@ def generate_menu():
             number_of_days=number_of_days,
             weekly_cap_cents=weekly_cap_cents,
             targets=targets,
+            strict_targets=strict_targets,
         )
         start = date.fromisoformat(start_date)
         weeks = list(dict.fromkeys(
@@ -2593,7 +2595,7 @@ def generate_menu():
                 raise
             # Uncapped plans can retain old meals whose catalog prices are unavailable.
             totals = None
-    except BudgetExceededError as exc:
+    except (BudgetExceededError, TargetsUnreachableError) as exc:
         return generation_error(str(exc), 422)
     except ValueError as exc:
         return generation_error(str(exc), 400)

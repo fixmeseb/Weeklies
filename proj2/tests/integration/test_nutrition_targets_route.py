@@ -126,3 +126,23 @@ def test_profile_form_offers_a_range_for_each_nutrient(client, login_session):
     page = client.get("/profile").get_data(as_text=True)
     for field in ("calorie", "protein", "carbs", "fat", "sodium"):
         assert f'name="{field}_min"' in page and f'name="{field}_max"' in page
+
+
+@pytest.mark.parametrize("flag", [True, "on", "1"])
+def test_strict_target_out_of_reach_is_refused_without_changing_the_plan(
+    client, login_session, nutrition_catalog, temp_db_path, flag
+):
+    response = client.post("/menu/generate", json=payload(protein_min=50, strict_targets=flag))
+    assert response.status_code == 422
+    assert "can meet your daily target of protein at least 50 g" in response.get_json()["error"]
+    assert saved_menu(temp_db_path) == ""
+
+
+def test_strict_target_within_reach_plans_normally(client, login_session, nutrition_catalog):
+    response = client.post("/menu/generate", json=payload(protein_min=30, strict_targets=True))
+    assert response.status_code == 200
+    assert response.get_json()["nutrition"]["days_outside"] == 0
+
+
+def test_profile_form_offers_strict_targets(client, login_session):
+    assert 'name="strict_targets"' in client.get("/profile").get_data(as_text=True)

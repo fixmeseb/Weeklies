@@ -16,6 +16,7 @@ from proj2.nutrition import (
     REACH_SLACK,
     DailyRange,
     NutritionTargetError,
+    TargetsUnreachableError,
     describe_range,
     item_amount,
     nutrition_notice,
@@ -290,3 +291,120 @@ def test_report_has_no_total_for_a_day_with_an_unknown_meal():
     assert gen.nutrition_report()["days"] == [
         {"date": MONDAY, "totals": {"calories": None}, "miss": {"calories": None}}
     ]
+
+
+# ---------------------------------------------------------------- strict targets
+
+
+def plan_strict(gen, targets, **kwargs):
+    return gen.update_menu(
+        kwargs.pop("menu", ""),
+        "",
+        "",
+        MONDAY,
+        list(kwargs.pop("meals", (1, 2, 3))),
+        number_of_days=kwargs.pop("days", 5),
+        targets=targets,
+        strict_targets=True,
+        **kwargs,
+    )
+
+
+def test_strict_targets_keep_every_day_inside_every_range():
+    gen = make_generator(CATALOG)
+    targets = {"calories": DailyRange(1500, 1600), "protein_g": DailyRange(120, math.inf)}
+    menu = plan_strict(gen, targets, days=7)
+    for column, target in targets.items():
+        assert all(target.miss(t) == 0 for t in day_totals(gen, menu, column).values()), column
+    assert gen.nutrition_report()["days_outside"] == 0
+
+
+def test_strict_targets_change_nothing_when_the_soft_plan_already_fits():
+    targets = {"calories": DailyRange(1800, 2000)}
+    assert plan_strict(make_generator(CATALOG), targets) == plan(make_generator(CATALOG), targets)
+
+
+## A catalog where calories and protein vary independently. Soft planning, one slot at
+## a time, misses 2,000-2,100 kcal with 130 g protein on some days; an exact search of
+## each day finds meals that fit (found by searching random catalogs).
+INDEPENDENT = [
+    {"calories": kcal, "protein_g": grams, "protein": protein}
+    for (kcal, grams), protein in zip(
+        [(500, 50), (400, 25), (450, 40), (1000, 40), (900, 65),
+         (600, 10), (1050, 5), (900, 35), (1250, 65), (300, 60)],
+        PROTEINS,
+    )
+]  # fmt: skip
+
+
+def test_strict_repair_finds_a_day_the_soft_plan_misses():
+    targets = {"calories": DailyRange(2000, 2100), "protein_g": DailyRange(130, math.inf)}
+    gen = make_generator(INDEPENDENT)
+    plan(gen, targets, days=3)
+    assert gen.nutrition_report()["days_outside"] > 0  # soft planning gives up some days
+    gen = make_generator(INDEPENDENT)
+    menu = plan_strict(gen, targets, days=3)
+    assert gen.nutrition_report()["days_outside"] == 0
+    assert all(2000 <= t <= 2100 for t in day_totals(gen, menu).values())
+    assert all(t >= 130 for t in day_totals(gen, menu, "protein_g").values())
+
+
+def test_strict_target_out_of_reach_names_the_day_and_the_limit():
+    gen = make_generator(CATALOG)
+    with pytest.raises(TargetsUnreachableError) as caught:
+        plan_strict(gen, {"calories": DailyRange(5000, math.inf)})
+    assert str(caught.value).startswith(
+        f"No plan for {MONDAY} can meet your daily target of calories at least 5,000 kcal: "
+        "the most its meals can add up to is 3,600 kcal"
+    )
+
+
+def test_strict_target_below_reach_names_the_least():
+    with pytest.raises(TargetsUnreachableError, match="the least its meals can add up to is 900"):
+        plan_strict(make_generator(CATALOG), {"calories": DailyRange(0, 800)})
+
+
+def test_strict_targets_reachable_alone_but_not_together_are_refused():
+    # 3,000+ kcal needs the richest meals, which have the least protein
+    targets = {"calories": DailyRange(3000, math.inf), "protein_g": DailyRange(120, math.inf)}
+    with pytest.raises(TargetsUnreachableError, match="No combination of meals for"):
+        plan_strict(make_generator(CATALOG), targets)
+
+
+def test_strict_error_says_when_only_part_of_the_menu_was_searched(monkeypatch):
+    monkeypatch.setattr("proj2.menu_generation.REPAIR_CANDIDATES", 3)
+    targets = {"calories": DailyRange(3000, math.inf), "protein_g": DailyRange(120, math.inf)}
+    with pytest.raises(TargetsUnreachableError, match="Among the 3 most varied meals"):
+        plan_strict(make_generator(CATALOG), targets)
+
+
+def test_strict_repair_stays_within_the_weekly_cap():
+    targets = {"calories": DailyRange(2000, 2100), "protein_g": DailyRange(130, math.inf)}
+    items = [dict(item, price=500 + 100 * i) for i, item in enumerate(INDEPENDENT)]
+    gen = make_generator(items)
+    cap = 6000  # the uncapped strict plan costs $82, so the cap shapes the repair
+    menu = plan_strict(gen, targets, days=3, weekly_cap_cents=cap)
+    prices = dict(zip(gen.catalog.itm_id, gen.catalog.price))
+    assert sum(prices[itm_id] for _, itm_id, _ in plan_entries(menu)) <= cap
+    assert gen.nutrition_report()["days_outside"] == 0
+
+
+def test_strict_repair_counts_meals_already_planned():
+    targets = {"calories": DailyRange(2000, 2100), "protein_g": DailyRange(130, math.inf)}
+    breakfast = 5  # 900 kcal, 65 g protein
+    gen = make_generator(INDEPENDENT)
+    menu = plan_strict(gen, targets, menu=f"[{MONDAY},{breakfast},1]", days=1, meals=(2, 3))
+    assert 2000 <= day_totals(gen, menu)[MONDAY] <= 2100
+    assert day_totals(gen, menu, "protein_g")[MONDAY] >= 130
+
+
+def test_strict_repair_refuses_a_day_with_an_unknown_existing_meal():
+    items = INDEPENDENT + [{"calories": 900, "protein_g": None, "protein": "goat"}]
+    unknown = len(items)
+    targets = {"calories": DailyRange(2000, 2100), "protein_g": DailyRange(130, math.inf)}
+    with pytest.raises(
+        TargetsUnreachableError, match=f"already planned for {MONDAY} has no protein"
+    ):
+        plan_strict(
+            make_generator(items), targets, menu=f"[{MONDAY},{unknown},1]", days=1, meals=(2, 3)
+        )
