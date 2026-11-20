@@ -17,7 +17,7 @@ from proj2 import variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
 from proj2.plan_rules import SLOT_NAMES
-from proj2.nutrition import calorie_notice, parse_calorie_target
+from proj2.nutrition import nutrition_notice, parse_targets
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
@@ -2553,7 +2553,7 @@ def generate_menu():
         cap_value = payload.get('weekly_cap') if request.is_json else request.form.get('weekly_cap')
         weekly_cap_cents = parse_weekly_cap(cap_value)
         fields = payload if request.is_json else request.form
-        calorie_target = parse_calorie_target(fields.get('calorie_min'), fields.get('calorie_max'))
+        targets = parse_targets(fields)
     except ValueError as exc:
         return generation_error(str(exc), 400)
 
@@ -2580,7 +2580,7 @@ def generate_menu():
             meal_numbers=meal_numbers,
             number_of_days=number_of_days,
             weekly_cap_cents=weekly_cap_cents,
-            calorie_target=calorie_target,
+            targets=targets,
         )
         start = date.fromisoformat(start_date)
         weeks = list(dict.fromkeys(
@@ -2618,9 +2618,9 @@ def generate_menu():
             "item_total_cents": sum(totals.values()) if totals is not None else None,
             "weekly_item_totals_cents": totals,
             "variety": gen.variety.as_json() if gen.variety else None,
-            "calories": gen.calorie_report(),
+            "nutrition": gen.nutrition_report(),
         })
-    notice = calorie_notice(gen.calorie_report())
+    notice = nutrition_notice(gen.nutrition_report())
     if notice:
         session['plan_notice'] = notice
     return redirect(url_for('index'))

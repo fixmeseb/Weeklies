@@ -149,18 +149,38 @@
               One serving per meal; taxes, delivery fees, and tips are extra. Leave blank for no cap.</p>
           </div>
           <fieldset class="form-row" style="border:0; padding:0; margin:0;">
-            <legend style="padding:0;">Daily calories (optional)</legend>
-            <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
-              <label for="calorie_min">At least</label>
-              <input class="input" type="number" id="calorie_min" name="calorie_min" min="1" max="10000"
-                     step="1" placeholder="e.g., 1800" style="width:120px;" aria-describedby="calorie-help">
-              <label for="calorie_max">At most</label>
-              <input class="input" type="number" id="calorie_max" name="calorie_max" min="1" max="10000"
-                     step="1" placeholder="e.g., 2200" style="width:120px;" aria-describedby="calorie-help">
+            <legend style="padding:0;">Daily nutrition targets (optional)</legend>
+            {% set nutrition_rows = [
+              ('calorie', 'Calories', 'kcal', 10000, '1800', '2200'),
+              ('protein', 'Protein', 'g', 1000, '100', ''),
+              ('carbs', 'Carbs', 'g', 2000, '', '250'),
+              ('fat', 'Fat', 'g', 1000, '', '80'),
+              ('sodium', 'Sodium', 'mg', 20000, '', '2300'),
+            ] %}
+            <div class="table-wrap">
+              <table class="table" style="max-width:420px;">
+                <thead>
+                  <tr><th scope="col">Per day</th><th scope="col">At least</th><th scope="col">At most</th></tr>
+                </thead>
+                <tbody>
+                  {% for field, label, unit, largest, low_example, high_example in nutrition_rows %}
+                  <tr>
+                    <th scope="row">{{ label }} ({{ unit }})</th>
+                    <td><input class="input" type="number" id="{{ field }}_min" name="{{ field }}_min" min="1"
+                               max="{{ largest }}" step="1" style="width:110px;" aria-label="{{ label }} at least, {{ unit }}"
+                               {% if low_example %}placeholder="e.g., {{ low_example }}"{% endif %} aria-describedby="nutrition-help"></td>
+                    <td><input class="input" type="number" id="{{ field }}_max" name="{{ field }}_max" min="1"
+                               max="{{ largest }}" step="1" style="width:110px;" aria-label="{{ label }} at most, {{ unit }}"
+                               {% if high_example %}placeholder="e.g., {{ high_example }}"{% endif %} aria-describedby="nutrition-help"></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
-            <p id="calorie-help" class="muted">Each day's meals aim for this range, including meals already
-              planned. If your diet, allergies or budget make it unreachable, the plan comes as close as it can
-              and tells you which days miss. Leave blank for no target.</p>
+            <p id="nutrition-help" class="muted">Each day's meals aim for these ranges, including meals already
+              planned. Protein, carbs, fat and sodium are estimates from USDA data. If your diet, allergies or budget
+              make a range unreachable, the plan comes as close as it can and tells you which days miss. Leave blank
+              for no target.</p>
           </fieldset>
           <div class="form-row">
             <label for="preferences">Preferences (override)</label>

@@ -30,7 +30,7 @@ from proj2.meal_budget import (
 from proj2.allergens import avoided_allergens, parse_allergens
 from proj2.db import connect
 from proj2.dietary import DietaryConstraintError, filter_diets, required_diets
-from proj2.nutrition import CALORIE_WEIGHT, item_calories
+from proj2.nutrition import NUTRIENTS, TARGET_WEIGHT, item_amount
 from proj2.plan_rules import (
     SLOT_NAMES,
     PlanRuleError,
@@ -239,8 +239,8 @@ class MenuGenerator:
         self.weekly_totals_cents = None
         self.item_total_cents = None
         self.variety = None
-        self.calorie_target = None
-        self.daily_calories = None
+        self.targets = {}
+        self.daily_totals = None
 
     def _eligible_candidates(
         self, allergens, weekday, order_time, max_price_cents=None, preferences=None, meal=None
@@ -385,21 +385,22 @@ class MenuGenerator:
             )
         return self._preference_cache[itm_id]
 
-    def _calories(self, itm_id: int):
-        """One catalog item's calories, or None if it is unknown (proj2.nutrition.item_calories)."""
+    def _amount(self, itm_id: int, column: str):
+        """One catalog item's amount of a nutrient, or None if unknown (nutrition.item_amount)."""
         row = self._rows().get(itm_id)
-        return None if row is None else item_calories(row.get("calories"))
+        return None if row is None else item_amount(row.get(column))
 
     def _ranked(
-        self, pool: pd.DataFrame, position: int, neighbours: list, preferences, calorie_miss=None
+        self, pool: pd.DataFrame, position: int, neighbours: list, preferences, target_miss=None
     ) -> list:
         """
         Ranks a slot's candidates, best first
 
         Args:
-            calorie_miss (Callable[[int], float] | None): How far the slot's day would miss
-                the calorie target with each item (proj2.nutrition.CalorieTarget.miss);
-                subtracted from the score, weighted by CALORIE_WEIGHT. None for no target.
+            target_miss (Callable[[int], float] | None): How far the slot's day would miss
+                its nutrition targets with each item, summed over nutrients
+                (proj2.nutrition.DailyRange.miss); subtracted from the score, weighted by
+                TARGET_WEIGHT. None when there are no targets.
 
         Returns:
             List[Tuple[tuple, int]]: (sort key, itm_id); the key is (-score, price, itm_id),
@@ -411,8 +412,8 @@ class MenuGenerator:
             itm_id = int(itm_id)
             gain, weight_sum = self._distances.slot_gain(itm_id, position, neighbours)
             score = variety.candidate_score(gain, weight_sum, self._preference(itm_id, preferences))
-            if calorie_miss is not None:
-                score = round(score - CALORIE_WEIGHT * calorie_miss(itm_id), 9)
+            if target_miss is not None:
+                score = round(score - TARGET_WEIGHT * target_miss(itm_id), 9)
             ranked.append(((-score, int(price_cents), itm_id), itm_id))
         ranked.sort()
         return ranked
@@ -428,7 +429,7 @@ class MenuGenerator:
         meal_numbers,
         number_of_days: int = 1,
         weekly_cap_cents: int = None,
-        calorie_target=None,
+        targets=None,
     ) -> str:
         """
         Fills the empty slots of a plan with the most varied eligible meals
@@ -444,14 +445,15 @@ class MenuGenerator:
             number_of_days (int): The number of days to plan, starting at {date}
             weekly_cap_cents (int | None): Item-price limit per Monday–Sunday week,
                 counting all existing meals in that week. None leaves generation uncapped.
-            calorie_target (proj2.nutrition.CalorieTarget | None): A daily calorie range to
-                aim for, counting existing meals on each day. A soft goal: days stay inside
-                it where the catalog allows, then variety decides. Items without calories
-                are not planned while a target is set. None plans as before.
+            targets (dict | None): Daily nutrition ranges to aim for, MenuItem column ->
+                proj2.nutrition.DailyRange (proj2.nutrition.parse_targets), counting existing
+                meals on each day. Soft goals: days stay inside them where the catalog
+                allows, then variety decides. Items without a value for a targeted
+                nutrient are not planned. None or empty plans as before.
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
-                for the requested days), self.daily_calories (see calorie_report) and, with a
+                for the requested days), self.daily_totals (see nutrition_report) and, with a
                 cap, self.weekly_totals_cents and self.item_total_cents.
 
         Raises:
@@ -461,6 +463,7 @@ class MenuGenerator:
             BudgetExceededError: if the cheapest possible plan does not fit the cap
         """
         self._rows_cache = None
+        targets = dict(targets or {})
         try:
             start = datetime.date.fromisoformat(date)
         except (TypeError, ValueError):
@@ -501,20 +504,22 @@ class MenuGenerator:
                     raise NoEligibleMealError(
                         f"No menu item can be planned for {SLOT_NAMES[meal]} on {day}: {reason}"
                     )
-                calorie_estimate = calorie_range = None
-                if calorie_target is not None:
-                    # A target cannot be checked against an item with no calories
-                    known = [self._calories(int(i)) for i in candidates["itm_id"]]
+                estimate, spread = {}, {}
+                for column in targets:
+                    # A target cannot be checked against an item with no value for it
+                    known = [self._amount(int(i), column) for i in candidates["itm_id"]]
                     candidates = candidates[[value is not None for value in known]]
                     if candidates.empty:
+                        label = NUTRIENTS[column].label
                         raise NoEligibleMealError(
                             f"No menu item can be planned for {SLOT_NAMES[meal]} on {day}: "
-                            "no item that fits lists its calories, so the calorie target "
-                            "cannot be checked. Remove the target or add calories to the menu."
+                            f"no item that fits lists its {label}, so the {label} target "
+                            f"cannot be checked. Remove the target or add {label} to the menu."
                         )
-                    known = [value for value in known if value is not None]
-                    calorie_estimate = statistics.median(known)
-                    calorie_range = (min(known), max(known))
+                for column in targets:
+                    known = [self._amount(int(i), column) for i in candidates["itm_id"]]
+                    estimate[column] = statistics.median(known)
+                    spread[column] = (min(known), max(known))
                 week = week_start(day)
                 minimum = int(candidates.price_cents.min())
                 minimum_remaining[week] += minimum
@@ -528,8 +533,8 @@ class MenuGenerator:
                         "candidates": candidates,
                         "minimum": minimum,
                         "position": variety.slot_position(day, meal),
-                        "calorie_estimate": calorie_estimate,
-                        "calorie_range": calorie_range,
+                        "estimate": estimate,  # column -> candidates' median amount
+                        "spread": spread,  # column -> (least, most) among candidates
                     }
                 )
 
@@ -559,41 +564,45 @@ class MenuGenerator:
             if itm_id in rows
         }
 
-        # Each day's slots (existing meals and new ones), for its calorie total
+        # Each day's slots (existing meals and new ones), for its nutrient totals
         day_slots = {}
         for position in [*planned, *(slot["position"] for slot in slots)]:
             day_slots.setdefault(position // variety.SLOTS_PER_DAY, set()).add(position)
-        estimates = {slot["position"]: slot["calorie_estimate"] for slot in slots}
+        new_slots = {slot["position"]: slot for slot in slots}
 
-        # The range each day aims for: the target, eased only where the day's meals
-        # cannot reach it (CalorieTarget.within_reach)
+        # The ranges each day aims for: the targets, eased only where the day's meals
+        # cannot reach them (DailyRange.within_reach)
         day_targets = {}
-        if calorie_target is not None:
-            new_slots = {slot["position"]: slot for slot in slots}
-            for day, positions in day_slots.items():
+        for day, positions in day_slots.items():
+            day_targets[day] = {}
+            for column, target in targets.items():
                 low = high = 0
                 for position in positions:
                     if position in new_slots:
-                        least, most = new_slots[position]["calorie_range"]
+                        least, most = new_slots[position]["spread"][column]
                     else:
-                        least = most = self._calories(planned[position]) or 0
+                        least = most = self._amount(planned[position], column) or 0
                     low, high = low + least, high + most
-                day_targets[day] = calorie_target.within_reach(low, high)
+                day_targets[day][column] = target.within_reach(low, high)
 
-        def calorie_miss(slot):
-            """How far the slot's day misses its aim with each item (None: no target)."""
-            if calorie_target is None:
+        def target_miss(slot):
+            """How far the slot's day misses its aims with each item (None: no targets)."""
+            if not targets:
                 return None
             position = slot["position"]
             day = position // variety.SLOTS_PER_DAY
-            others = 0
+            others = dict.fromkeys(targets, 0)
             for other in day_slots[day] - {position}:
-                if other in planned:  # an existing meal, or a new one already chosen
-                    others += self._calories(planned[other]) or 0
-                else:  # a new slot not chosen yet (pass 1): its candidates' median
-                    others += estimates[other]
-            aim = day_targets[day]
-            return lambda itm_id: aim.miss(others + self._calories(itm_id))
+                for column in targets:
+                    if other in planned:  # an existing meal, or a new one already chosen
+                        others[column] += self._amount(planned[other], column) or 0
+                    else:  # a new slot not chosen yet (pass 1): its candidates' median
+                        others[column] += new_slots[other]["estimate"][column]
+            aims = day_targets[day]
+            return lambda itm_id: sum(
+                aims[column].miss(others[column] + self._amount(itm_id, column))
+                for column in targets
+            )
 
         # Pass 1: fill slots in time order, each next to the meals already planned.
         chosen = []
@@ -609,7 +618,7 @@ class MenuGenerator:
                 slot["position"],
                 self._neighbours(planned, slot["position"]),
                 preferences,
-                calorie_miss(slot),
+                target_miss(slot),
             )
             itm_id = ranked[0][1]
             check(itm_id, slot)
@@ -630,7 +639,7 @@ class MenuGenerator:
                 slot["position"],
                 self._neighbours(planned, slot["position"]),
                 preferences,
-                calorie_miss(slot),
+                target_miss(slot),
             )
             best_key, best = ranked[0]
             current_score = next(key[0] for key, itm_id in ranked if itm_id == current)
@@ -653,36 +662,53 @@ class MenuGenerator:
         self.variety = variety.plan_variety(
             [entry for entry in plan_entries(updated) if entry[0] in requested], rows
         )
-        self.calorie_target = calorie_target
-        self.daily_calories = {}
+        self.targets = targets
+        self.daily_totals = {}
         for day, itm_id, _ in plan_entries(updated):
-            if day in requested:
-                calories = self._calories(itm_id)
-                total = self.daily_calories.get(day, 0)
-                # A day with a meal of unknown calories has no reliable total
-                self.daily_calories[day] = (
-                    None if calories is None or total is None else (total + calories)
-                )
+            if day not in requested:
+                continue
+            totals_today = self.daily_totals.setdefault(day, dict.fromkeys(targets, 0))
+            for column in targets:
+                amount = self._amount(itm_id, column)
+                # A day with a meal of unknown amount has no reliable total
+                if amount is None or totals_today[column] is None:
+                    totals_today[column] = None
+                else:
+                    totals_today[column] += amount
         return updated
 
-    def calorie_report(self):
+    def nutrition_report(self):
         """
-        Each requested day's calories and how far it is from the target, for the response
+        Each requested day's nutrient totals and how far they are from the targets
 
         Returns:
-            dict | None: {"target": {"min", "max"}, "days": [{"date", "calories", "miss"}],
-                "days_outside": int}; None if the last plan had no calorie target. A day's
-                calories (and miss) are None when one of its meals has no calorie value.
+            dict | None: {"targets": {column: {"min", "max"}}, "days": [{"date", "totals":
+                {column: amount}, "miss": {column: share}}], "days_outside": int,
+                "outside_by_nutrient": {column: int}}; None if the last plan had no
+                targets. A total (and its miss) is None when one of the day's meals has
+                no value for that nutrient.
         """
-        if self.calorie_target is None:
+        if not self.targets:
             return None
         days = []
-        for day in sorted(self.daily_calories):
-            total = self.daily_calories[day]
-            miss = None if total is None else round(self.calorie_target.miss(total), 4)
-            days.append({"date": day, "calories": total, "miss": miss})
+        for day in sorted(self.daily_totals):
+            totals = self.daily_totals[day]
+            days.append(
+                {
+                    "date": day,
+                    "totals": {c: None if v is None else round(v, 1) for c, v in totals.items()},
+                    "miss": {
+                        column: None if total is None else round(target.miss(total), 4)
+                        for column, target in self.targets.items()
+                        for total in [totals[column]]
+                    },
+                }
+            )
         return {
-            "target": self.calorie_target.as_json(),
+            "targets": {column: target.as_json() for column, target in self.targets.items()},
             "days": days,
-            "days_outside": sum(1 for day in days if day["miss"]),
+            "days_outside": sum(1 for day in days if any(day["miss"].values())),
+            "outside_by_nutrient": {
+                column: sum(1 for day in days if day["miss"][column]) for column in self.targets
+            },
         }

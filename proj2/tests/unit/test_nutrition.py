@@ -1,6 +1,6 @@
 """
-Unit tests for daily calorie targets (proj2/nutrition.py) and how the planner aims for
-them (MenuGenerator.update_menu with calorie_target)
+Unit tests for daily nutrition targets (proj2/nutrition.py) and how the planner aims for
+them (MenuGenerator.update_menu with targets)
 """
 
 import json
@@ -9,48 +9,72 @@ import math
 import pandas as pd
 import pytest
 
-from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator, NoEligibleMealError
 from proj2.meal_budget import plan_entries
+from proj2.menu_generation import DAYS_OF_WEEK, MenuGenerator, NoEligibleMealError
 from proj2.nutrition import (
+    NUTRIENTS,
     REACH_SLACK,
-    CalorieTarget,
+    DailyRange,
     NutritionTargetError,
-    calorie_notice,
-    describe_target,
-    item_calories,
-    parse_calorie_target,
+    describe_range,
+    item_amount,
+    nutrition_notice,
+    parse_range,
+    parse_targets,
 )
 
 MONDAY = "2026-11-16"
 ALL_DAY = json.dumps({day: [0, 2359] for day in DAYS_OF_WEEK})
+CALORIES = NUTRIENTS["calories"]
 
-# ---------------------------------------------------------------- the target
+# ---------------------------------------------------------------- the targets
 
 
-class TestParse:
+class TestParseRange:
     def test_blank_bounds_mean_no_target(self):
-        assert parse_calorie_target(None, None) is None
-        assert parse_calorie_target("", "  ") is None
+        assert parse_range(CALORIES, None, None) is None
+        assert parse_range(CALORIES, "", "  ") is None
 
     def test_both_bounds(self):
-        assert parse_calorie_target("1800", 2200) == CalorieTarget(1800, 2200)
+        assert parse_range(CALORIES, "1800", 2200) == DailyRange(1800, 2200)
 
     def test_one_bound_leaves_the_other_open(self):
-        assert parse_calorie_target("1800", "") == CalorieTarget(1800, math.inf)
-        assert parse_calorie_target(None, "2200") == CalorieTarget(0, 2200)
+        assert parse_range(CALORIES, "1800", "") == DailyRange(1800, math.inf)
+        assert parse_range(CALORIES, None, "2200") == DailyRange(0, 2200)
 
     @pytest.mark.parametrize("value", ["0", "-5", "abc", "1800.5", "10001", "nan", "inf"])
     def test_rejects_values_that_are_not_a_whole_number_in_range(self, value):
-        with pytest.raises(NutritionTargetError, match="whole number from 1 to 10000"):
-            parse_calorie_target(value, None)
+        with pytest.raises(NutritionTargetError, match="whole number from 1 to 10,000 kcal"):
+            parse_range(CALORIES, value, None)
+
+    def test_each_nutrient_has_its_own_limit_and_name(self):
+        with pytest.raises(NutritionTargetError, match="protein maximum .* 1 to 1,000 g"):
+            parse_range(NUTRIENTS["protein_g"], None, "1500")
 
     def test_rejects_min_above_max(self):
-        with pytest.raises(NutritionTargetError, match="minimum cannot be more"):
-            parse_calorie_target("2500", "2000")
+        with pytest.raises(NutritionTargetError, match="calories minimum cannot be more"):
+            parse_range(CALORIES, "2500", "2000")
+
+
+class TestParseTargets:
+    def test_reads_every_nutrient_with_a_bound(self):
+        fields = {"calorie_min": "1800", "protein_min": "120", "sodium_max": "2300", "fat_min": ""}
+        assert parse_targets(fields) == {
+            "calories": DailyRange(1800, math.inf),
+            "protein_g": DailyRange(120, math.inf),
+            "sodium_mg": DailyRange(0, 2300),
+        }
+
+    def test_no_bounds_is_no_targets(self):
+        assert parse_targets({"weekly_cap": "100"}) == {}
+
+    def test_a_bad_bound_names_its_nutrient(self):
+        with pytest.raises(NutritionTargetError, match="Daily carbs minimum"):
+            parse_targets({"carbs_min": "lots"})
 
 
 class TestMiss:
-    target = CalorieTarget(2000, 2500)
+    target = DailyRange(2000, 2500)
 
     @pytest.mark.parametrize("total", [2000, 2250, 2500])
     def test_inside_the_range_is_no_miss(self, total):
@@ -61,60 +85,63 @@ class TestMiss:
         assert self.target.miss(2750) == pytest.approx(0.1)
 
     def test_open_bounds_never_miss_on_that_side(self):
-        assert CalorieTarget(0, 2000).miss(10) == 0.0
-        assert CalorieTarget(1500, math.inf).miss(9000) == 0.0
+        assert DailyRange(0, 2000).miss(10) == 0.0
+        assert DailyRange(1500, math.inf).miss(9000) == 0.0
 
 
 class TestWithinReach:
     def test_reachable_target_is_unchanged(self):
-        target = CalorieTarget(1800, 2200)
+        target = DailyRange(1800, 2200)
         assert target.within_reach(1200, 3000) == target
 
     def test_unreachable_minimum_aims_near_the_most_the_day_can_reach(self):
-        aim = CalorieTarget(2500, 3000).within_reach(900, 2000)
-        assert aim == CalorieTarget(2000 * (1 - REACH_SLACK), 3000)
+        aim = DailyRange(2500, 3000).within_reach(900, 2000)
+        assert aim == DailyRange(2000 * (1 - REACH_SLACK), 3000)
 
     def test_unreachable_maximum_aims_near_the_least_the_day_can_reach(self):
-        aim = CalorieTarget(0, 1000).within_reach(1500, 2600)
-        assert aim == CalorieTarget(0, 1500 * (1 + REACH_SLACK))
+        aim = DailyRange(0, 1000).within_reach(1500, 2600)
+        assert aim == DailyRange(0, 1500 * (1 + REACH_SLACK))
 
 
 @pytest.mark.parametrize(
-    "value, calories",
-    [(550, 550), ("720", 720), (99.6, 100), (None, None), (float("nan"), None), ("x", None)],
+    "value, amount",
+    [(550, 550), ("720", 720), (32.1, 32.1), (None, None), (float("nan"), None), ("x", None)],
 )
-def test_item_calories(value, calories):
-    assert item_calories(value) == calories
+def test_item_amount(value, amount):
+    assert item_amount(value) == amount
 
 
-def test_negative_calories_are_unknown():
-    assert item_calories(-10) is None
+def test_negative_amounts_are_unknown():
+    assert item_amount(-10) is None
 
 
 @pytest.mark.parametrize(
-    "target, text",
+    "column, target, text",
     [
-        (CalorieTarget(1800, 2200), "1,800–2,200 kcal"),
-        (CalorieTarget(1800, math.inf), "at least 1,800 kcal"),
-        (CalorieTarget(0, 2200), "at most 2,200 kcal"),
+        ("calories", DailyRange(1800, 2200), "calories 1,800–2,200 kcal"),
+        ("protein_g", DailyRange(120, math.inf), "protein at least 120 g"),
+        ("sodium_mg", DailyRange(0, 2300), "sodium at most 2,300 mg"),
     ],
 )
-def test_describe_target(target, text):
-    assert describe_target(target) == text
+def test_describe_range(column, target, text):
+    assert describe_range(column, target) == text
 
 
-def test_calorie_notice_names_the_days_outside():
+def test_nutrition_notice_names_each_missed_target():
     report = {
-        "target": {"min": 1800, "max": 2200},
-        "days": [{"date": MONDAY, "calories": 1500, "miss": 0.17}, {"miss": 0.0}],
-        "days_outside": 1,
+        "targets": {
+            "calories": {"min": 1800, "max": 2200},
+            "sodium_mg": {"min": None, "max": 2300},
+        },
+        "days": [{"date": MONDAY}, {"date": "2026-11-17"}, {"date": "2026-11-18"}],
+        "days_outside": 2,
+        "outside_by_nutrient": {"calories": 0, "sodium_mg": 2},
     }
-    notice = calorie_notice(report)
-    assert notice.startswith(
-        "1 of 2 planned days falls outside your daily calorie target (1,800–2,200 kcal)."
+    assert nutrition_notice(report).startswith(
+        "2 of 3 planned days miss your daily targets (sodium at most 2,300 mg on 2 days)."
     )
-    assert calorie_notice(dict(report, days_outside=0)) is None
-    assert calorie_notice(None) is None
+    assert nutrition_notice(dict(report, days_outside=0)) is None
+    assert nutrition_notice(None) is None
 
 
 # ---------------------------------------------------------------- the planner
@@ -145,84 +172,121 @@ def make_generator(items):
     return gen
 
 
-## Ten mains from 300 to 1200 kcal, each a different protein so variety has a say
+## Ten mains from 300 to 1200 kcal, each a different protein so variety has a say.
+## Protein grams fall as calories rise, so calories and protein pull different ways.
 PROTEINS = ["chicken", "beef", "tofu", "fish", "legumes", "egg", "lamb", "turkey", "pork", "dairy"]
-CATALOG = [{"calories": 300 + 100 * i, "protein": protein} for i, protein in enumerate(PROTEINS)]
+CATALOG = [
+    {
+        "calories": 300 + 100 * i,
+        "protein": protein,
+        "protein_g": 60 - 5 * i,
+        "sodium_mg": 400 + 150 * i,
+    }
+    for i, protein in enumerate(PROTEINS)
+]
 
 
-def day_totals(gen, menu):
-    calories = dict(zip(gen.catalog.itm_id, gen.catalog.calories))
+def day_totals(gen, menu, column="calories"):
+    amounts = dict(zip(gen.catalog.itm_id, gen.catalog[column]))
     totals = {}
     for day, itm_id, _ in plan_entries(menu):
-        totals[day] = totals.get(day, 0) + calories[itm_id]
+        totals[day] = totals.get(day, 0) + amounts[itm_id]
     return totals
 
 
-def plan(gen, target=None, menu="", days=5, meals=(1, 2, 3)):
-    return gen.update_menu(
-        menu, "", "", MONDAY, list(meals), number_of_days=days, calorie_target=target
-    )
+def plan(gen, targets=None, menu="", days=5, meals=(1, 2, 3)):
+    return gen.update_menu(menu, "", "", MONDAY, list(meals), number_of_days=days, targets=targets)
 
 
 @pytest.mark.parametrize("low, high", [(1200, 1400), (1800, 2000), (2600, 2800)])
-def test_every_reachable_day_lands_inside_the_target(low, high):
+def test_every_reachable_day_lands_inside_the_calorie_target(low, high):
     gen = make_generator(CATALOG)
-    menu = plan(gen, CalorieTarget(low, high))
+    menu = plan(gen, {"calories": DailyRange(low, high)})
     assert all(low <= total <= high for total in day_totals(gen, menu).values())
-    report = gen.calorie_report()
+    report = gen.nutrition_report()
     assert report["days_outside"] == 0
-    assert report["target"] == {"min": low, "max": high}
+    assert report["targets"] == {"calories": {"min": low, "max": high}}
+
+
+def test_several_targets_are_met_together():
+    gen = make_generator(CATALOG)
+    targets = {
+        "calories": DailyRange(1800, 2200),
+        "protein_g": DailyRange(110, math.inf),
+        "sodium_mg": DailyRange(0, 3000),
+    }
+    menu = plan(gen, targets)
+    for column, target in targets.items():
+        assert all(target.miss(t) == 0 for t in day_totals(gen, menu, column).values()), column
+    assert gen.nutrition_report()["outside_by_nutrient"] == dict.fromkeys(targets, 0)
 
 
 def test_a_target_every_day_already_meets_changes_nothing():
     untargeted = plan(make_generator(CATALOG))
-    wide = plan(make_generator(CATALOG), CalorieTarget(1, 10000))
+    wide = plan(make_generator(CATALOG), {"calories": DailyRange(1, 10000)})
     assert wide == untargeted
 
 
-def test_no_target_means_no_report():
+def test_no_targets_means_no_report():
     gen = make_generator(CATALOG)
     plan(gen)
-    assert gen.calorie_report() is None
+    assert gen.nutrition_report() is None
+    plan(gen, {})
+    assert gen.nutrition_report() is None
 
 
 def test_meals_already_in_the_plan_count_toward_the_day():
     gen = make_generator(CATALOG)
     heavy_breakfast = 10  # 1,200 kcal
-    menu = plan(gen, CalorieTarget(1700, 1900), menu=f"[{MONDAY},{heavy_breakfast},1]", days=1)
+    menu = plan(
+        gen, {"calories": DailyRange(1700, 1900)}, menu=f"[{MONDAY},{heavy_breakfast},1]", days=1
+    )
     assert 1700 <= day_totals(gen, menu)[MONDAY] <= 1900
 
 
-def test_items_without_calories_are_not_planned_with_a_target():
-    items = CATALOG + [{"calories": None, "protein": "goat"}]
+def test_items_without_a_targeted_value_are_not_planned():
+    items = CATALOG + [{"calories": 700, "protein_g": None, "protein": "goat"}]
     unknown = len(items)
-    gen = make_generator(items)
-    menu = plan(gen, CalorieTarget(1, 10000), days=7)
+    menu = plan(make_generator(items), {"protein_g": DailyRange(1, 1000)}, days=7)
     assert unknown not in {itm_id for _, itm_id, _ in plan_entries(menu)}
+    # Without a protein target the same item can be planned
+    menu = plan(make_generator(items), {"calories": DailyRange(1, 10000)}, days=7)
+    assert unknown in {itm_id for _, itm_id, _ in plan_entries(menu)}
 
 
-def test_a_slot_with_no_calorie_values_is_a_clear_error():
-    gen = make_generator([{"calories": None}, {"calories": float("nan")}])
-    with pytest.raises(NoEligibleMealError, match="no item that fits lists its calories"):
-        plan(gen, CalorieTarget(1800, 2200), days=1)
+def test_a_slot_with_no_values_for_a_target_is_a_clear_error():
+    gen = make_generator([{"protein_g": None}, {"protein_g": float("nan")}])
+    with pytest.raises(NoEligibleMealError, match="no item that fits lists its protein"):
+        plan(gen, {"protein_g": DailyRange(50, 200)}, days=1)
 
 
 def test_an_unreachable_target_still_plans_and_reports_every_day():
     gen = make_generator(CATALOG)
-    menu = plan(gen, CalorieTarget(5000, 6000), days=3)
+    menu = plan(gen, {"calories": DailyRange(5000, 6000)}, days=3)
     totals = day_totals(gen, menu)
     most = 3 * 1200
     # Each day comes close to the most it can reach (REACH_SLACK is its aim; the
     # planner may give up a little of it rather than repeat one dish all day)
     assert all(total >= most * 0.9 for total in totals.values())
     assert all(total < most for total in totals.values())
-    report = gen.calorie_report()
+    report = gen.nutrition_report()
     assert report["days_outside"] == 3
-    assert [day["calories"] for day in report["days"]] == [totals[d] for d in sorted(totals)]
+    assert report["outside_by_nutrient"] == {"calories": 3}
+    assert [day["totals"]["calories"] for day in report["days"]] == [
+        totals[d] for d in sorted(totals)
+    ]
 
 
 def test_report_has_no_total_for_a_day_with_an_unknown_meal():
     gen = make_generator(CATALOG + [{"calories": None}])
     unknown = len(CATALOG) + 1
-    plan(gen, CalorieTarget(1, 10000), menu=f"[{MONDAY},{unknown},1]", days=1, meals=(2, 3))
-    assert gen.calorie_report()["days"] == [{"date": MONDAY, "calories": None, "miss": None}]
+    plan(
+        gen,
+        {"calories": DailyRange(1, 10000)},
+        menu=f"[{MONDAY},{unknown},1]",
+        days=1,
+        meals=(2, 3),
+    )
+    assert gen.nutrition_report()["days"] == [
+        {"date": MONDAY, "totals": {"calories": None}, "miss": {"calories": None}}
+    ]
