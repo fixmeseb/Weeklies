@@ -148,6 +148,20 @@
             <p id="weekly-cap-help" class="muted">Applies to each Monday–Sunday week, including meals already planned.
               One serving per meal; taxes, delivery fees, and tips are extra. Leave blank for no cap.</p>
           </div>
+          <fieldset class="form-row" style="border:0; padding:0; margin:0;">
+            <legend style="padding:0;">Daily calories (optional)</legend>
+            <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+              <label for="calorie_min">At least</label>
+              <input class="input" type="number" id="calorie_min" name="calorie_min" min="1" max="10000"
+                     step="1" placeholder="e.g., 1800" style="width:120px;" aria-describedby="calorie-help">
+              <label for="calorie_max">At most</label>
+              <input class="input" type="number" id="calorie_max" name="calorie_max" min="1" max="10000"
+                     step="1" placeholder="e.g., 2200" style="width:120px;" aria-describedby="calorie-help">
+            </div>
+            <p id="calorie-help" class="muted">Each day's meals aim for this range, including meals already
+              planned. If your diet, allergies or budget make it unreachable, the plan comes as close as it can
+              and tells you which days miss. Leave blank for no target.</p>
+          </fieldset>
           <div class="form-row">
             <label for="preferences">Preferences (override)</label>
             <input class="input" type="text" id="preferences" name="preferences" placeholder="e.g., high protein, low carb">
