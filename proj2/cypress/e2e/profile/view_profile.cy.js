@@ -18,10 +18,18 @@ describe("User Profile View", () => {
     cy.get("#prefBubbles").should("be.visible");
   });
 
-  it("displays order history with details and statuses", () => {
+  it("sends the customer to their order history, which now lives on its own page", () => {
+    // #6 moved order history off /profile; the profile page links to it instead.
     cy.get("table, .order-list, .meta-grid").should("exist");
-    // Verify seeded delivered order appears
+    cy.contains("Taste of Italy").should("not.exist");
+
+    cy.contains("a", "My Orders").click();
+    cy.location("pathname").should("eq", "/orders");
+    cy.get("h1").should("contain.text", "My Orders");
+
+    // The seeded delivered order is there, with its restaurant and its status.
     cy.contains("Taste of Italy").should("be.visible");
+    cy.contains("Delivered").should("be.visible");
   });
 
   it("redirects unauthenticated users to login", () => {
