@@ -268,7 +268,11 @@
 
   {#- The whole dish form, shared by adding and editing. `current` supplies the stored
       values, `submitted` whatever was typed on an attempt that failed. -#}
-  {% macro dish_form(action, prefix, current, submitted, errors, submit_label, cancel_url=None) %}
+  {#- `form_id` matters: the add form stays in the page (collapsed) while an edit form is
+      open, so a selector like input[name="protein"][value="tofu"] matches twice. Anything
+      driving one of the forms scopes itself to that form's id. -#}
+  {% macro dish_form(action, prefix, current, submitted, errors, submit_label,
+                     cancel_url=None, form_id=None) %}
     {#- The value to show: what was typed if this is a rejected attempt, else what is
         stored. A stored NULL must render as an empty field, not the word "None", and a
         stored 0 (spice level, a flag) must still render as 0. -#}
@@ -276,7 +280,7 @@
       {%- set raw = submitted.get(column, current[column] if current and column in current.keys() else none) -%}
       {{- "" if raw is none else raw -}}
     {% endmacro %}
-    <form method="post" action="{{ action }}">
+    <form method="post" action="{{ action }}"{% if form_id %} id="{{ form_id }}"{% endif %}>
       <p class="section-head">The basics</p>
       <div class="field-grid">
         {{ simple_field("name", schema.fields["name"], val("name")|trim, errors, prefix) }}
@@ -363,7 +367,8 @@
     <details class="panel" {% if open_add %}open{% endif %}>
       <summary>Add a dish</summary>
       {{ dish_form(url_for("restaurant_menu_new"), "new-", none,
-                   submitted if not editing else {}, errors if not editing else {}, "Add to menu") }}
+                   submitted if not editing else {}, errors if not editing else {},
+                   "Add to menu", form_id="add-dish-form") }}
     </details>
 
     <div class="panel">
@@ -434,7 +439,9 @@
               <h3 style="margin:0.2rem 0 0;font-size:0.95rem">Editing {{ item["name"] }}</h3>
               {{ dish_form(url_for("restaurant_menu_edit", itm_id=item["itm_id"]),
                            "e%s-"|format(item["itm_id"]), item, submitted, errors, "Save changes",
-                           url_for("restaurant_menu", q=query or none, show=show if show != "all" else none)) }}
+                           url_for("restaurant_menu", q=query or none,
+                                   show=show if show != "all" else none),
+                           form_id="edit-dish-form") }}
             </td>
           </tr>
           {% endif %}

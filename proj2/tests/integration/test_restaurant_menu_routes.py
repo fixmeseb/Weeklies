@@ -8,6 +8,7 @@ describes the server that serves it.
 """
 
 import json
+import re
 
 import pytest
 
@@ -467,3 +468,41 @@ def test_a_stored_null_renders_as_an_empty_field_not_the_word_none(client, owner
     body = client.get(f"/restaurant/menu?edit={itm_id}").data.decode()
     assert 'value="None"' not in body
     assert ">None<" not in body
+
+
+## --- keeping the two forms apart -----------------------------------------
+##
+## The add form stays in the page, collapsed, while an edit form is open, so every
+## tag checkbox exists twice. Anything driving one form -- the Cypress spec, a future
+## script -- has to scope itself, and these tests are what keep the ids there to
+## scope to.
+
+
+def test_the_page_has_one_add_form_and_no_edit_form(client, owner):
+    body = client.get("/restaurant/menu").data.decode()
+    assert body.count('id="add-dish-form"') == 1
+    assert 'id="edit-dish-form"' not in body
+
+
+def test_opening_an_edit_adds_exactly_one_more_form(client, owner, app_context):
+    conn = get_db()
+    itm_id = next(
+        row["itm_id"]
+        for row in menu_items.list_items(conn, owner["rtr_id"])
+        if row["name"] == "Pasta"
+    )
+    body = client.get(f"/restaurant/menu?edit={itm_id}").data.decode()
+    assert body.count('id="add-dish-form"') == 1
+    assert body.count('id="edit-dish-form"') == 1
+
+
+def test_a_tag_checkbox_is_ambiguous_while_an_edit_is_open(client, owner, app_context):
+    """The reason the ids exist: an unscoped selector would match twice."""
+    conn = get_db()
+    itm_id = next(
+        row["itm_id"]
+        for row in menu_items.list_items(conn, owner["rtr_id"])
+        if row["name"] == "Pasta"
+    )
+    flat = re.sub(r"\s+", " ", client.get(f"/restaurant/menu?edit={itm_id}").data.decode())
+    assert flat.count('name="protein" value="legumes"') == 2
