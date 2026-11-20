@@ -7,7 +7,10 @@ meal type), and, with a weekly cap, that leave enough budget for the meals still
 plan. Among them the planner picks the one that adds the most variety next to the meals
 already in the plan (proj2.variety), with soft preferences such as "Italian" breaking
 near-ties, then the lower price, then the lower itm_id. After every slot is filled it
-makes one improvement pass, re-picking each new slot with the rest of the plan fixed.
+re-picks each slot with the rest of the plan fixed, and repeats that sweep until one
+changes nothing: filling a slot changes what its neighbours should be, so a single pass
+leaves stale picks behind. With nutrition targets, meals that keep a day inside its
+targets outrank everything else (proj2.nutrition).
 
 The result is deterministic: the same catalog and request always give the same plan.
 """
@@ -38,7 +41,6 @@ from proj2.nutrition import (
     JOINT_SLACK,
     NUTRIENTS,
     REPAIR_CANDIDATES,
-    TARGET_WEIGHT,
     TargetsUnreachableError,
     describe_range,
     item_amount,
@@ -53,6 +55,17 @@ from proj2.plan_rules import (
 
 ## Days of the week in an array - should be the same as in the database*
 DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+## Most improvement sweeps to run before giving up. Each sweep only accepts strict gains,
+## so the plan's score rises monotonically and the loop settles on its own well inside
+## this; the bound is a guard, not the usual stopping point.
+MAX_IMPROVEMENT_SWEEPS = 20
+
+## How many openings to try for the first slot besides the default one. The first slot has
+## no neighbours yet, so every candidate ties and the cheapest wins by tie-break; trying a
+## spread of openings and keeping the best plan is what stops that arbitrary pick from
+## deciding the week. Twelve keeps a week's planning well under a tenth of a second.
+RESTART_OPENINGS = 12
 
 ## Preset Meal times - In the future, times will be user-provided
 BREAKFAST_TIME = 1000
@@ -403,20 +416,36 @@ class MenuGenerator:
         return None if row is None else item_amount(row.get(column))
 
     def _ranked(
-        self, pool: pd.DataFrame, position: int, neighbours: list, preferences, target_miss=None
+        self,
+        pool: pd.DataFrame,
+        position: int,
+        neighbours: list,
+        preferences,
+        target_miss=None,
+        avoid=(),
     ) -> list:
         """
         Ranks a slot's candidates, best first
 
         Args:
             target_miss (Callable[[int], float] | None): How far the slot's day would miss
-                its nutrition targets with each item, summed over nutrients
-                (proj2.nutrition.DailyRange.miss); subtracted from the score, weighted by
-                TARGET_WEIGHT. None when there are no targets.
+                its nutrition targets with each item, beyond any allowance, summed over
+                nutrients (proj2.nutrition.DailyRange.miss). It ranks first: a meal that
+                keeps the day closer to its targets wins whatever the other keys say.
+                None when there are no targets (every miss is 0).
+            avoid (Container): Items already in the plan. A meal the week has not used yet
+                outranks one it has, whatever the variety scores. The variety score alone
+                does not do this: `closeness` has decayed to 0.16 three days out, so
+                repeating a dish that far away can score higher than a fresh one, and a
+                plan is allowed to repeat only once it has run out of different meals.
+                Targets rank above this, so a plan repeats a dish when only that dish
+                keeps a day inside them.
 
         Returns:
-            List[Tuple[tuple, int]]: (sort key, itm_id); the key is (-score, price, itm_id),
-                so the most varied fit wins, then the cheaper one, then the lower ID
+            List[Tuple[tuple, int]]: (sort key, itm_id); the key is
+                (target miss, already used, -score, price, itm_id), so the meal nearest the
+                targets wins first, then an unused one, then the most varied fit, then the
+                cheaper one, then the lower ID
         """
         self._rows()
         ranked = []
@@ -424,11 +453,70 @@ class MenuGenerator:
             itm_id = int(itm_id)
             gain, weight_sum = self._distances.slot_gain(itm_id, position, neighbours)
             score = variety.candidate_score(gain, weight_sum, self._preference(itm_id, preferences))
-            if target_miss is not None:
-                score = round(score - TARGET_WEIGHT * target_miss(itm_id), 9)
-            ranked.append(((-score, int(price_cents), itm_id), itm_id))
+            miss = 0.0 if target_miss is None else round(target_miss(itm_id), 9)
+            key = (miss, int(itm_id in avoid), -score, int(price_cents), itm_id)
+            ranked.append((key, itm_id))
         ranked.sort()
         return ranked
+
+    def _restart_openings(self, slots, limit=None):
+        """
+        The items to try in the first slot, spread across its candidates
+
+        Args:
+            slots (list): The slots to be planned, in time order
+            limit (int | None): How many openings to try besides the default; None reads
+                RESTART_OPENINGS. Read here rather than taken as a default argument,
+                which would bind the constant at import and make it untunable.
+
+        Returns:
+            list: itm_ids to force into the first slot, led by None, which means "pick
+                the first slot the usual way". Keeping None first means the restarts can
+                only improve on the plan the planner would have produced without them.
+        """
+        limit = RESTART_OPENINGS if limit is None else limit
+        if not slots or limit < 1:
+            return [None]
+        pool = [int(itm_id) for itm_id in slots[0]["candidates"]["itm_id"]]
+        if not pool:
+            return [None]
+        if len(pool) <= limit:
+            return [None] + pool
+        if limit == 1:
+            # One extra opening cannot be "spread" across the pool, and the step below
+            # would divide by limit - 1.
+            return [None, pool[0]]
+        # The pool is ordered by price then itm_id, so even steps through it sample the
+        # whole price range instead of crowding the cheap end the tie-break already favours.
+        step = (len(pool) - 1) / (limit - 1)
+        spread = {pool[round(index * step)] for index in range(limit)}
+        return [None] + sorted(spread, key=pool.index)
+
+    def _plan_objective(self, planned) -> float:
+        """
+        The closeness-weighted distance summed over every pair of planned meals
+
+        This is the numerator of the score `variety.plan_variety` reports. Its denominator
+        depends only on which slots are filled, so for one request this ranks plans exactly
+        as the reported score does, without recomputing the constant each time.
+
+        Args:
+            planned (dict): slot position -> itm_id, including meals already in the plan
+
+        Returns:
+            float: The weighted total; larger is more varied
+        """
+        self._rows()
+        positions = sorted(planned)
+        total = 0.0
+        for index, here in enumerate(positions):
+            for other in positions[index + 1 :]:
+                weight = variety.closeness(here, other)
+                if weight:
+                    # Through the shared cache: restarts score overlapping plans, so most
+                    # of these pairs have already been computed by an earlier one.
+                    total += weight * self._distances.distance(planned[here], planned[other])
+        return total
 
     # ---------------------------------------------------------------- strict targets
 
@@ -547,6 +635,8 @@ class MenuGenerator:
                     )
                 fixed[column] += amount
         current_cost = sum(price(planned[p]) for p in open_positions)
+        # Meals planned on other days; the day's own picks are about to be replaced
+        elsewhere = {itm_id for p, itm_id in planned.items() if p not in open_positions}
         options = []
         truncated = False
         for position in open_positions:
@@ -555,11 +645,12 @@ class MenuGenerator:
                 position,
                 self._neighbours(planned, position),
                 preferences,
+                avoid=elsewhere,
             )
             truncated = truncated or len(ranked) > REPAIR_CANDIDATES
             options.append(
                 [
-                    (key[0], itm_id, price(itm_id), [self._amount(itm_id, c) for c in targets])
+                    (key[1:3], itm_id, price(itm_id), [self._amount(itm_id, c) for c in targets])
                     for key, itm_id in ranked[:REPAIR_CANDIDATES]
                 ]
             )
@@ -574,7 +665,14 @@ class MenuGenerator:
                 for i, column in enumerate(columns)
             ):
                 continue
-            key = (sum(option[0] for option in combo), cost, [option[1] for option in combo])
+            # Fewest repeats, then most varied, then cheapest, then lowest itm_ids
+            key = (
+                sum(option[0][0] for option in combo)
+                + (len({option[1] for option in combo}) < len(combo)),
+                sum(option[0][1] for option in combo),
+                cost,
+                [option[1] for option in combo],
+            )
             if best_key is None or key < best_key:
                 best, best_key = combo, key
         if best is None:
@@ -736,7 +834,7 @@ class MenuGenerator:
             )
 
         rows = self._rows()
-        planned = {
+        already = {
             variety.slot_position(day, meal): itm_id
             for day, itm_id, meal in existing
             if itm_id in rows
@@ -744,9 +842,10 @@ class MenuGenerator:
 
         # Each day's slots (existing meals and new ones), for its nutrient totals
         day_slots = {}
-        for position in [*planned, *(slot["position"] for slot in slots)]:
+        for position in [*already, *(slot["position"] for slot in slots)]:
             day_slots.setdefault(position // variety.SLOTS_PER_DAY, set()).add(position)
         new_slots = {slot["position"]: slot for slot in slots}
+        requested_days = sorted({slot["position"] // variety.SLOTS_PER_DAY for slot in slots})
 
         # The ranges each day aims for: the targets, eased only where the day's meals
         # cannot reach them (DailyRange.within_reach)
@@ -759,17 +858,17 @@ class MenuGenerator:
                     if position in new_slots:
                         least, most = new_slots[position]["spread"][column]
                     else:
-                        least = most = self._amount(planned[position], column) or 0
+                        least = most = self._amount(already[position], column) or 0
                     low, high = low + least, high + most
                 day_targets[day][column] = target.within_reach(low, high)
                 requested_day = any(position in new_slots for position in positions)
                 if strict_targets and requested_day and (high < target.low or low > target.high):
                     # Even the richest (or leanest) meals miss on the same side
                     raise TargetsUnreachableError(
-                        self._out_of_reach(positions, new_slots, planned, column, target, low, high)
+                        self._out_of_reach(positions, new_slots, already, column, target, low, high)
                     )
 
-        def target_miss(slot, allowance):
+        def target_miss(slot, planned, allowance):
             """
             How far the slot's day misses its aims with each item, beyond the day's
             allowance (None: no targets)
@@ -796,95 +895,143 @@ class MenuGenerator:
                 - allowed,
             )
 
-        start_planned = dict(planned)
-        start_totals = dict(totals) if capped else None
-        start_remaining = dict(minimum_remaining)
+        def plan_miss(planned, allowance):
+            """The requested days' total miss beyond their allowances (0 with no targets)."""
+            if not targets:
+                return 0.0
+            return sum(
+                max(
+                    0.0,
+                    self._day_miss(day_slots[day], planned, day_targets[day])
+                    - allowance.get(day, 0.0),
+                )
+                for day in requested_days
+            )
 
-        def plan_passes(allowance):
+        def build(opening, allowance):
+            """Fill every slot, then improve it, starting the first slot with `opening`.
+
+            Returns (chosen, planned, totals). Each call works on its own copies, so a
+            restart never inherits the previous one's state.
             """
-            Picks every new slot (passes 1 and 2) from the plan as it stood before
+            planned = dict(already)
+            totals_here = dict(totals) if capped else None
+            remaining = dict(minimum_remaining)
 
-            Args:
-                allowance (dict): day -> how much total miss the day may have before it
-                    counts against a slot (see day_allowance)
-
-            Returns:
-                list: The itm_id chosen for each new slot, in slot order
-            """
-            planned.clear()
-            planned.update(start_planned)
-            if capped:
-                totals.clear()
-                totals.update(start_totals)
-            minimum_remaining.clear()
-            minimum_remaining.update(start_remaining)
             # Pass 1: fill slots in time order, each next to the meals already planned.
             chosen = []
-            for slot in slots:
+            for index, slot in enumerate(slots):
                 pool = slot["candidates"]
                 if capped:
                     # Keep enough for the cheapest meal in every later slot of this week.
-                    minimum_remaining[slot["week"]] -= slot["minimum"]
-                    available = cap - totals[slot["week"]] - minimum_remaining[slot["week"]]
+                    remaining[slot["week"]] -= slot["minimum"]
+                    available = cap - totals_here[slot["week"]] - remaining[slot["week"]]
                     pool = pool[pool.price_cents <= available]
-                ranked = self._ranked(
-                    pool,
-                    slot["position"],
-                    self._neighbours(planned, slot["position"]),
-                    preferences,
-                    target_miss(slot, allowance),
-                )
-                itm_id = ranked[0][1]
+                if index == 0 and opening is not None and opening in set(pool["itm_id"]):
+                    itm_id = opening
+                else:
+                    ranked = self._ranked(
+                        pool,
+                        slot["position"],
+                        self._neighbours(planned, slot["position"]),
+                        preferences,
+                        target_miss(slot, planned, allowance),
+                        avoid=set(planned.values()),
+                    )
+                    itm_id = ranked[0][1]
                 check(itm_id, slot)
                 planned[slot["position"]] = itm_id
                 chosen.append(itm_id)
                 if capped:
-                    totals[slot["week"]] += price(itm_id)
+                    totals_here[slot["week"]] += price(itm_id)
 
-            # Pass 2: re-pick each new slot with the rest of the plan fixed; keep strict gains.
-            for i, slot in enumerate(slots):
-                current = chosen[i]
-                pool = slot["candidates"]
-                if capped:
-                    available = cap - totals[slot["week"]] + price(current)
-                    pool = pool[pool.price_cents <= available]
-                ranked = self._ranked(
-                    pool,
-                    slot["position"],
-                    self._neighbours(planned, slot["position"]),
-                    preferences,
-                    target_miss(slot, allowance),
-                )
-                best_key, best = ranked[0]
-                current_score = next(key[0] for key, itm_id in ranked if itm_id == current)
-                if best != current and best_key[0] < current_score:
-                    check(best, slot)
-                    planned[slot["position"]] = best
-                    chosen[i] = best
+            # Pass 2: re-pick each slot with the rest of the plan fixed, keeping strict
+            # gains, and repeat until a sweep changes nothing.
+            #
+            # One sweep was not enough. Re-picking a slot changes the neighbourhood of
+            # the slots around it, which can make a meal that was the best choice a
+            # moment ago no longer the best; a single pass leaves those stale. Each
+            # accepted move strictly improves that slot's (target miss, already used,
+            # gain), so the loop settles on its own, and the bound only guards against
+            # a pathological catalog.
+            for _ in range(MAX_IMPROVEMENT_SWEEPS):
+                changed = False
+                for i, slot in enumerate(slots):
+                    current = chosen[i]
+                    pool = slot["candidates"]
                     if capped:
-                        totals[slot["week"]] += price(best) - price(current)
+                        available = cap - totals_here[slot["week"]] + price(current)
+                        pool = pool[pool.price_cents <= available]
+                    ranked = self._ranked(
+                        pool,
+                        slot["position"],
+                        self._neighbours(planned, slot["position"]),
+                        preferences,
+                        target_miss(slot, planned, allowance),
+                        # The slot's own meal is not a repeat of itself.
+                        avoid=set(planned.values()) - {current},
+                    )
+                    best_key, best = ranked[0]
+                    current_key = next(key for key, itm_id in ranked if itm_id == current)
+                    # Only (target miss, already used, -score) justifies a move. Price and
+                    # itm_id order the ranking but must not trigger one: swapping to an
+                    # equally good cheaper meal leaves the plan's score untouched, so
+                    # sweeps could keep trading between equal plans and never settle.
+                    if best != current and best_key[:3] < current_key[:3]:
+                        check(best, slot)
+                        planned[slot["position"]] = best
+                        chosen[i] = best
+                        if capped:
+                            totals_here[slot["week"]] += price(best) - price(current)
+                        changed = True
+                if not changed:
+                    break
+            return chosen, planned, totals_here
 
-            return chosen
+        def best_plan(allowance):
+            """
+            Builds the plan from every restart opening and keeps the best: nearest the
+            targets first, then the most varied, then the cheapest
+            """
+            # The first slot has nothing planned around it yet, so every candidate scores
+            # the same zero gain and the tie-break hands the slot to the cheapest item.
+            # That one arbitrary pick shapes everything after it, and single-slot
+            # improvement cannot undo it: measuring against an exact solver showed plans
+            # 4% less varied *and* $6 dearer than a week that was available. So the whole
+            # fill-and-improve is run again from a spread of openings and the best plan
+            # wins. Planning a week costs about 30 ms, against a 5 s target, so the
+            # restarts are affordable.
+            best = None
+            for opening in self._restart_openings(slots):
+                chosen, planned, totals_here = build(opening, allowance)
+                key = (
+                    -round(plan_miss(planned, allowance), 9),
+                    self._plan_objective(planned),
+                    -sum(price(itm_id) for itm_id in chosen),
+                )
+                if best is None or key > best[0]:
+                    best = (key, chosen, planned, totals_here)
+            return best[1], best[2], best[3]
 
-        chosen = plan_passes({})
+        chosen, planned, totals_best = best_plan({})
 
         if targets and not strict_targets:
             # A day that cannot meet every target at once would otherwise chase the one
             # closest combination every day. It may instead come within JOINT_SLACK of
-            # the closest its meals can get (day_allowance), and variety picks among
+            # the closest its meals can get (_best_day_miss), and variety picks among
             # those. Days that meet their targets keep their plans.
             allowance = {}
-            for day in sorted({slot["position"] // variety.SLOTS_PER_DAY for slot in slots}):
+            for day in requested_days:
                 if self._day_miss(day_slots[day], planned, day_targets[day]) > 0:
-                    best = self._best_day_miss(
-                        day_slots[day], new_slots, start_planned, day_targets[day]
-                    )
+                    best = self._best_day_miss(day_slots[day], new_slots, already, day_targets[day])
                     # Only a day that truly cannot meet them all (best > 0) is eased; a
                     # day that could, or one too large to search (None), keeps chasing
                     if best:
                         allowance[day] = best + JOINT_SLACK
             if allowance:
-                chosen = plan_passes(allowance)
+                chosen, planned, totals_best = best_plan(allowance)
+        if capped:
+            totals = totals_best
 
         if strict_targets and targets:
             index = {slot["position"]: i for i, slot in enumerate(slots)}

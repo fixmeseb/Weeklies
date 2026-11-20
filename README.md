@@ -58,6 +58,7 @@ The project demonstrates **modular backend design**, **frontend interaction**, *
 - 🥗 **Dynamic meal generation** based on user preferences, allergens, and dietary constraints
 - 🧪 **Automated test suite** with `pytest` (unit, integration, e2e) and Cypress (UI e2e)
 - 🧰 **CI/CD workflows** for tests, linting, and documentation deployment
+- 🍜 **Restaurant menu management** — restaurant owners list, edit and withdraw their own dishes from a Menu tab, or over a JSON API whose field contract (`GET /api/restaurant/menu/schema`) is generated from the validator that checks submissions, so the two cannot drift. Tags are checked against their vocabularies, a dish is refused if it contradicts itself (vegan with a beef protein), and a dish a saved plan still names can be taken off the menu but not deleted
 - 🔁 **Single-meal swaps** — replace one date/meal slot from the calendar; the server checks stock, restaurant hours, and the account's allergies, and leaves the rest of the plan untouched (`POST /menu/swap`, `GET /menu/swap/options`)
 
 ---
@@ -87,15 +88,19 @@ Weeklies/
 │   ├── 💾 sqlQueries.py               # Database helper functions
 │   │
 │   ├── 📁 templates/                  # HTML Templates
-│   │   ├── index.html                 # Home / calendar view
+│   │   ├── index.html                 # Home / calendar view, Today's Menu, plan form
+│   │   ├── insights.html              # Weekly item totals and plan variety
 │   │   ├── login.html                 # User login
 │   │   ├── register.html              # User registration
-│   │   ├── profile.html               # User profile
-│   │   ├── orders.html                # Order history
-│   │   ├── restaurants.html           # Restaurant browsing
-│   │   ├── restaurant_dashboard.html  # Restaurant owner dashboard
+│   │   ├── profile.html               # Account details, edit and password pop-ups
+│   │   ├── orders.html                # My Orders: order history and tracking
+│   │   ├── restaurants.html           # Restaurant browsing, cart and checkout
+│   │   ├── review.html                # Write, then view, an order's review
+│   │   ├── restaurant_orders.html     # Restaurant owner home: order management
 │   │   ├── restaurant_analytics.html  # Analytics dashboard
-│   │   └── ...                        # Reviews, order management, etc.
+│   │   ├── _owner_header.html         # Owner banner with Orders/Analytics/Reviews tabs
+│   │   ├── _diet_editor.html          # Allergy and preference picker (register, profile)
+│   │   └── ...                        # Reviews, login, etc.
 │   │
 │   ├── 📁 static/                     # Frontend Assets
 │   │   ├── style.css

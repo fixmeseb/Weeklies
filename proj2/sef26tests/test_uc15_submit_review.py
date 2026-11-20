@@ -21,7 +21,7 @@ def test_submit_review_valid(client, seed_user, seed_restaurant, temp_db_path):
         "rating": "5", "title": "Great", "description": "Loved it",
     }, follow_redirects=False)
     assert resp.status_code == 302
-    assert "/profile" in resp.headers["Location"]
+    assert resp.headers["Location"].endswith(f"/order/{ord_id}/review")
     conn = create_connection(temp_db_path)
     try:
         row = fetch_one(conn, 'SELECT rating FROM "Review" WHERE ord_id=?', (ord_id,))
@@ -35,7 +35,7 @@ def test_submit_review_not_owned(client, seed_user):
     _login(client, seed_user)
     resp = client.post("/order/999999/review", data={"rating": "5"}, follow_redirects=False)
     assert resp.status_code == 302
-    assert "/profile" in resp.headers["Location"]
+    assert "/orders" in resp.headers["Location"]
 
 
 def test_submit_review_not_delivered(client, seed_user, seed_restaurant, temp_db_path):
@@ -44,7 +44,7 @@ def test_submit_review_not_delivered(client, seed_user, seed_restaurant, temp_db
     _login(client, seed_user)
     resp = client.post(f"/order/{ord_id}/review", data={"rating": "5"}, follow_redirects=False)
     assert resp.status_code == 302
-    assert "/profile" in resp.headers["Location"]
+    assert "/orders" in resp.headers["Location"]
 
 
 def test_submit_review_already_exists(client, seed_user, seed_restaurant, temp_db_path):
@@ -54,7 +54,7 @@ def test_submit_review_already_exists(client, seed_user, seed_restaurant, temp_d
     client.post(f"/order/{ord_id}/review", data={"rating": "4", "title": "t", "description": "d"})
     resp = client.post(f"/order/{ord_id}/review", data={"rating": "1"}, follow_redirects=False)
     assert resp.status_code == 302
-    assert f"/order/{ord_id}/review/view" in resp.headers["Location"]
+    assert resp.headers["Location"].endswith(f"/order/{ord_id}/review")
 
 
 def test_submit_review_no_rating(client, seed_user, seed_restaurant, temp_db_path):

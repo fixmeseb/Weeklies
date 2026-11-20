@@ -1,0 +1,37 @@
+{# Banner shared by every restaurant-owner page: the restaurant's name and the
+   Orders / Menu / Analytics / Reviews tabs. owner_nav comes from the inject_owner_nav
+   context processor in Flask_app.py; the theme picker places itself in the
+   .dashboard-nav row (static/theme.js). #}
+{% set tab = owner_tab | default(request.endpoint, true) %}
+<header class="owner-header">
+  <div class="owner-header-inner">
+    <div class="restaurant-info">
+      <h1>🍽️ {{ restaurant_name }}</h1>
+      <p>{{ restaurant_email }}</p>
+    </div>
+    <nav class="dashboard-nav owner-tabs" aria-label="Restaurant pages">
+      <a href="{{ url_for('restaurant_orders') }}" class="nav-btn{% if tab == 'restaurant_orders' %} active{% endif %}"{% if tab == 'restaurant_orders' %} aria-current="page"{% endif %}>
+        📦 Orders
+        {% if owner_nav %}<span class="tab-note">{{ owner_nav.active_orders }} active</span>{% endif %}
+      </a>
+      <a href="{{ url_for('restaurant_menu') }}" class="nav-btn{% if tab == 'restaurant_menu' %} active{% endif %}"{% if tab == 'restaurant_menu' %} aria-current="page"{% endif %}>
+        🍜 Menu
+        {% if owner_nav and owner_nav.menu_items is defined %}<span class="tab-note">{{ owner_nav.menu_items }} dish{{ "es" if owner_nav.menu_items != 1 }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('restaurant_analytics') }}" class="nav-btn{% if tab == 'restaurant_analytics' %} active{% endif %}"{% if tab == 'restaurant_analytics' %} aria-current="page"{% endif %}>
+        📊 Analytics
+      </a>
+      <a href="{{ url_for('restaurant_owner_reviews') }}" class="nav-btn{% if tab == 'restaurant_owner_reviews' %} active{% endif %}"{% if tab == 'restaurant_owner_reviews' %} aria-current="page"{% endif %}>
+        ⭐ Reviews
+        {% if owner_nav %}
+          {% if owner_nav.total_reviews %}
+          <span class="tab-note">{{ '%.1f'|format(owner_nav.average_rating) }} · {{ owner_nav.total_reviews }} Review{{ 's' if owner_nav.total_reviews != 1 }}</span>
+          {% else %}
+          <span class="tab-note">0 Reviews</span>
+          {% endif %}
+        {% endif %}
+      </a>
+      <a href="{{ url_for('restaurant_logout') }}" class="nav-btn">Logout</a>
+    </nav>
+  </div>
+</header>

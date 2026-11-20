@@ -767,3 +767,30 @@ body::before {
 }
 @media (max-width: 640px) { .palette-picker .palette-label { display: none; } }
 .palette-group { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* Restaurant-owner banner with the Orders / Analytics / Reviews tabs (templates/_owner_header.html) */
+.owner-header {
+  background: linear-gradient(135deg, var(--hero-a) 0%, var(--hero-b) 100%);
+  color: var(--on-hero); padding: 1.5rem 16px; margin-bottom: 2rem;
+}
+.owner-header-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+}
+.owner-header .restaurant-info h1 { margin: 0; font-size: 1.8rem; display: flex; align-items: center; gap: .5rem; }
+.owner-header .restaurant-info p { margin: .4rem 0 0; opacity: .9; font-size: .95rem; }
+.owner-tabs { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+.owner-tabs .nav-btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--on-hero) 18%, transparent); color: var(--on-hero);
+  padding: .6rem 1.1rem; border: 2px solid transparent; border-radius: 8px;
+  text-decoration: none; font-weight: 600; font-size: .95rem; line-height: 1.2;
+  transition: background .2s;
+}
+.owner-tabs .nav-btn:hover { background: color-mix(in srgb, var(--on-hero) 30%, transparent); text-decoration: none; }
+.owner-tabs .nav-btn.active { background: var(--surface); color: var(--primary); border-color: var(--surface); }
+.owner-tabs .tab-note { font-size: .75rem; font-weight: 500; opacity: .85; }
+@media (max-width: 640px) {
+  .owner-tabs { width: 100%; }
+  .owner-tabs .nav-btn { flex: 1 1 auto; }
+}

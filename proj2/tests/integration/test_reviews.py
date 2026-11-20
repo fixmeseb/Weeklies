@@ -18,7 +18,7 @@ def db_connection(temp_db_path):
 
 
 @pytest.mark.integration
-def test_review_button_column_in_profile(client, seed_minimal_data, login_session, db_connection):
+def test_review_button_column_in_my_orders(client, seed_minimal_data, login_session, db_connection):
     """Test that Review column appears in profile page when user has orders."""
     # Create a delivered order so the table shows up
     order_details = {
@@ -32,7 +32,7 @@ def test_review_button_column_in_profile(client, seed_minimal_data, login_sessio
         (seed_minimal_data["rtr_id"], seed_minimal_data["usr_id"], json.dumps(order_details), "delivered")
     )
     
-    response = client.get("/profile")
+    response = client.get("/orders")
     assert response.status_code == 200
     html = response.data.decode()
     assert "Review" in html  # Column header should be present
@@ -85,7 +85,7 @@ def test_review_form_redirects_for_non_delivered_order(client, seed_minimal_data
     # Try to access review form - should redirect to profile
     response = client.get(f"/order/{ord_id}/review", follow_redirects=False)
     assert response.status_code == 302
-    assert "/profile" in response.location
+    assert "/orders" in response.location
 
 
 @pytest.mark.integration
@@ -115,7 +115,7 @@ def test_submit_review_success(client, seed_minimal_data, login_session, db_conn
     }, follow_redirects=False)
     
     assert response.status_code == 302
-    assert "/profile" in response.location
+    assert response.location.endswith(f"/order/{ord_id}/review")  # back to the page, now showing the review
     
     # Verify review exists in database
     review = fetch_one(
@@ -155,7 +155,7 @@ def test_submit_review_without_rating_shows_error(client, seed_minimal_data, log
 
 
 @pytest.mark.integration
-def test_duplicate_review_redirects_to_view(client, seed_minimal_data, login_session, db_connection):
+def test_reviewed_order_shows_the_review(client, seed_minimal_data, login_session, db_connection):
     """Test that trying to review same order twice redirects to existing review."""
     # Create delivered order
     order_details = {"placed_at": datetime.now().isoformat(), "items": [], "charges": {"total": 10.00}}
@@ -177,8 +177,10 @@ def test_duplicate_review_redirects_to_view(client, seed_minimal_data, login_ses
     
     # Try to access review form again - should redirect
     response = client.get(f"/order/{ord_id}/review", follow_redirects=False)
-    assert response.status_code == 302
-    assert "view" in response.location
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Your Review" in html
+    assert 'id="reviewForm"' not in html  # no second form once reviewed
 
 
 @pytest.mark.integration
@@ -202,7 +204,7 @@ def test_view_review_shows_individual_review_page(client, seed_minimal_data, log
     )
     
     # View review - should render template with review details
-    response = client.get(f"/order/{ord_id}/review/view")
+    response = client.get(f"/order/{ord_id}/review")
     assert response.status_code == 200
     html = response.data.decode()
     
@@ -269,9 +271,10 @@ def test_review_requires_authentication(client):
     assert "/login" in response.location
     
     # Try to view review without login
+    # the old address forwards to the review page, which asks for a login
     response = client.get("/order/1/review/view", follow_redirects=False)
     assert response.status_code == 302
-    assert "/login" in response.location
+    assert response.location.endswith("/order/1/review")
 
 
 @pytest.mark.integration
@@ -325,7 +328,7 @@ def test_restaurant_reviews_filtering(client, seed_minimal_data, db_connection):
 
 
 @pytest.mark.integration
-def test_restaurant_dashboard_shows_review_stats(client, seed_minimal_data, db_connection):
+def test_owner_tabs_show_review_stats(client, seed_minimal_data, db_connection):
     """Test that restaurant dashboard displays review statistics."""
     # Create restaurant session
     with client.session_transaction() as sess:
@@ -349,7 +352,7 @@ def test_restaurant_dashboard_shows_review_stats(client, seed_minimal_data, db_c
         )
     
     # Access restaurant dashboard
-    response = client.get("/restaurant/dashboard")
+    response = client.get("/restaurant/orders")  # rating sits on the Reviews tab
     assert response.status_code == 200
     html = response.data.decode()
     
@@ -361,7 +364,7 @@ def test_restaurant_dashboard_shows_review_stats(client, seed_minimal_data, db_c
 
 
 @pytest.mark.integration
-def test_restaurant_dashboard_no_reviews_state(client, db_connection):
+def test_owner_tabs_no_reviews_state(client, db_connection):
     """Test that restaurant dashboard shows 'No Reviews Yet' when no reviews exist."""
     # Create a new restaurant with no reviews
     execute_query(
@@ -381,7 +384,7 @@ def test_restaurant_dashboard_no_reviews_state(client, db_connection):
         sess["restaurant_mode"] = True
     
     # Access dashboard
-    response = client.get("/restaurant/dashboard")
+    response = client.get("/restaurant/orders")  # rating sits on the Reviews tab
     assert response.status_code == 200
     html = response.data.decode()
     
@@ -416,5 +419,5 @@ def test_restaurant_can_view_their_reviews_page(client, seed_minimal_data, db_co
     assert "Amazing food" in html
     
     # Verify restaurant navigation is present (not customer navigation)
-    assert "Back to Dashboard" in html
+    assert 'href="/restaurant/orders"' in html  # the banner's Orders tab
     assert "restaurant@test.com" in html

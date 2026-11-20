@@ -4,8 +4,10 @@ describe("Profile Editing & Password Change", () => {
     cy.loginAsUser("testuser@example.com", "password123");
   });
 
-  it("updates user phone number and allergies", () => {
-    cy.visit("/profile/edit");
+  it("updates user phone number and allergies from the edit pop-up", () => {
+    cy.visit("/profile");
+    cy.get("#openEditBtn").click();
+    cy.get("#editModal").should("be.visible");
 
     // Change phone number
     cy.get('input[name="phone"]').clear().type("9195557788");

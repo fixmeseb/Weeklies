@@ -3,8 +3,10 @@ Daily nutrition targets for meal planning (milestone P3-M3).
 
 A target is a daily range for one nutrient, such as 1,800-2,200 kcal or at least 120 g
 of protein; a request may set several (NUTRIENTS). Targets are soft goals: the planner
-prefers meals that keep each day inside every range and, among those, still picks for
-variety (proj2.menu_generation). A day can miss a range when the catalog cannot reach
+ranks meals by how far they leave a day from its ranges before anything else, so it
+keeps each day inside every range it can and, among the meals that do, still picks for
+variety (proj2.menu_generation). (A weighted blend of miss and variety let reachable
+days sit 1-2% short at low weights, and could not sit above "not repeated yet".) A day can miss a range when the catalog cannot reach
 it; the plan then reports how far each day is off rather than refusing, unlike the
 weekly price cap, which is a hard limit.
 
@@ -41,13 +43,6 @@ NUTRIENTS = {
         Nutrient("sodium_mg", "sodium", "mg", "sodium", 20000),
     )
 }
-
-## How much missing a target counts against a slot, per unit of relative miss, summed
-## over the targeted nutrients. Variety scores run 0-1, so at 30 a day just 1% outside
-## a range costs 0.3: the planner keeps every day it can inside the ranges and uses
-## variety to choose among the meals that do. (At 1, it let reachable days sit 1-2%
-## short to vary the menu.)
-TARGET_WEIGHT = 30.0
 
 ## How close to the best it can do a day must come when it cannot meet its targets.
 ## A day that cannot reach a target at all aims within this share of the closest total

@@ -22,8 +22,11 @@ def nutrition_catalog(app, temp_db_path, seed_minimal_data):
             'UPDATE Restaurant SET hours=?, status="Open" WHERE rtr_id=?',
             (json.dumps({day: [0, 2359] for day in DAYS_OF_WEEK}), restaurant),
         )
+        # Other tests can leave the shared user with a diet, allergies or saved targets
         conn.execute(
-            'UPDATE "User" SET generated_menu="" WHERE usr_id=?', (seed_minimal_data["usr_id"],)
+            'UPDATE "User" SET generated_menu="", preferences="", allergies="",'
+            ' nutrition_targets="", strict_targets=0 WHERE usr_id=?',
+            (seed_minimal_data["usr_id"],),
         )
         item = conn.execute(
             "SELECT itm_id FROM MenuItem WHERE rtr_id=? ORDER BY itm_id LIMIT 1", (restaurant,)
@@ -122,8 +125,8 @@ def test_form_submission_shows_the_miss_once_on_the_calendar(
     assert "miss your daily targets" not in client.get("/").get_data(as_text=True)  # shown once
 
 
-def test_profile_form_offers_a_range_for_each_nutrient(client, login_session):
-    page = client.get("/profile").get_data(as_text=True)
+def test_plan_form_offers_a_range_for_each_nutrient(client, login_session):
+    page = client.get("/").get_data(as_text=True)
     for field in ("calorie", "protein", "carbs", "fat", "sodium"):
         assert f'name="{field}_min"' in page and f'name="{field}_max"' in page
 
@@ -144,8 +147,8 @@ def test_strict_target_within_reach_plans_normally(client, login_session, nutrit
     assert response.get_json()["nutrition"]["days_outside"] == 0
 
 
-def test_profile_form_offers_strict_targets(client, login_session):
-    assert 'name="strict_targets"' in client.get("/profile").get_data(as_text=True)
+def test_plan_form_offers_strict_targets(client, login_session):
+    assert 'name="strict_targets"' in client.get("/").get_data(as_text=True)
 
 
 # ---------------------------------------------------------------- saved targets
@@ -162,7 +165,7 @@ def saved_targets(temp_db_path):
 FORM = {"start_date": "2026-10-05", "days": "2", "meal3": "on"}
 
 
-def test_form_saves_its_targets_and_the_profile_opens_with_them(
+def test_form_saves_its_targets_and_the_plan_form_opens_with_them(
     client, login_session, nutrition_catalog, temp_db_path
 ):
     form = dict(FORM, calorie_min="600", calorie_max="800", sodium_max="2300", protein_min="")
@@ -171,7 +174,7 @@ def test_form_saves_its_targets_and_the_profile_opens_with_them(
         {"calories": {"min": 600, "max": 800}, "sodium_mg": {"min": None, "max": 2300}},
         0,
     )
-    page = client.get("/profile").get_data(as_text=True)
+    page = client.get("/").get_data(as_text=True)
     assert 'name="calorie_min" min="1"' in page  # sanity: the field is there
     assert 'value="600"' in page and 'value="800"' in page and 'value="2300"' in page
     assert "checked" not in page.split('id="strict_targets"')[1].split(">")[0]
@@ -183,7 +186,7 @@ def test_the_forms_own_fetch_saves_too(client, login_session, nutrition_catalog,
     response = client.post("/menu/generate", data=form, headers={"Accept": "application/json"})
     assert response.status_code == 200
     assert saved_targets(temp_db_path) == ({"protein_g": {"min": 30, "max": None}}, 1)
-    page = client.get("/profile").get_data(as_text=True)
+    page = client.get("/").get_data(as_text=True)
     assert 'value="30"' in page
     assert "checked" in page.split('id="strict_targets"')[1].split(">")[0]
 

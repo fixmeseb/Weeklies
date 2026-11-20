@@ -101,13 +101,13 @@ def test_analytics_page_has_metric_cards(client, restaurant_login_session):
 
 
 def test_analytics_page_has_navigation(client, restaurant_login_session):
-    """Analytics page should have navigation to dashboard and logout."""
+    """Analytics page should have the owner tabs (Orders) and logout."""
     resp = client.get("/restaurant/analytics")
     content = resp.data.decode("utf-8")
 
-    assert "/restaurant/dashboard" in content
+    assert "/restaurant/orders" in content
     assert "/restaurant/logout" in content
-    assert "Dashboard" in content
+    assert "Orders" in content
 
 
 def test_analytics_page_has_charts(client, restaurant_login_session):
@@ -267,7 +267,7 @@ def test_analytics_has_cache_control_headers(client, restaurant_login_session):
 
 def test_analytics_link_from_dashboard(client, restaurant_login_session):
     """Dashboard should have link to analytics."""
-    resp = client.get("/restaurant/dashboard")
+    resp = client.get("/restaurant/orders")
     content = resp.data.decode("utf-8")
 
     assert "/restaurant/analytics" in content
@@ -278,7 +278,7 @@ def test_analytics_link_back_to_dashboard(client, restaurant_login_session):
     resp = client.get("/restaurant/analytics")
     content = resp.data.decode("utf-8")
 
-    assert "/restaurant/dashboard" in content
+    assert "/restaurant/orders" in content
 
 
 def test_analytics_logout_link_functional(client, restaurant_login_session):
@@ -432,7 +432,7 @@ def test_analytics_snapshot_calculates_metrics(client, restaurant_login_session,
 
 def test_analytics_dashboard_link_active(client, restaurant_login_session):
     """Test that analytics link on dashboard is active (not Coming Soon)."""
-    resp = client.get("/restaurant/dashboard")
+    resp = client.get("/restaurant/orders")
     content = resp.data.decode("utf-8")
 
     # Should link to /restaurant/analytics
@@ -467,7 +467,7 @@ def test_analytics_page_has_navigation_back(client, restaurant_login_session):
     content = resp.data.decode("utf-8")
 
     # Should have a link back to dashboard or home
-    assert "/restaurant/dashboard" in content or "/restaurant" in content
+    assert "/restaurant/orders" in content or "/restaurant" in content
 
 
 def test_analytics_displays_no_data_gracefully(client, restaurant_login_session):
