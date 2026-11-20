@@ -9,6 +9,10 @@ already in the plan (proj2.variety), with soft preferences such as "Italian" bre
 near-ties, then the lower price, then the lower itm_id. After every slot is filled it
 makes one improvement pass, re-picking each new slot with the rest of the plan fixed.
 
+The LOOKBACK_DAYS before the plan's first day count too: the meals planned or ordered
+then are neighbours for variety, and a dish eaten then is not planned again within
+LOOKBACK_DAYS of it unless nothing else fits the slot.
+
 The result is deterministic: the same catalog and request always give the same plan.
 """
 
@@ -44,6 +48,9 @@ DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 BREAKFAST_TIME = 1000
 LUNCH_TIME = 1400
 DINNER_TIME = 2000
+
+## Days before a new plan's first day whose meals (planned or ordered) shape its variety
+LOOKBACK_DAYS = 3
 
 
 class NoEligibleMealError(ValueError):
@@ -335,14 +342,28 @@ class MenuGenerator:
             if other != position and itm_id in rows
         ]
 
-    def _ranked(self, pool: pd.DataFrame, position: int, neighbours: list, preferences) -> list:
+    def _ranked(
+        self, pool: pd.DataFrame, position: int, neighbours: list, preferences, recent=()
+    ) -> list:
         """
         Ranks a slot's candidates, best first
 
+        Args:
+            recent: (position, itm_id) of meals from the lookback days; a candidate that
+                repeats one within LOOKBACK_DAYS calendar days of it ranks after every
+                other candidate
+
         Returns:
-            List[Tuple[tuple, int]]: (sort key, itm_id); the key is (-score, price, itm_id),
-                so the most varied fit wins, then the cheaper one, then the lower ID
+            List[Tuple[tuple, int]]: (sort key, itm_id); the key is
+                (repeats_recent, -score, price, itm_id), so a fresh dish beats a recent
+                repeat, then the most varied fit wins, then the cheaper one, then the lower ID
         """
+        day = position // variety.SLOTS_PER_DAY
+        repeats = {
+            itm_id
+            for pos, itm_id in recent
+            if abs(day - pos // variety.SLOTS_PER_DAY) <= LOOKBACK_DAYS
+        }
         ranked = []
         for row in pool.to_dict("records"):
             itm_id = int(row["itm_id"])
@@ -350,7 +371,7 @@ class MenuGenerator:
             score = variety.candidate_score(
                 gain, weight_sum, variety.preference_match(row, preferences)
             )
-            ranked.append(((-score, int(row["price_cents"]), itm_id), itm_id))
+            ranked.append(((itm_id in repeats, -score, int(row["price_cents"]), itm_id), itm_id))
         ranked.sort()
         return ranked
 
@@ -365,6 +386,7 @@ class MenuGenerator:
         meal_numbers,
         number_of_days: int = 1,
         weekly_cap_cents: int = None,
+        ordered_meals=(),
     ) -> str:
         """
         Fills the empty slots of a plan with the most varied eligible meals
@@ -380,6 +402,8 @@ class MenuGenerator:
             number_of_days (int): The number of days to plan, starting at {date}
             weekly_cap_cents (int | None): Item-price limit per Monday–Sunday week,
                 counting all existing meals in that week. None leaves generation uncapped.
+            ordered_meals: (date, itm_id, meal) of meals the user ordered; those in the
+                LOOKBACK_DAYS before {date} count like planned meals from those days
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
@@ -469,6 +493,30 @@ class MenuGenerator:
             if itm_id in rows
         }
 
+        # The lookback days: what was planned or ordered then. Orders are extra
+        # neighbours (an order for a planned slot of the same dish is not counted twice).
+        first_back = (start - datetime.timedelta(days=LOOKBACK_DAYS)).isoformat()
+        recent = {
+            (variety.slot_position(day, meal), int(itm_id))
+            for day, itm_id, meal in [*existing, *ordered_meals]
+            if first_back <= day < start.isoformat()
+            and int(itm_id) in rows
+            and int(meal) in (1, 2, 3)
+        }
+        extra = [
+            (position, self._features(itm_id))
+            for position, itm_id in sorted(recent)
+            if planned.get(position) != itm_id
+        ]
+
+        def neighbours(position):
+            return self._neighbours(planned, position) + extra
+
+        def rank(pool, slot):
+            return self._ranked(
+                pool, slot["position"], neighbours(slot["position"]), preferences, recent
+            )
+
         # Pass 1: fill slots in time order, each next to the meals already planned.
         chosen = []
         for slot in slots:
@@ -478,10 +526,7 @@ class MenuGenerator:
                 minimum_remaining[slot["week"]] -= slot["minimum"]
                 available = cap - totals[slot["week"]] - minimum_remaining[slot["week"]]
                 pool = pool[pool.price_cents <= available]
-            ranked = self._ranked(
-                pool, slot["position"], self._neighbours(planned, slot["position"]), preferences
-            )
-            itm_id = ranked[0][1]
+            itm_id = rank(pool, slot)[0][1]
             check(itm_id, slot)
             planned[slot["position"]] = itm_id
             chosen.append(itm_id)
@@ -495,12 +540,10 @@ class MenuGenerator:
             if capped:
                 available = cap - totals[slot["week"]] + price(current)
                 pool = pool[pool.price_cents <= available]
-            ranked = self._ranked(
-                pool, slot["position"], self._neighbours(planned, slot["position"]), preferences
-            )
+            ranked = rank(pool, slot)
             best_key, best = ranked[0]
-            current_score = next(key[0] for key, itm_id in ranked if itm_id == current)
-            if best != current and best_key[0] < current_score:
+            current_key = next(key for key, itm_id in ranked if itm_id == current)
+            if best != current and best_key[:2] < current_key[:2]:
                 check(best, slot)
                 planned[slot["position"]] = best
                 chosen[i] = best
