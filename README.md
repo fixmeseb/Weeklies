@@ -92,7 +92,7 @@ Weeklies/
 │   │   ├── insights.html              # Weekly item totals and plan variety
 │   │   ├── login.html                 # User login
 │   │   ├── register.html              # User registration
-│   │   ├── profile.html               # Account details, edit and password pop-ups
+│   │   ├── profile.html               # Account as chapters: particulars, diet, wallet, password
 │   │   ├── orders.html                # My Orders: order history and tracking
 │   │   ├── restaurants.html           # Restaurant browsing, cart and checkout
 │   │   ├── review.html                # Write, then view, an order's review

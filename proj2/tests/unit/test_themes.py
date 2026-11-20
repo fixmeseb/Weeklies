@@ -74,9 +74,36 @@ def test_templates_use_theme_variables_not_dark_only_colours(template):
     assert "rgba(91, 140, 255" not in styles and "rgba(91,140,255" not in styles
 
 
+def style_block(style_id):
+    match = re.search(r':root\[data-style="%s"\]\s*\{(.*?)\}' % style_id, STYLE, re.S)
+    return match.group(1) if match else None
+
+
+def test_switcher_offers_the_almanac_style():
+    assert re.findall(r'\{ id: "([a-z]+)", label:', THEME_JS) == ["standard"]
+    assert 'id: "almanac",' in THEME_JS and 'label: "Seed Catalog & Almanac"' in THEME_JS
+
+
+def test_almanac_style_sets_every_variable():
+    """The Almanac style brings its own colours, so it must set everything a palette does."""
+    block = style_block("almanac")
+    assert block is not None
+    assert [name for name in REQUIRED if not re.search(re.escape(name) + r"\s*:", block)] == []
+    assert "color-scheme" in block
+
+
+def test_almanac_style_overrides_the_palettes():
+    """Same specificity as the palette blocks, so it must come after all of them."""
+    assert STYLE.index(':root[data-style="almanac"] {') > max(
+        STYLE.index(f':root[data-palette="{p}"]') for p in PALETTE_IDS[1:]
+    )
+
+
 def _variables(palette_id):
     if palette_id == "classic":
         block = re.search(r":root\s*\{(.*?)\}", STYLE, re.S).group(1)
+    elif palette_id == "almanac-style":
+        block = style_block("almanac")
     else:
         block = palette_block(palette_id)
     return dict(re.findall(r"(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})", block))
@@ -101,7 +128,7 @@ TEXT_PAIRS = [
 ]
 
 
-@pytest.mark.parametrize("palette_id", PALETTE_IDS)
+@pytest.mark.parametrize("palette_id", PALETTE_IDS + ["almanac-style"])
 @pytest.mark.parametrize("fg, bg", TEXT_PAIRS)
 def test_text_meets_wcag_aa_contrast(palette_id, fg, bg):
     """4.5:1 is the WCAG AA minimum for normal-size text."""

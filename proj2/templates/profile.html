@@ -24,16 +24,16 @@
   </div>
 </header>
 
-<main class="main">
-  <div class="container" style="width: 100%;">
-    <!-- Profile -->
-    <div class="page-title">
-      <h1>User Profile</h1>
-      <p class="hide-sm">
-        {{ user.first_name }} {{ user.last_name }} · ID #{{ user.usr_id }}
-      </p>
-    </div>
+{# Words joined as "a, b and c", each in <strong> #}
+{% macro joined(words) -%}
+  {%- for w in words -%}
+    {%- if not loop.first %}{% if loop.last %} and {% else %}, {% endif %}{% endif -%}
+    <strong>{{ w }}</strong>
+  {%- endfor -%}
+{%- endmacro %}
 
+<main class="main">
+  <div class="container">
     {% if pw_updated %}
       <div class="flash success">Password changed successfully.</div>
     {% elif pw_error %}
@@ -42,7 +42,7 @@
       {% elif pw_error == 'mismatch' %}
         <div class="flash danger">New password and confirmation do not match.</div>
       {% elif pw_error == 'too_short' %}
-        <div class="flash danger">New password must be at least 6 characters and meet requirements.</div>
+        <div class="flash danger">New password must be at least 6 characters.</div>
       {% elif pw_error == 'same_as_current' %}
         <div class="flash danger">New password cannot be the same as the current password.</div>
       {% else %}
@@ -50,70 +50,86 @@
       {% endif %}
     {% endif %}
 
-    <div class="card max-w-lg" style="max-width: var(--container);">
-      <!-- NEW: header row with title + Edit button -->
-      <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border);">
-        <h2 style="margin:0; font-size:20px; font-weight:700;">User Profile</h2>
-        <div style="display:flex; gap:8px;">
-          <button type="button" class="btn btn-outline btn-sm" id="openEditBtn">Edit</button>
-          <button type="button" class="btn btn-primary btn-sm" id="openChangePwBtn">Change Password</button>
-        </div>
-      </div>
+    <div class="px">
+      <!-- Contents -->
+      <nav class="px-toc" aria-labelledby="tocTitle">
+        <h1 class="px-display">{{ user.first_name }} {{ user.last_name }}</h1>
+        <p class="px-sub">{{ user.email }}</p>
+        <h2 id="tocTitle" class="px-display px-toc-title">Contents</h2>
+        <ol>
+          <li><a href="#particulars"><span class="px-display">I.</span> Particulars</a></li>
+          <li><a href="#diet"><span class="px-display">II.</span> Diet</a></li>
+          <li><a href="#wallet"><span class="px-display">III.</span> Wallet</a></li>
+          <li><a href="#password"><span class="px-display">IV.</span> Password</a></li>
+        </ol>
+        <a class="px-logout" href="{{ url_for('logout') }}" data-confirm="Log out now?">Log out</a>
+      </nav>
 
-      <div class="card-body">
-        <div class="meta-grid">
-          <div class="meta-item">
-            <div class="k">User ID</div>
-            <div class="v">{{ user.usr_id }}</div>
-          </div>
-          <div class="meta-item">
-            <div class="k">Name</div>
-            <div class="v">{{ user.first_name }} {{ user.last_name }}</div>
-          </div>
-          <div class="meta-item">
-            <div class="k">Email</div>
-            <div class="v">{{ user.email }}</div>
-          </div>
-          <div class="meta-item">
-            <div class="k">Phone</div>
-            <div class="v">{{ user.phone }}</div>
-          </div>
-          <div class="meta-item">
-            <div class="k">Wallet</div>
-            <div class="v">$ {{ user.wallet }}</div>
-          </div>
-          <div class="meta-item">
-            <div class="k">Password</div>
-            <div class="v">
-              ••••••••••••
-            </div>
-          </div>
-        </div>
+      <!-- Chapters -->
+      <div class="px-book">
+        <section id="particulars" aria-labelledby="ch1">
+          <h2 id="ch1" class="px-display">I. Particulars</h2>
+          <dl class="px-facts">
+            <div><dt>Name</dt><dd>{{ user.first_name }} {{ user.last_name }} <span class="px-note">fixed</span></dd></div>
+            <div><dt>Email</dt><dd>{{ user.email }} <span class="px-note">fixed</span></dd></div>
+            <div><dt>Phone</dt><dd>{{ user.phone or 'None given' }} <button type="button" class="px-link js-open-edit">change</button></dd></div>
+            <div><dt>Account</dt><dd>No. {{ user.usr_id }}</dd></div>
+          </dl>
+        </section>
 
-        <!-- Allergies -->
-        <div style="margin-top:16px">
-          <div class="k" style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom: 5px;">Allergies</div>
-          {% set allergy_list = (user.allergies or '') | trim %}
-          {% if allergy_list %}
-            {% set items = allergy_list.split(',') %}
-            <div class="tags" aria-label="Allergies">
-              {% for a in items %}
-                {% set label = a.strip() %}
-                {% if label %}
-                  <span class="tag">{{ label }}</span>
-                {% endif %}
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="v">None</div>
-          {% endif %}
-        </div>
+        <section id="diet" aria-labelledby="ch2">
+          <h2 id="ch2" class="px-display">II. Diet</h2>
+          <p id="dietSummary">
+            {%- if diet.allergies -%}
+              Allergic to {{ joined(diet.allergies) }}, which sets aside {{ diet.set_aside }} of the {{ diet.dishes }} dishes on offer.
+            {%- else -%}
+              No allergies recorded, so all {{ diet.dishes }} dishes on offer are open to you.
+            {%- endif %}
+            {% if diet.preferences -%}
+              Prefers {{ joined(diet.preferences) }}, and meal plans favour {{ 'it' if diet.preferences|length == 1 else 'them' }}.
+            {%- else -%}
+              No preferences recorded yet.
+            {%- endif -%}
+          </p>
+          <div class="px-row">
+            <button type="button" class="btn btn-primary" id="openEditBtn">Edit allergies &amp; preferences</button>
+            <span class="px-note">They decide what plans and the Restaurants page show you.</span>
+          </div>
+        </section>
 
-        <!-- Preferences as bubbles -->
-        <div style="margin-top:16px">
-          <div class="k" style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom: 5px;">Preferences</div>
-          <div id="prefBubbles" class="bubbles" data-prefs="{{ (user.preferences or '') | e }}"></div>
-        </div>
+        <section id="wallet" aria-labelledby="ch3">
+          <h2 id="ch3" class="px-display">III. Wallet</h2>
+          <div class="px-row px-wallet">
+            <p class="px-display px-balance">${{ '%.2f'|format(user.wallet) }}</p>
+            <p class="px-note">
+              {% if last_order %}
+                Last order{% if last_order.date %} on {{ last_order.date }}{% endif %} from {{ last_order.restaurant }}{% if last_order.status %} ({{ last_order.status|lower }}){% endif %}.
+                <a href="{{ url_for('orders') }}">See every order</a>
+              {% else %}
+                No orders yet. <a href="{{ url_for('restaurants') }}">Browse the restaurants</a>
+              {% endif %}
+            </p>
+          </div>
+        </section>
+
+        <section id="password" aria-labelledby="ch4">
+          <h2 id="ch4" class="px-display">IV. Password</h2>
+          <form id="pwForm" class="px-pw" novalidate method="POST" action="{{ url_for('change_password') }}">
+            <label for="pwCurrent">Current password
+              <input class="input" id="pwCurrent" name="current_password" type="password" autocomplete="current-password" required>
+            </label>
+            <label for="pwNew">New password
+              <input class="input" id="pwNew" name="new_password" type="password" minlength="6" autocomplete="new-password" required>
+            </label>
+            <label for="pwConfirm">New password, once more
+              <input class="input" id="pwConfirm" name="confirm_password" type="password" minlength="6" autocomplete="new-password" required>
+            </label>
+            <button type="submit" class="btn btn-outline" id="submitPwBtn" disabled>Change password</button>
+          </form>
+          <p class="px-note" id="pwHint">At least 6 characters, typed the same twice.</p>
+        </section>
+
+        <p class="px-orn" aria-hidden="true">❦ ❦ ❦</p>
       </div>
     </div>
   </div>
@@ -129,18 +145,6 @@
       <div class="modal-body">
         <div class="form-grid">
           <div>
-            <label>First name</label>
-            <input class="input read-only" type="text" value="{{ user.first_name }}" disabled>
-          </div>
-          <div>
-            <label>Last name</label>
-            <input class="input read-only" type="text" value="{{ user.last_name }}" disabled>
-          </div>
-          <div>
-            <label>Email</label>
-            <input class="input read-only" type="email" value="{{ user.email }}" disabled>
-          </div>
-          <div>
             <label for="editPhone">Phone</label>
             <input class="input" id="editPhone" name="phone" type="tel" value="{{ user.phone }}" placeholder="(555) 555-5555">
           </div>
@@ -153,33 +157,6 @@
       </div>
     </form>
   </div>
-
-  <!-- Change Password Modal -->
-  <div id="pwModalBackdrop" class="modal-backdrop" aria-hidden="true"></div>
-  <div id="pwModal" class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="pwModalTitle" aria-hidden="true">
-    <div class="modal-head">
-      <h3 id="pwModalTitle" style="margin:0; font-size:18px;">Change Password</h3>
-      <button type="button" class="btn btn-outline btn-sm" id="closePwModalBtn" aria-label="Close">Close</button>
-    </div>
-    <form id="pwForm" class="modal-body" novalidate method="POST" action="{{ url_for('change_password') }}">
-      <div class="form-row">
-        <label for="pwCurrent">Current password</label>
-        <input class="input" id="pwCurrent" name="current_password" type="password" required>
-      </div>
-      <div class="form-row" style="margin-top:10px;">
-        <label for="pwNew">New password</label>
-        <input class="input" id="pwNew" name="new_password" type="password" minlength="6" required>
-      </div>
-      <div class="form-row" style="margin-top:10px;">
-        <label for="pwConfirm">Confirm new password</label>
-        <input class="input" id="pwConfirm" name="confirm_password" type="password" minlength="6" required>
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-outline" id="cancelPwBtn">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="submitPwBtn" disabled>Update Password</button>
-      </div>
-    </form>
-  </div>
 </main>
 
 <footer class="footer">
@@ -187,26 +164,51 @@
 </footer>
 
 <style>
-  .bubbles { display:flex; flex-wrap:wrap; gap:12px; }
-  .bubble {
-    display:inline-flex; align-items:center; justify-content:center;
-    border-radius:999px; border:2px solid var(--border);
-    background: color-mix(in srgb, var(--shade) 5%, transparent); color: var(--text);
-    padding: 8px 14px; user-select:none;
-    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
-    opacity:.5;
-  }
-  .bubble.selected { border-color: currentColor; box-shadow:0 0 6px currentColor; opacity:1; }
+  /* Profile as chapters: a contents list beside one sheet holding every section.
+     Colours and fonts come from the theme; the Almanac style adds the ornament. */
+  .px { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; }
+  .px-display { font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; }
+  .px h1, .px h2 { margin: 0; }
+  .px-toc { flex: 1 1 220px; max-width: 260px; display: grid; gap: 8px; }
+  .px-toc h1 { font-size: 32px; line-height: 1.1; color: var(--primary); overflow-wrap: anywhere; }
+  .px-sub { margin: 0; font-style: italic; color: var(--muted); overflow-wrap: anywhere; }
+  .px-toc-title { margin-top: 10px !important; font-size: 18px; letter-spacing: .08em; border-bottom: 2px solid var(--text); padding-bottom: 2px; }
+  .px-toc ol { list-style: none; margin: 0; padding: 0; }
+  .px-toc li { border-bottom: 1px solid var(--border); }
+  .px-toc li a { display: flex; gap: 8px; align-items: baseline; padding: 10px 4px; min-height: 24px; color: var(--text); text-decoration: none; }
+  .px-toc li a span { min-width: 30px; }
+  .px-toc li a:hover, .px-toc li a[aria-current="true"] { color: var(--primary); font-style: italic; background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  .px-logout { font-style: italic; color: var(--primary); padding: 8px 0; }
+  @media (max-width: 760px) { .px-toc { max-width: none; } }
 
-  .meta-grid { display:grid; grid-template-columns:1fr; gap:14px; }
-  @media (min-width:640px){ .meta-grid { grid-template-columns:1fr 1fr; } }
-  .meta-item { padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
-  .meta-item .k { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-  .meta-item .v { margin-top:4px; word-break:break-word; }
-  .tags { display:flex; flex-wrap:wrap; gap:8px; }
-  .tag { padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:var(--surface); font-size:14px; }
-  pre.menu { margin:0; white-space:pre-wrap; word-break:break-word; background:var(--surface); padding:10px; border-radius:8px; border:1px solid var(--border); }
-  /* Modal basics */
+  .px-book {
+    flex: 999 1 520px; min-width: 0; display: grid; gap: 30px;
+    background: var(--surface); color: var(--text); border: 1px solid var(--text);
+    outline: 1px solid var(--text); outline-offset: 4px; padding: 26px clamp(16px, 3vw, 34px) 30px;
+  }
+  .px-book section { display: grid; gap: 12px; scroll-margin-top: 24px; }
+  .px-book h2 { font-size: 26px; color: var(--primary); border-bottom: 1px solid var(--text); padding-bottom: 2px; }
+  .px-facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 20px; align-items: baseline; }
+  .px-facts > div { display: contents; }
+  .px-facts .px-note, .px-facts .px-link { margin-left: 10px; }
+  .px-facts dt { font-style: italic; color: var(--muted); }
+  .px-facts dd { margin: 0; overflow-wrap: anywhere; }
+  .px-note { margin: 0; font-size: 14px; font-style: italic; color: var(--muted); }
+  .px-note a { color: var(--primary); }
+  .px-link { all: unset; cursor: pointer; font-style: italic; font-size: 15px; color: var(--primary); text-decoration: underline; text-underline-offset: 2px; padding: 4px 0; }
+  .px-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .px-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .px-wallet { align-items: baseline; gap: 24px; }
+  .px-balance { margin: 0; font-size: 36px; color: var(--primary); font-variant-numeric: oldstyle-nums; }
+  #dietSummary { margin: 0; line-height: 1.6; max-width: 68ch; }
+  #dietSummary strong { font-weight: 600; }
+  .px-pw { margin: 0; max-width: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 14px 20px; align-items: end; }
+  .px-pw label { display: grid; gap: 4px; font-size: 14px; font-style: italic; color: var(--muted); }
+  .px-pw .btn { min-height: 44px; }
+  .px-orn { display: none; margin: 0; text-align: center; color: var(--accent); letter-spacing: .6em; font-size: 14px; }
+  :root[data-style="almanac"] .px-orn { display: block; }
+
+  /* Edit pop-up */
   .modal-backdrop { position:fixed; inset:0; background:color-mix(in srgb, var(--shade) 45%, transparent); display:none; z-index:1000; }
   .modal-sheet { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(92vw,480px); background:var(--surface); border:1px solid var(--border); border-radius:14px; display:none; z-index:1001; }
   .modal-backdrop.show, .modal-sheet.show { display:block; }
@@ -214,205 +216,63 @@
   #editProfileForm { max-width:none; margin:0; display:block; }  /* undo style.css's bare-form width */
   .form-grid { display:grid; gap:12px; grid-template-columns: 1fr; margin-bottom:20px; }
   @media (min-width: 720px) { .form-grid { grid-template-columns: 1fr 1fr; } }
-  .read-only { background: var(--surface); border:1px dashed var(--border); color: var(--muted); }
-  .modal-head {
-    display:flex; align-items:center; justify-content:space-between;
-    padding: 14px 16px; border-bottom: 1px solid var(--border);
-  }
+  .modal-head { display:flex; align-items:center; justify-content:space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
   .modal-body { padding: 16px; }
   .modal-actions { display:flex; justify-content:flex-end; gap:10px; padding: 12px 16px; border-top:1px solid var(--border); }
 
-  /* Input status colors */
-  .input.is-ok  { border-color:#28a745 !important; box-shadow:0 0 0 3px rgba(40,167,69,.15); }
-  .input.is-bad { border-color:#dc3545 !important; box-shadow:0 0 0 3px rgba(220,53,69,.15); }
-  .input.is-warn{ border-color:#ffc107 !important; box-shadow:0 0 0 3px rgba(255,193,7,.18); }
-
-  .reqs { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
-  .reqs li { margin: 2px 0; }
-  .reqs .ok { color: #28a745; }
-  .reqs .bad { color: #dc3545; }
+  /* Password field states */
+  .input.is-ok  { border-color: var(--success) !important; }
+  .input.is-bad { border-color: var(--danger) !important; }
 </style>
 
 <script>
-  // Render read-only bubbles from CSV in data-prefs, matching register page styling
-  (function renderPrefBubbles(){
-    const root = document.getElementById('prefBubbles');
-    if (!root) return;
-    const raw = (root.dataset.prefs || '').trim();
-    if (!raw) { root.innerHTML = '<span class="v">None</span>'; return; }
-
-    const labels = raw.split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    if (!labels.length) { root.innerHTML = '<span class="v">None</span>'; return; }
-
-    function randomColor(){
-      const h = Math.floor(Math.random()*360);
-      const s = 65 + Math.random()*25;
-      // Light themes need darker text to stay readable (colour themes in static/style.css)
-      const light = getComputedStyle(document.documentElement).colorScheme === "light";
-      const l = (light ? 28 : 55) + Math.random()*15;
-      return `hsl(${h} ${s}% ${l}%)`;
-    }
-
-    // cap to 20 for layout sanity (mirror register page behavior)
-    labels.slice(0, 20).forEach(label => {
-      const b = document.createElement('span');
-      b.className = 'bubble selected';
-      b.textContent = label;
-      const color = randomColor();
-      b.style.borderColor = color;
-      b.style.color = color;
-      b.style.fontSize = Math.random() < 0.5 ? '14px' : '16px';
-      root.appendChild(b);
-    });
-  })();
-
+  // Password: the button turns on once the current password is in and the new one,
+  // at least 6 characters (the server's rule), is typed the same twice.
   (function () {
-    const form   = document.getElementById('pwForm');
-    const iptCur = document.getElementById('pwCurrent');
-    const iptNew = document.getElementById('pwNew');
-    const iptCf  = document.getElementById('pwConfirm');
+    const cur = document.getElementById('pwCurrent');
+    const neu = document.getElementById('pwNew');
+    const cf = document.getElementById('pwConfirm');
     const submit = document.getElementById('submitPwBtn');
-
-    function setState(el, state) {
-      if (!el) return;
-      el.classList.remove('is-ok','is-bad','is-warn');
-      if (state) el.classList.add(state); // 'is-ok' | 'is-bad' | 'is-warn'
-    }
-
-    // simple strength: >=6 chars + at least one letter and one digit
-    function strongEnough(s) {
-      return s && s.length >= 6 && /[A-Za-z]/.test(s) && /\d/.test(s);
-    }
-
+    const hint = document.getElementById('pwHint');
+    function mark(el, ok) { el.classList.toggle('is-ok', ok === true); el.classList.toggle('is-bad', ok === false); }
     function update() {
-      const curVal = iptCur?.value || '';
-      const newVal = iptNew?.value || '';
-      const cfVal  = iptCf?.value  || '';
-
-      const curFilled  = curVal.length > 0;
-      const newFilled  = newVal.length > 0;
-      const cfFilled   = cfVal.length  > 0;
-      const strengthOK = strongEnough(newVal);
-      const matchOK    = newVal && cfVal && (newVal === cfVal);
-
-      // Current: green when filled, warn when empty
-      setState(iptCur, curFilled ? 'is-ok' : 'is-warn');
-
-      // New:
-      // - warn if empty
-      // - ok if strengthOK
-      // - bad if not strong enough
-      if (!newFilled) {
-        setState(iptNew, 'is-warn');
-      } else {
-        setState(iptNew, strengthOK ? 'is-ok' : 'is-bad');
-      }
-
-      // Confirm:
-      // - warn until it matches (even if filled)
-      // - ok only when matches
-      if (!cfFilled) {
-        setState(iptCf, 'is-warn');
-      } else {
-        setState(iptCf, matchOK ? 'is-ok' : 'is-warn');
-      }
-
-      // Enable submit only when: current filled, new strong, and confirm matches
-      submit.disabled = !(curFilled && strengthOK && matchOK);
+      const longEnough = neu.value.length >= 6;
+      const match = longEnough && neu.value === cf.value;
+      mark(neu, neu.value ? longEnough : null);
+      mark(cf, cf.value ? match : null);
+      submit.disabled = !(cur.value && match);
+      hint.textContent = !neu.value || !cf.value ? 'At least 6 characters, typed the same twice.'
+        : !longEnough ? 'The new password needs at least 6 characters.'
+        : !match ? 'The two new passwords differ.' : 'Ready to change.';
     }
-
-    // init + live updates
-    [iptCur, iptNew, iptCf].forEach(el => {
-      el && el.addEventListener('input', update);
-      el && el.addEventListener('blur', update);
-    });
-    form && form.addEventListener('submit', (e) => {
-      if (submit.disabled) {
-        e.preventDefault();
-        update();
-      }
-    });
-
-    // initial state
+    [cur, neu, cf].forEach(el => el.addEventListener('input', update));
+    document.getElementById('pwForm').addEventListener('submit', (e) => { if (submit.disabled) { e.preventDefault(); update(); } });
     update();
   })();
 
-  document.addEventListener('DOMContentLoaded', function() {
-    const openBtn   = document.getElementById('openChangePwBtn');
-    const closeBtn  = document.getElementById('closePwModalBtn');
-    const cancelBtn = document.getElementById('cancelPwBtn');
-    const modal     = document.getElementById('pwModal');
-    const backdrop  = document.getElementById('pwModalBackdrop');
+  // Contents: mark the chapter in view
+  (function () {
+    const links = [...document.querySelectorAll('.px-toc li a')];
+    if (!('IntersectionObserver' in window)) return;
+    const sections = [...document.querySelectorAll('.px-book section')];
+    const inView = new Set();
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => e.isIntersecting ? inView.add(e.target) : inView.delete(e.target));
+      const first = sections.find(s => inView.has(s));   // the topmost chapter on screen
+      if (!first) return;
+      links.forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === '#' + first.id ? 'true' : 'false'));
+    }, { rootMargin: '0px 0px -60% 0px' });
+    sections.forEach(s => io.observe(s));
+  })();
 
-    const form   = document.getElementById('pwForm');
-    const iptCur = document.getElementById('pwCurrent');
-    const iptNew = document.getElementById('pwNew');
-    const iptCf  = document.getElementById('pwConfirm');
-    const submit = document.getElementById('submitPwBtn');
-
-    function showModal() {
-      modal.classList.add('show');
-      backdrop.classList.add('show');
-      setTimeout(() => iptCur.focus(), 0);
-    }
-    function hideModal() {
-      modal.classList.remove('show');
-      backdrop.classList.remove('show');
-      form.reset();
-      update(); // reset button state/colors
-    }
-
-    function setState(el, state) {
-      el.classList.remove('is-ok','is-bad','is-warn');
-      if (state) el.classList.add(state); // 'is-ok' | 'is-bad' | 'is-warn'
-    }
-
-    function update() {
-      const curFilled = !!iptCur.value;
-      const newFilled = !!iptNew.value;
-      const cfFilled  = !!iptCf.value;
-      const match = newFilled && cfFilled && (iptNew.value === iptCf.value);
-
-      setState(iptCur, curFilled ? 'is-ok' : 'is-warn');
-
-      if (!newFilled && !cfFilled) {
-        setState(iptNew, 'is-warn');
-        setState(iptCf,  'is-warn');
-      } else if (newFilled && !cfFilled) {
-        setState(iptNew, 'is-warn');
-        setState(iptCf,  'is-warn');
-      } else if (!newFilled && cfFilled) {
-        setState(iptNew, 'is-warn');
-        setState(iptCf,  'is-warn');
-      } else {
-        setState(iptNew, match ? 'is-ok' : 'is-bad');
-        setState(iptCf,  match ? 'is-ok' : 'is-bad');
-      }
-
-      submit.disabled = !(curFilled && match);
-    }
-
-    // Wire events (guard if element missing)
-    openBtn  && openBtn.addEventListener('click', showModal);
-    closeBtn && closeBtn.addEventListener('click', hideModal);
-    cancelBtn&& cancelBtn.addEventListener('click', hideModal);
-    backdrop && backdrop.addEventListener('click', hideModal);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideModal(); });
-
-    [iptCur, iptNew, iptCf].forEach(el => { el && el.addEventListener('input', update); });
-
-    // initial
-    update();
-  });
-  // Edit Profile pop-up: opened by the Edit button, or by /profile#edit (old edit-page links)
+  // Edit pop-up: opened by the Diet button, the phone's "change", or /profile#edit (old edit-page links)
   (function () {
     const modal = document.getElementById('editModal');
     const backdrop = document.getElementById('editModalBackdrop');
     const form = document.getElementById('editProfileForm');
-    function show() {
+    let opener = null;
+    function show(e) {
+      opener = e && e.currentTarget || null;
       modal.classList.add('show'); backdrop.classList.add('show');
       modal.setAttribute('aria-hidden', 'false');
       setTimeout(() => document.getElementById('editPhone').focus(), 0);
@@ -421,8 +281,10 @@
       modal.classList.remove('show'); backdrop.classList.remove('show');
       modal.setAttribute('aria-hidden', 'true');
       if (location.hash === '#edit') history.replaceState(null, '', location.pathname + location.search);
+      if (opener) opener.focus();
     }
     document.getElementById('openEditBtn').addEventListener('click', show);
+    document.querySelectorAll('.js-open-edit').forEach(b => b.addEventListener('click', show));
     document.getElementById('closeEditModalBtn').addEventListener('click', hide);
     document.getElementById('cancelEditBtn').addEventListener('click', () => { form.reset(); hide(); });
     backdrop.addEventListener('click', hide);
@@ -430,6 +292,5 @@
     if (location.hash === '#edit') show();
   })();
 </script>
-
 </body>
 </html>

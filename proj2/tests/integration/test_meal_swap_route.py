@@ -374,7 +374,8 @@ def test_calendar_no_longer_shows_the_weekly_cards(logged_in, plan):
 
 def test_generate_form_sits_below_the_calendar(logged_in, plan):
     html = logged_in.get("/2025/11").get_data(as_text=True)
-    assert html.index('class="cal-grid"') < html.index('id="new-plan"')
+    assert html.index('class="cal-grid std-only"') < html.index('id="new-plan"')
+    assert html.index('class="almanac-only"') < html.index('id="new-plan"')
     form = html.split('id="new-plan"')[1]
     assert 'action="/menu/generate"' in form and 'name="weekly_cap"' in form
     profile = logged_in.get("/profile").get_data(as_text=True)
@@ -388,3 +389,28 @@ def test_insights_needs_login_and_a_real_month(client, logged_in, plan):
     logged_in.get("/logout")
     response = client.get("/insights")
     assert response.status_code == 302 and "/login" in response.headers["Location"]
+
+
+def test_calendar_has_the_almanac_style(logged_in, plan):
+    """The Seed Catalog & Almanac style: the same week drawn as an almanac page."""
+    html = logged_in.get("/2025/11").get_data(as_text=True)
+    page = html.split('<article class="al" aria-label="Week of 2025-11-03">')[1].split("</article>")[0]
+    assert "Vol. MMXXV · No. 45" in page
+    assert "Week of the 3rd to the 9th of November, 2025" in page
+    assert "4 meals from 1 kitchen, set out by the day" in page
+    # Entries open the same swap dialog as the month grid, and can be ordered
+    assert 'class="al-e swap-btn" data-meal="1" data-date="2025-11-03"' in page
+    assert 'class="al-order order-btn"' in page
+    assert "Fallow" in page  # empty slots later in the week
+    assert "60 parts in 100" in page and "Monotonous." in page
+    assert "4 different dishes among 4." in page
+    assert "Oatmeal (Mon breakfast) and Sandwich (Mon lunch): same restaurant." in page
+    # Only one layout shows at a time; theme.js picks which
+    assert 'class="cal-grid std-only"' in html
+    assert 'class="almanac-only"' in html
+
+
+def test_almanac_style_for_a_month_with_no_plan(logged_in, plan):
+    html = logged_in.get("/2025/1").get_data(as_text=True)
+    assert "Nothing is sown for January 2025 yet." in html
+    assert '<article class="al"' not in html

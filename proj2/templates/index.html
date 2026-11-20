@@ -89,7 +89,7 @@
     {% set has_any = today_menu and (today_menu|length) %}
 
     <!-- Compact Today's Menu -->
-    <div class="card mb-3 compact">
+    <div class="card mb-3 compact std-only">
       <div class="card-body">
         <h2 class="h6 mb-1">Today’s Menu ({{ today_year }}-{{ '%02d'|format(today_month) }}-{{ '%02d'|format(today_day) }})</h2>
         {% if has_any %}
@@ -100,15 +100,15 @@
                 {{ entry.item.name }}
                 <span class="muted"> · {{ entry.item.restaurant_name }} · ${{ '%.2f'|format(entry.item.price/100) }} · {{ entry.item.calories }} cal</span>
                 {% if entry.item.restaurant_address or entry.item.restaurant_hours or entry.item.restaurant_phone %}
-                  <div style="margin-top: 4px; font-size: 0.85rem; color: var(--muted);">
+                  <div class="rest-meta" style="margin-top: 4px; font-size: 0.85rem; color: var(--muted);">
                     {% if entry.item.restaurant_address %}
-                      <span>📍 {{ entry.item.restaurant_address }}</span>
+                      <span>{{ entry.item.restaurant_address }}</span>
                     {% endif %}
                     {% if entry.item.restaurant_hours %}
-                      <span class="rest-hours">🕐 {{ entry.item.restaurant_hours | hours_display }}</span>
+                      <span class="rest-hours">{{ entry.item.restaurant_hours | hours_display }}</span>
                     {% endif %}
                     {% if entry.item.restaurant_phone %}
-                      <span>📞 {{ entry.item.restaurant_phone }}</span>
+                      <span>{{ entry.item.restaurant_phone }}</span>
                     {% endif %}
                   </div>
                 {% endif %}
@@ -152,8 +152,105 @@
         </div>
       </div>
 
+      <!-- Seed Catalog & Almanac style (static/theme.js sets data-style="almanac"; proj2/almanac.py) -->
+      <div class="almanac-only">
+        {% set slot_titles = {1: "Breakfast · 10 o'clock", 2: "Luncheon · 2 o'clock", 3: "Supper · 8 o'clock"} %}
+        {% for wk in almanac_weeks %}
+          <article class="al" aria-label="Week of {{ wk.start }}">
+            <header class="al-mast">
+              <div class="al-vol"><span>Vol. {{ wk.volume }} · No. {{ wk.number }}</span><span>Week of {{ wk.title }}</span></div>
+              <h2>The Weeklies Almanac &amp; Meal Catalog</h2>
+              <p>{{ wk.meal_count }} meal{{ '' if wk.meal_count == 1 else 's' }} from {{ wk.kitchens }} kitchen{{ '' if wk.kitchens == 1 else 's' }}, set out by the day</p>
+              <div class="al-orn" aria-hidden="true">❦ ❦ ❦</div>
+            </header>
+            {% if loop.first %}
+              <p class="al-intro">This table was laid out by the planner from every main dish served at the hour of each meal. It favors meals unlike their neighbors, the way a careful grower rotates beds so no soil gives the same crop twice running. Choose any entry to plant something else in its place.</p>
+            {% endif %}
+            <div class="al-scroll">
+              <table class="al-table">
+                <thead><tr><th scope="col">Day</th>{% for slot in [1, 2, 3] %}<th scope="col">{{ slot_titles[slot] }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                  {% for d in wk.days %}
+                    <tr{% if d.date == '%04d-%02d-%02d'|format(today_year, today_month, today_day) %} class="al-today"{% endif %}>
+                      <th scope="row" class="d">{{ d.weekday }}. {{ d.day }}<small>{% if d.total %}${{ '%.2f'|format(d.total / 100) }}{% else %}&mdash;{% endif %}</small></th>
+                      {% for slot in [1, 2, 3] %}
+                        {% set m = d.meals.get(slot) %}
+                        <td>
+                          {% if m %}
+                            <button type="button" class="al-e swap-btn" data-meal="{{ m.meal }}" data-date="{{ m.date }}"
+                                    data-item-name="{{ m.name }}" aria-label="Swap {{ meal_names[m.meal] }} on {{ m.date }}: {{ m.name }}">
+                              <span class="al-no">No. {{ m.itm_id }} · {{ meal_names[m.meal] }}</span>
+                              <span class="al-nm">{{ m.name }}</span>
+                              <span class="al-gr">{{ m.restaurant }}</span>
+                              <span class="al-px">${{ '%.2f'|format(m.price / 100) }}{% if m.calories %} · {{ m.calories }} cal.{% endif %}</span>
+                              {% if m.again %}<span class="al-flag">Sown again {{ m.again | join(', ') }}</span>{% endif %}
+                            </button>
+                            <a class="al-order order-btn" href="#"
+                               data-itm-id="{{ m.itm_id }}" data-meal="{{ m.meal }}" data-date="{{ m.date }}"
+                               data-rtr-id="{{ m.rtr_id }}" data-rtr-name="{{ m.restaurant }}" data-item-name="{{ m.name }}"
+                               data-price-cents="{{ m.price }}" data-delivery-type="delivery">Order this</a>
+                          {% else %}
+                            <span class="al-fallow">Fallow</span>
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="al-cols">
+              <section>
+                <h3>Crop Rotation</h3>
+                {% if wk.rotation %}
+                  <div class="al-scroll">
+                    <table class="al-rot">
+                      <thead><tr><th scope="col">Bed</th>{% for d in wk.days %}<th scope="col">{{ d.weekday }}</th>{% endfor %}</tr></thead>
+                      <tbody>
+                        {% for row in wk.rotation %}
+                          <tr><th scope="row">{{ row.bed | capitalize }}</th>
+                            {% for c in row.cells %}<td class="{{ c }}">{% if c %}●{% else %}·{% endif %}</td>{% endfor %}
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="al-cap">● planted that day. Ochre marks a bed planted two days running.</p>
+                {% else %}
+                  <p class="al-cap">These dishes carry no protein tags yet.</p>
+                {% endif %}
+              </section>
+              <section class="al-notes">
+                <h3>Notes for the Week</h3>
+                <div>
+                  {% if wk.score is not none %}<span class="al-big">{{ wk.score }} parts in 100</span><br>{% endif %}
+                  <i>{{ wk.forecast }}.</i> {{ wk.distinct }} different dish{{ '' if wk.distinct == 1 else 'es' }} among {{ wk.meal_count }}.
+                </div>
+                {% if wk.similar %}
+                  <ol>{% for line in wk.similar %}<li>{{ line }}.</li>{% endfor %}</ol>
+                {% endif %}
+              </section>
+              <section>
+                <h3>Grower's Guarantee</h3>
+                <div class="al-guar">
+                  <p>Every entry was checked when it was planned: a main dish of the right kind for its meal, in stock, from a kitchen open at that hour, and free of any allergen on the account. The week's items come to ${{ '%.2f'|format(wk.total / 100) }}, before taxes, delivery and tips.</p>
+                </div>
+              </section>
+            </div>
+          </article>
+        {% else %}
+          <div class="al al-empty">
+            <header class="al-mast">
+              <h2>The Weeklies Almanac &amp; Meal Catalog</h2>
+              <p>Nothing is sown for {{ month_name }} {{ year }} yet.</p>
+              <div class="al-orn" aria-hidden="true">❦ ❦ ❦</div>
+            </header>
+            <p class="al-intro">Generate a meal plan with the form below and this page will set it out by the day.</p>
+          </div>
+        {% endfor %}
+      </div>
 
-      <div class="cal-grid">
+      <div class="cal-grid std-only">
         {% for dow in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
           <div class="cal-dow">{{ dow }}</div>
         {% endfor %}
@@ -192,15 +289,15 @@
                           · {{ m.item.calories }} cal
                         </div>
                         {% if m.item.restaurant_address or m.item.restaurant_hours or m.item.restaurant_phone %}
-                          <div class="tags" style="margin-top: 4px;">
+                          <div class="tags rest-meta" style="margin-top: 4px;">
                             {% if m.item.restaurant_address %}
-                              <span>📍 {{ m.item.restaurant_address }}</span>
+                              <span>{{ m.item.restaurant_address }}</span>
                             {% endif %}
                             {% if m.item.restaurant_hours %}
-                              <span class="rest-hours" style="margin-left: 8px;">🕐 {{ m.item.restaurant_hours | hours_display }}</span>
+                              <span class="rest-hours">{{ m.item.restaurant_hours | hours_display }}</span>
                             {% endif %}
                             {% if m.item.restaurant_phone %}
-                              <span style="margin-left: 8px;">📞 {{ m.item.restaurant_phone }}</span>
+                              <span>{{ m.item.restaurant_phone }}</span>
                             {% endif %}
                           </div>
                         {% endif %}
@@ -555,6 +652,41 @@
   .order-summary .row.total { font-weight: 800; border-top: 1px dashed color-mix(in srgb, var(--text) 20%, transparent); margin-top: 6px; padding-top: 10px; }
   .order-summary .lbl { opacity: .9; }
   .order-summary hr { border: none; border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent); margin: 10px 0; }
+  /* Catalog look (static/style.css): the month as a ruled grid, meals as plain entries,
+     the pop-up and order dialog as sheets, buttons like the Restaurants page's */
+  .greet { background: none; padding: 0; border-radius: 0; font-weight: 400 !important; font-style: italic; }
+  .cal-grid { gap: 0; border-top: 2px solid var(--text); border-left: 1px solid var(--border); }
+  .cal-dow { font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .04em; border-bottom: 1px solid var(--text); border-right: 1px solid var(--border); }
+  .day-cell {
+    background: var(--surface); border: 0; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    border-radius: 0; box-shadow: none;
+  }
+  .day-cell:hover { transform: none; box-shadow: none; background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+  .day-cell.today { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); box-shadow: inset 0 0 0 2px var(--primary); }
+  .day-num { font-family: var(--font-display, var(--font)); font-weight: 400; font-variant-numeric: oldstyle-nums; }
+  .badge {
+    background: none; border: 0; border-top: 1px dotted var(--border); border-radius: 0; box-shadow: none;
+    padding: 4px 0 0; font-weight: 500; font-style: normal;
+  }
+  .badge:hover { transform: none; box-shadow: none; color: var(--primary); }
+  .badge .dot { box-shadow: none; }
+  .menu-popover, .order-modal__dialog {
+    background: var(--surface); border: 1px solid var(--text); outline: 1px solid var(--text); outline-offset: 3px;
+    border-radius: 0; box-shadow: 0 12px 28px color-mix(in srgb, var(--shade) 25%, transparent);
+  }
+  .menu-popover h4, .order-modal__title {
+    font-family: var(--font-display, var(--font)); font-weight: 400; letter-spacing: .02em; color: var(--primary);
+    background: none; -webkit-text-fill-color: currentColor;
+  }
+  .order-btn {
+    background: var(--primary); color: var(--on-primary); border: 1px solid color-mix(in oklab, var(--primary) 45%, #000);
+    border-radius: var(--radius-xs); box-shadow: none;
+  }
+  .order-btn:hover, .order-btn:active { transform: none; box-shadow: none; filter: brightness(1.08); }
+  .swap-btn { background: transparent; border-radius: var(--radius-xs); box-shadow: none; }
+  .swap-option { border-radius: 0; }
+  .card.compact { background: var(--surface); border: 1px solid var(--text); box-shadow: none; }
+  #menuLoading { border-radius: 0 !important; border-width: 1px !important; }
 </style>
 
 <script>

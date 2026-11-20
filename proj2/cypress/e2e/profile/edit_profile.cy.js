@@ -20,15 +20,12 @@ describe("Profile Editing & Password Change", () => {
     // Redirects back to profile
     cy.location("pathname").should("eq", "/profile");
     cy.contains("9195557788").should("be.visible");
-    cy.get('[aria-label="Allergies"]').should("contain.text", "Soy");
+    cy.get("#dietSummary").should("contain.text", "Soy");
   });
 
-  it("successfully changes user password via modal", () => {
+  it("successfully changes user password from the Password chapter", () => {
     cy.visit("/profile");
-
-    // Open change password modal
-    cy.get("#openChangePwBtn").click();
-    cy.get("#pwModal").should("be.visible");
+    cy.get('a[href="#password"]').click();
 
     // Enter passwords
     cy.get("#pwCurrent").type("password123");
@@ -54,7 +51,6 @@ describe("Profile Editing & Password Change", () => {
   it("shows an error when current password is wrong during password change", () => {
     cy.visit("/profile");
 
-    cy.get("#openChangePwBtn").click();
     cy.get("#pwCurrent").type("wrongpassword");
     cy.get("#pwNew").type("newSecret456");
     cy.get("#pwConfirm").type("newSecret456");

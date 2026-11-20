@@ -13,10 +13,11 @@ from datetime import timedelta, date, datetime
 from functools import wraps
 from proj2 import config
 from proj2.pdf_receipt import generate_order_receipt_pdf
-from proj2 import variety
+from proj2 import almanac, variety
 from proj2.hours import format_hours
 from proj2.menu_generation import MenuGenerator
-from proj2.plan_rules import SLOT_NAMES
+from proj2.plan_rules import SLOT_NAMES, is_restaurant_open, parse_allergens
+from proj2.menu_generation import DAYS_OF_WEEK
 from proj2.meal_budget import (
     BudgetExceededError, parse_weekly_cap, plan_entries, week_start, weekly_item_totals
 )
@@ -585,6 +586,16 @@ def index(year, month):
     all_item_ids = sorted({e["itm_id"] for entries in gen_map.values() for e in entries})
     items_by_id = fetch_menu_items_by_ids(all_item_ids)
 
+    weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
+    # The same weeks drawn as almanac pages, for the "Seed Catalog & Almanac" style
+    almanac_weeks = (
+        almanac.build_weeks(
+            plan_entries(gen_str), items_by_id, variety.catalog_rows(conn), weekly_variety
+        )
+        if weekly_variety
+        else []
+    )
+
     # Build cells for the month
     cells = build_calendar_cells(gen_map, year, month, items_by_id)
 
@@ -625,6 +636,7 @@ def index(year, month):
         today_day=today.day,
         today_menu=today_menu,
         generation_error=session.pop("menu_generation_error", None),
+        almanac_weeks=almanac_weeks,
     )
 
 
@@ -1490,9 +1502,42 @@ def profile():
     pw_updated = request.args.get("pw_updated")
     pw_error = request.args.get("pw_error")
 
+    recent = user_orders(conn, user["usr_id"])
     return render_template(
-        "profile.html", user=user, pw_updated=pw_updated, pw_error=pw_error,
+        "profile.html",
+        user=user,
+        diet=diet_summary(conn, user["allergies"], user["preferences"]),
+        last_order=recent[0] if recent else None,
+        pw_updated=pw_updated,
+        pw_error=pw_error,
     )
+
+
+def _csv_list(value) -> list:
+    """The non-empty, stripped entries of a comma-separated string."""
+    return [part.strip() for part in (value or "").split(",") if part.strip()]
+
+
+def diet_summary(conn, allergies, preferences) -> dict:
+    """
+    What the Profile's Diet chapter says about the user's allergies and preferences.
+    Args:
+        conn: Open database connection.
+        allergies (str): The user's comma-separated allergies.
+        preferences (str): The user's comma-separated preferences.
+    Returns:
+        dict: allergies and preferences as lists, plus how many in-stock dishes the
+        allergies set aside ("set_aside") out of how many there are ("dishes"). Matching
+        is the meal planner's (proj2.plan_rules.parse_allergens).
+    """
+    banned = parse_allergens(allergies)
+    rows = fetch_all(conn, 'SELECT allergens FROM "MenuItem" WHERE instock IS NULL OR instock = 1')
+    return {
+        "allergies": _csv_list(allergies),
+        "preferences": _csv_list(preferences),
+        "set_aside": sum(1 for (tags,) in rows if banned & parse_allergens(tags)),
+        "dishes": len(rows),
+    }
 
 
 # Edit Profile route
@@ -2152,6 +2197,45 @@ def _order_date(iso_str: str) -> str:
         return iso_str
 
 
+def _meal_at(hour: int) -> int:
+    """The meal slot an order placed at this hour stands for (1 breakfast, 2 lunch, 3 dinner)."""
+    return 1 if hour < 11 else 2 if hour < 16 else 3
+
+
+def order_meals(conn, usr_id) -> list:
+    """
+    What the user ate from their orders, as plan entries for the planner's lookback.
+    Args:
+        conn: Open database connection.
+        usr_id (int): The customer.
+    Returns:
+        list[tuple]: (date, itm_id, meal) per ordered item, skipping cancelled orders. An
+            order placed from the plan carries its date and meal; any other order uses the
+            day and hour it was placed.
+    """
+    rows = fetch_all(
+        conn,
+        'SELECT details, status FROM "Order" WHERE usr_id = ?',
+        (usr_id,),
+    )
+    meals = []
+    for details, status in rows:
+        if (status or "").strip().lower() == "cancelled" or not details:
+            continue
+        try:
+            j = json.loads(details)
+            day, meal = j.get("date"), j.get("meal")
+            if not (day and meal):
+                placed = datetime.fromisoformat(j.get("placed_at") or j.get("time"))
+                day, meal = placed.date().isoformat(), _meal_at(placed.hour)
+            day, meal = date.fromisoformat(str(day)).isoformat(), int(meal)
+            items = [int(item["itm_id"]) for item in j.get("items") or []]
+        except (TypeError, ValueError, KeyError, AttributeError):
+            continue  # an order we cannot place in time tells the planner nothing
+        meals.extend((day, itm_id, meal) for itm_id in items)
+    return meals
+
+
 def user_orders(conn, usr_id):
     """
     The user's orders, newest first, as the My Orders page shows them.
@@ -2299,7 +2383,55 @@ def restaurants():
         for m in menu_items
     ]
 
-    return render_template("restaurants.html", restaurants=rest_list, items=item_list)
+    allergy_row = fetch_one(
+        conn, 'SELECT allergies FROM "User" WHERE email = ?', (session.get("Email"),)
+    )
+    user_allergies = (allergy_row[0] if allergy_row else "") or ""
+    banned = parse_allergens(user_allergies)
+    for it in item_list:
+        it["conflicts"] = sorted(banned & parse_allergens(it["allergens"]))
+
+    stats = {
+        rtr_id: (count, avg)
+        for rtr_id, count, avg in fetch_all(
+            conn, 'SELECT rtr_id, COUNT(*), AVG(rating) FROM "Review" GROUP BY rtr_id'
+        )
+    }
+    now = datetime.now()
+    for r in rest_list:
+        count, avg = stats.get(r["rtr_id"], (0, None))
+        r["review_count"] = count
+        r["rating"] = round(avg, 1) if avg is not None else None
+        r["open_now"] = open_now(r["hours"], r["status"], now)
+
+    return render_template(
+        "restaurants.html",
+        restaurants=rest_list,
+        items=item_list,
+        user_allergies=_csv_list(user_allergies),
+    )
+
+
+def open_now(hours, status, now):
+    """
+    Whether a restaurant is open at a moment, for the Restaurants page's "Open now" filter.
+    Args:
+        hours (str): The stored hours JSON, e.g. '{"Mon": [1100, 2200], ...}'.
+        status (str): The restaurant's status; "closed" means closed whatever the hours.
+        now (datetime): The moment to check.
+    Returns:
+        bool | None: True or False from the hours, or None when the hours are not JSON
+        (then the page cannot tell and does not hide the restaurant).
+    """
+    if (status or "").strip().lower() == "closed":
+        return False
+    try:
+        parsed = json.loads(hours)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return is_restaurant_open(hours, DAYS_OF_WEEK[now.weekday()], now.hour * 100 + now.minute)
 
 
 # Order receipt PDF route
@@ -2555,6 +2687,7 @@ def generate_menu():
             meal_numbers=meal_numbers,
             number_of_days=number_of_days,
             weekly_cap_cents=weekly_cap_cents,
+            ordered_meals=order_meals(conn, usr_id),
         )
         start = date.fromisoformat(start_date)
         weeks = list(dict.fromkeys(

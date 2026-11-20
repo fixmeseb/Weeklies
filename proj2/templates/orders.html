@@ -91,7 +91,7 @@
                     {% else %}
                       <a class="btn btn-primary btn-sm"
                          href="{{ url_for('review_order', ord_id=order.id) }}">
-                        ⭐ Review
+                        Review
                       </a>
                     {% endif %}
                   {% else %}
@@ -116,18 +116,15 @@
 </footer>
 
 <style>
-  .status-bubble {
-    display:inline-flex; align-items:center; justify-content:center;
-    border-radius:999px; padding:4px 10px; font-size:13px; font-weight:600; color:#fff;
-  }
-  .status-delivered {background-color:#28a745;} /* green */
-  .status-preparing {background-color:#fd7e14;} /* orange */
-  .status-cancelled {background-color:#dc3545;} /* red */
-  .status-ordered  {background-color:#ffc107; color:#212529;} /* yellow; dark text, white was unreadable */
-  .status-accepted {background-color:#2563eb;} /* blue */
-  .status-ready    {background-color:#0f766e;} /* teal */
-  .status-unknown  {background-color:#6c757d;} /* grey: status outside the known lifecycle */
-
+  /* Statuses read as words in the theme's colours (the catalog look in static/style.css) */
+  .status-bubble { font-size:14px; font-style:italic; font-weight:600; color:var(--muted); }
+  .status-delivered { color:var(--success); }
+  .status-preparing { color:var(--accent); }
+  .status-cancelled { color:var(--danger); }
+  .status-ordered  { color:var(--warning); }
+  .status-accepted { color:var(--info); }
+  .status-ready    { color:var(--success); }
+  .status-unknown  { color:var(--muted); }
   /* UC13 order progress stepper */
   .order-progress { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
   .stepper { list-style:none; margin:0; padding:0; display:flex; }

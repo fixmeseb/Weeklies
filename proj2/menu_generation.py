@@ -11,6 +11,10 @@ re-picks each slot with the rest of the plan fixed, and repeats that sweep until
 changes nothing: filling a slot changes what its neighbours should be, so a single pass
 leaves stale picks behind.
 
+The LOOKBACK_DAYS before the plan's first day count too: the meals planned or ordered
+then are neighbours for variety, and a dish eaten then is not planned again within
+LOOKBACK_DAYS of it unless nothing else fits the slot.
+
 The result is deterministic: the same catalog and request always give the same plan.
 """
 
@@ -58,6 +62,9 @@ RESTART_OPENINGS = 12
 BREAKFAST_TIME = 1000
 LUNCH_TIME = 1400
 DINNER_TIME = 2000
+
+## Days before a new plan's first day whose meals (planned or ordered) shape its variety
+LOOKBACK_DAYS = 3
 
 
 class NoEligibleMealError(ValueError):
@@ -399,7 +406,7 @@ class MenuGenerator:
         return self._preference_cache[itm_id]
 
     def _ranked(
-        self, pool: pd.DataFrame, position: int, neighbours: list, preferences, avoid=()
+        self, pool: pd.DataFrame, position: int, neighbours: list, preferences, avoid=(), recent=()
     ) -> list:
         """
         Ranks a slot's candidates, best first
@@ -417,15 +424,21 @@ class MenuGenerator:
                 the most varied fit, then the cheaper one, then the lower ID
         """
         self._rows()
+        recent_items = self._recent_items(recent, position)
         ranked = []
         for itm_id, price_cents in zip(pool["itm_id"].tolist(), pool["price_cents"].tolist()):
             itm_id = int(itm_id)
             gain, weight_sum = self._distances.slot_gain(itm_id, position, neighbours)
             score = variety.candidate_score(gain, weight_sum, self._preference(itm_id, preferences))
-            key = (int(itm_id in avoid), -score, int(price_cents), itm_id)
+            key = ((itm_id in avoid or itm_id in recent_items), -score, int(price_cents), itm_id)
             ranked.append((key, itm_id))
         ranked.sort()
         return ranked
+
+    @staticmethod
+    def _recent_items(recent, position):
+        day = position // variety.SLOTS_PER_DAY
+        return {item for pos, item in recent if day - pos // variety.SLOTS_PER_DAY <= LOOKBACK_DAYS}
 
     def _restart_openings(self, slots, limit=None):
         """
@@ -497,6 +510,7 @@ class MenuGenerator:
         meal_numbers,
         number_of_days: int = 1,
         weekly_cap_cents: int = None,
+        ordered_meals=(),
     ) -> str:
         """
         Fills the empty slots of a plan with the most varied eligible meals
@@ -512,6 +526,8 @@ class MenuGenerator:
             number_of_days (int): The number of days to plan, starting at {date}
             weekly_cap_cents (int | None): Item-price limit per Monday–Sunday week,
                 counting all existing meals in that week. None leaves generation uncapped.
+            ordered_meals: (date, itm_id, meal) of meals the user ordered; those in the
+                LOOKBACK_DAYS before {date} count like planned meals from those days
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
@@ -607,6 +623,14 @@ class MenuGenerator:
             if itm_id in rows
         }
 
+        first_back = (start - datetime.timedelta(days=LOOKBACK_DAYS)).isoformat()
+        recent = {
+            (variety.slot_position(day, meal), int(item))
+            for day, item, meal in [*existing, *ordered_meals]
+            if first_back <= day < start.isoformat() and item in rows and meal in (1, 2, 3)
+        }
+        extra = sorted((pos, item) for pos, item in recent if already.get(pos) != item)
+
         def build(opening):
             """Fill every slot, then improve it, starting the first slot with `opening`.
 
@@ -632,9 +656,10 @@ class MenuGenerator:
                     ranked = self._ranked(
                         pool,
                         slot["position"],
-                        self._neighbours(planned, slot["position"]),
+                        self._neighbours(planned, slot["position"]) + extra,
                         preferences,
                         avoid=set(planned.values()),
+                        recent=recent,
                     )
                     itm_id = ranked[0][1]
                 check(itm_id, slot)
@@ -664,10 +689,11 @@ class MenuGenerator:
                     ranked = self._ranked(
                         pool,
                         slot["position"],
-                        self._neighbours(planned, slot["position"]),
+                        self._neighbours(planned, slot["position"]) + extra,
                         preferences,
                         # The slot's own meal is not a repeat of itself.
                         avoid=set(planned.values()) - {current},
+                        recent=recent,
                     )
                     best_key, best = ranked[0]
                     current_key = next(key for key, itm_id in ranked if itm_id == current)
@@ -696,7 +722,21 @@ class MenuGenerator:
         best = None
         for opening in self._restart_openings(slots):
             chosen, planned, totals_here = build(opening)
-            key = (self._plan_objective(planned), -sum(price(itm_id) for itm_id in chosen))
+            repeats = sum(
+                item in self._recent_items(recent, slot["position"])
+                for slot, item in zip(slots, chosen)
+            )
+            extra_gain = sum(
+                variety.closeness(pos, slot["position"]) * self._distances.distance(old, item)
+                for pos, old in extra
+                for slot, item in zip(slots, chosen)
+                if variety.closeness(pos, slot["position"])
+            )
+            key = (
+                -repeats,
+                self._plan_objective(planned) + extra_gain,
+                -sum(price(itm_id) for itm_id in chosen),
+            )
             if best is None or key > best[0]:
                 best = (key, chosen, planned, totals_here)
         chosen, planned = best[1], best[2]
