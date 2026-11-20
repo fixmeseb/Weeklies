@@ -1,5 +1,5 @@
 """
-The one demo/test seed: two customers, eleven restaurants, 76 menu items (listed in
+The one demo/test seed: two customers, eleven restaurants, 83 menu items (listed in
 proj2/demo_menu.py), four orders, a review and two analytics snapshots. Used by
 `flask seed` and by Cypress (scripts/cypress_seed.py). Seeding always recreates the
 database from the migrations.

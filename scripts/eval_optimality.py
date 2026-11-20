@@ -109,7 +109,7 @@ class Outcome:
 
 
 def build_database(directory: str) -> str:
-    """Seed the demo catalog (11 restaurants, 76 tagged dishes) into a throwaway file."""
+    """Seed the demo catalog (proj2/demo_menu.py) into a throwaway file."""
     path = os.path.join(directory, "optimality.db")
     seed.seed_database(path)
     return path
