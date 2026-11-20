@@ -29,6 +29,24 @@ SLOT_NAMES = {1: "breakfast", 2: "lunch", 3: "dinner"}
 SLOT_COURSE = "main"
 
 
+def is_taking_orders(status) -> bool:
+    """
+    Reports whether a restaurant's stored status means it is open for orders.
+
+    The one place this question is answered, so meal generation and single-meal swaps
+    cannot drift apart. Casing and surrounding whitespace are ignored because the seeds and
+    fixtures store 'open' while other code has written 'Open'. A missing status is not open:
+    a restaurant whose status was never recorded is not known to be taking orders.
+
+    Args:
+        status (str | None): The value stored in Restaurant.status.
+
+    Returns:
+        bool: True when the restaurant is open for orders.
+    """
+    return (status or "").strip().lower() == "open"
+
+
 def is_restaurant_open(hours: str, weekday: str, time: int) -> bool:
     """
     Checks whether one restaurant's stored hours JSON has it open at the specified weekday and time
@@ -110,7 +128,7 @@ def item_rejection(
         return "item_not_found", "That menu item does not exist."
     if not item["instock"]:
         return "out_of_stock", f"{item['name']} is currently out of stock."
-    if (item["restaurant_status"] or "").strip().lower() != "open":
+    if not is_taking_orders(item["restaurant_status"]):
         return "restaurant_unavailable", "That restaurant is not currently taking orders."
     if not is_restaurant_open(item["hours"], weekday, order_time):
         return "restaurant_closed", f"That restaurant is closed at that meal time on {weekday}."

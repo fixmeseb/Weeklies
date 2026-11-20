@@ -35,6 +35,7 @@ from proj2.plan_rules import (
     SLOT_NAMES,
     PlanRuleError,
     is_restaurant_open,
+    is_taking_orders,
     item_rejection,
     slot_rejection,
 )
@@ -241,10 +242,13 @@ class MenuGenerator:
             self.catalog = pd.read_sql_query("SELECT * FROM MenuItem", conn)
             self.item_prices = dict(zip(self.catalog.itm_id, self.catalog.price))
             self.menu_items = pd.read_sql_query("SELECT * FROM MenuItem WHERE instock == 1", conn)
-            # Same match as plan_rules.item_rejection: trimmed, case-insensitive
-            self.restaurants = pd.read_sql_query(
-                "SELECT rtr_id, hours FROM Restaurant WHERE LOWER(TRIM(status)) = 'open'", conn
-            )
+            # Filtered here rather than in SQL so it is the same rule the swap path uses.
+            # `WHERE status=="Open"` excluded every restaurant the seeds and fixtures
+            # create, since all of them store 'open'; SQLite's TRIM() would not have fixed
+            # it either, because it strips spaces while str.strip() strips all whitespace.
+            stored = pd.read_sql_query("SELECT rtr_id, hours, status FROM Restaurant", conn)
+            open_now = stored["status"].map(is_taking_orders).astype(bool)
+            self.restaurants = stored.loc[open_now, ["rtr_id", "hours"]].copy()
         finally:
             conn.close()
         self.weekly_totals_cents = None

@@ -4,7 +4,8 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: ["main"]
+    # dev-branch is the integration branch; without it, PRs into it got no CI at all.
+    branches: ["main", "dev-branch"]
   workflow_dispatch:
 
 concurrency:
@@ -12,6 +13,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  lint:
+    # Black and Ruff over the Python files this branch changed. Scoped rather than
+    # whole-tree because the tree has 61 unformatted files and 94 ruff errors; gating all
+    # of them at once needs a reformat commit that conflicts with every open branch.
+    # New and edited code is held to the standard; the backlog can be paid down separately.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the gate diffs against the base branch, so it needs the history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Black and Ruff at the pinned versions
+        run: |
+          set -e
+          # From requirements.txt so there is one source of truth for the versions, but
+          # without the rest of it: this job has no use for torch.
+          grep -E '^(black|ruff)==' proj2/requirements.txt > /tmp/lint-requirements.txt
+          cat /tmp/lint-requirements.txt
+          pip install -r /tmp/lint-requirements.txt
+
+      - name: Check the files this branch changed
+        run: bash scripts/check-changed.sh "${{ github.event.pull_request.base.ref || 'dev-branch' }}"
+
   m0-evaluation:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -82,24 +111,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt --no-cache-dir
-          pip install pytest pytest-cov black ruff --no-cache-dir
 
       - name: Run tests with coverage
         working-directory: proj2
         run: |
           pytest --tb=short -v --cov=. --cov-report=xml --cov-report=term-missing
-
-      - name: Check code formatting (Black)
-        working-directory: proj2
-        continue-on-error: true
-        run: |
-          black --check .
-
-      - name: Lint code (Ruff)
-        working-directory: proj2
-        continue-on-error: true
-        run: |
-          ruff check .
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
