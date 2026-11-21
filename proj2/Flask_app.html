@@ -108,6 +108,21 @@
                     <a class="function" href="#restaurant_logout">restaurant_logout</a>
             </li>
             <li>
+                    <a class="variable" href="#SIGNUP_DEFAULT_OPEN">SIGNUP_DEFAULT_OPEN</a>
+            </li>
+            <li>
+                    <a class="variable" href="#SIGNUP_DEFAULT_HOURS">SIGNUP_DEFAULT_HOURS</a>
+            </li>
+            <li>
+                    <a class="function" href="#restaurant_register">restaurant_register</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_restaurant_register_schema">api_restaurant_register_schema</a>
+            </li>
+            <li>
+                    <a class="function" href="#api_restaurant_register">api_restaurant_register</a>
+            </li>
+            <li>
                     <a class="function" href="#restaurant_dashboard">restaurant_dashboard</a>
             </li>
             <li>
@@ -747,6 +762,101 @@ Args:
     None
 Returns:
     Response: Redirect to restaurant login page.</p>
+</div>
+
+
+                </section>
+                <section id="SIGNUP_DEFAULT_OPEN">
+                    <div class="attr variable">
+            <span class="name">SIGNUP_DEFAULT_OPEN</span>        =
+<span class="default_value">(&#39;Mon&#39;, &#39;Tue&#39;, &#39;Wed&#39;, &#39;Thu&#39;, &#39;Fri&#39;)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SIGNUP_DEFAULT_OPEN"></a>
+    
+    
+
+                </section>
+                <section id="SIGNUP_DEFAULT_HOURS">
+                    <div class="attr variable">
+            <span class="name">SIGNUP_DEFAULT_HOURS</span>        =
+<span class="default_value">(&#39;11:00&#39;, &#39;21:00&#39;)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SIGNUP_DEFAULT_HOURS"></a>
+    
+    
+
+                </section>
+                <section id="restaurant_register">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/restaurant/register&#39;, methods=[&#39;GET&#39;, &#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">restaurant_register</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#restaurant_register"></a>
+    
+            <div class="docstring"><p>Sign a restaurant up, then sign it in and send it to its empty menu.</p>
+
+<p>There was a /restaurant/login with no door behind it: every restaurant came from
+<a href="seed.html">proj2.seed</a>, so nobody could join. A new restaurant lands on the menu page because a
+restaurant with no dishes is invisible to the planner, so adding the first dish is
+the only useful next step.
+Args:
+    None
+Returns:
+    Response: The sign-up form, the form again with errors, or a redirect to the
+    new restaurant's menu page.</p>
+</div>
+
+
+                </section>
+                <section id="api_restaurant_register_schema">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/register/schema&#39;)</div>
+
+        <span class="def">def</span>
+        <span class="name">api_restaurant_register_schema</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_restaurant_register_schema"></a>
+    
+            <div class="docstring"><p>The sign-up contract: every field, whether it is required, and how hours are stored.</p>
+
+<p>Public, like the form it describes: a client cannot have an account yet.
+Args:
+    None
+Returns:
+    Response: JSON generated from the validator, so it cannot drift from the server.</p>
+</div>
+
+
+                </section>
+                <section id="api_restaurant_register">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/api/restaurant/register&#39;, methods=[&#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">api_restaurant_register</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#api_restaurant_register"></a>
+    
+            <div class="docstring"><p>Sign a restaurant up from a JSON body, through the same validator as the form.</p>
+
+<p>This does not sign the caller in: a programmatic client posts credentials to
+/restaurant/login for that.
+Args:
+    None
+Returns:
+    Response: 201 with the new restaurant, or 422 with one message per bad field.</p>
 </div>
 
 
