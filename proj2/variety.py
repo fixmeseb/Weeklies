@@ -7,6 +7,29 @@ average of those, so a tag with many values (flavor) cannot outweigh the ones th
 matter most (protein, cuisine). A tag missing on either meal is left out and the rest
 re-averaged; it counts neither as a match nor as a difference.
 
+**Absent tags.** Re-averaging alone is not enough, because it reads a pair that could
+barely be compared as confidently as one that could be compared on everything. Two tag
+kinds are never missing -- `item` (itm_id) and `restaurant` (rtr_id) are on every
+catalog row -- and both almost always differ, `item` by definition for any two distinct
+dishes. For a dish with no descriptive tags those two are the *only* comparable kinds,
+carrying 5.0 of the 19.5 total weight, so re-averaging over them alone gave such a dish
+the maximum possible distance against anything at another restaurant:
+
+    an untagged dish vs any dish elsewhere                       1.000
+    two fully tagged dishes, as unlike as the seeded catalog gets  0.987
+
+The planner maximizes distance, so the best possible meal was one nobody had described.
+Five untagged dishes added to the 76-dish seeded catalog took 2 of 5 planned slots and
+raised the reported variety score from 0.937 to 0.965 -- the product claiming a week was
+*more* varied for containing food it knew nothing about.
+
+So the re-averaged distance is pulled toward NEUTRAL_DISTANCE in proportion to the
+weight that could not be compared. A fully tagged pair is unaffected, while the
+untagged pair above falls to 0.628 and can no longer outrank a genuinely varied one.
+Absent data says "unknown", not "different". This is the scoring half of the guard
+proj2/menu_items.py applies at the gate: that one keeps new dishes from entering the
+catalog untagged, this one stops the dishes already in it from being preferred for it.
+
 A plan's score is the average distance between its meals, weighted by how close they
 are in time: two chicken dinners in a row cost more than two a week apart. Because those
 closeness weights depend only on which slots are filled, not on what fills them, a
@@ -41,6 +64,12 @@ WEIGHTS = {
     "heaviness": 0.5,
     "temperature": 0.5,
 }
+
+## What an unmeasurable comparison is worth: the midpoint, meaning "no evidence either
+## way". distance() pulls a pair toward this in proportion to the weight it could not
+## compare, so a pair that could barely be compared cannot score at either extreme.
+## See "Absent tags" in the module docstring.
+NEUTRAL_DISTANCE = 0.5
 
 ## Tag kinds compared as sets of tags (Jaccard distance)
 SET_COLUMNS = ("protein", "cuisine", "carb_base", "cooking_method", "flavor", "texture")
@@ -114,15 +143,27 @@ def distance(a: dict, b: dict, weights: dict = WEIGHTS) -> float:
     """
     How different two meals are, from 0 (same) to 1 (nothing in common)
 
+    Tags missing on either meal are left out and the rest re-averaged, then the result
+    is pulled toward NEUTRAL_DISTANCE in proportion to the weight that was missing. The
+    re-average alone is what UNKNOWN_IS_NOT_DIFFERENT describes: it reads a pair that
+    could barely be compared as confidently as one that could be compared on everything,
+    and for an untagged dish the only comparable tags are the two that are always
+    present and almost always differ.
+
     Args:
         a (dict): features() of one meal
         b (dict): features() of the other
         weights (dict): Weight per tag kind (default WEIGHTS)
 
     Returns:
-        float: The weighted average of the per-tag distances over the tags both meals
-            have; 0.0 if they share no tag kind at all
+        float: 0 (same) to 1 (nothing in common); NEUTRAL_DISTANCE when the two meals
+            share no tag kind at all, because nothing was learned either way
     """
+    # The same dish is the one comparison that is never uncertain, so it is never
+    # shrunk: an exact repeat stays the closest possible pair even with no tags at all,
+    # which is what WEIGHTS promises and what stops a plan repeating one untagged dish.
+    if a.get("item") is not None and a.get("item") == b.get("item"):
+        return 0.0
     total = weight_sum = 0.0
     for column, weight in weights.items():
         x, y = a.get(column), b.get(column)
@@ -130,7 +171,11 @@ def distance(a: dict, b: dict, weights: dict = WEIGHTS) -> float:
             continue
         total += weight * _column_distance(column, x, y)
         weight_sum += weight
-    return total / weight_sum if weight_sum else 0.0
+    if not weight_sum:
+        return NEUTRAL_DISTANCE
+    observed = total / weight_sum
+    coverage = weight_sum / sum(weights.values())
+    return observed * coverage + NEUTRAL_DISTANCE * (1.0 - coverage)
 
 
 def shared_tags(a: dict, b: dict) -> list:

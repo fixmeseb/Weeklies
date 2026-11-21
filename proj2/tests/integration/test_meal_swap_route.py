@@ -363,8 +363,10 @@ def test_insights_show_weekly_variety(logged_in, plan):
     html = logged_in.get("/insights/2025/11").get_data(as_text=True)
     card = html.split('aria-label="Plan variety"')[1].split("</section>")[0]
     assert "2025-11-03" in card
-    # Four different dishes from one restaurant, with no other tags: 60% varied
-    assert "60%" in card
+    # Four different dishes from one restaurant and no other tags. Only 5.0 of the
+    # 19.5 total weight is comparable, so variety.distance shrinks the pair toward
+    # NEUTRAL_DISTANCE: 53%, not the 60% an undescribed catalog used to be credited with.
+    assert "53%" in card
     assert "Oatmeal (Mon breakfast) and Sandwich (Mon lunch): same restaurant" in card
 
 
@@ -422,7 +424,7 @@ def test_calendar_has_the_almanac_style(logged_in, plan):
     assert 'class="al-e swap-btn" data-meal="1" data-date="2025-11-03"' in page
     assert 'class="al-order order-btn"' in page
     assert "Fallow" in page  # empty slots later in the week
-    assert "60 parts in 100" in page and "Monotonous." in page
+    assert "53 parts in 100" in page and "Monotonous." in page
     assert "4 different dishes among 4." in page
     assert "Oatmeal (Mon breakfast) and Sandwich (Mon lunch): same restaurant." in page
     # Only one layout shows at a time; theme.js picks which
