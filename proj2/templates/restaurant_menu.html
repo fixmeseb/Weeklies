@@ -342,6 +342,12 @@
         {% endif %}
       </div>
     {% endif %}
+    {% if request.args.get("welcome") %}
+      <div class="alert good" role="status">
+        <strong>You are listed.</strong> Weeklies can only plan a meal it can see, so add
+        your first dish below — until then diners will not be offered your restaurant.
+      </div>
+    {% endif %}
     {% if request.args.get("added") %}<div class="alert good" role="status">Dish added.</div>{% endif %}
     {% if request.args.get("saved") %}<div class="alert good" role="status">Changes saved.</div>{% endif %}
     {% if request.args.get("stock") %}<div class="alert good" role="status">Availability updated.</div>{% endif %}

@@ -58,6 +58,7 @@ The project demonstrates **modular backend design**, **frontend interaction**, *
 - 🥗 **Dynamic meal generation** based on user preferences, allergens, and dietary constraints
 - 🧪 **Automated test suite** with `pytest` (unit, integration, e2e) and Cypress (UI e2e)
 - 🧰 **CI/CD workflows** for tests, linting, and documentation deployment
+- 🏪 **Restaurant sign-up** — a restaurant lists itself at `/restaurant/register` and lands on its own empty menu to add the first dish, instead of being added by hand to a seed script. Opening hours are collected a day at a time and stored in the per-day format the planner reads, because free-text hours render fine on every page and are silently never open to the planner
 - 🍜 **Restaurant menu management** — restaurant owners list, edit and withdraw their own dishes from a Menu tab, or over a JSON API whose field contract (`GET /api/restaurant/menu/schema`) is generated from the validator that checks submissions, so the two cannot drift. Tags are checked against their vocabularies, a dish is refused if it contradicts itself (vegan with a beef protein), and a dish a saved plan still names can be taken off the menu but not deleted
 - 🔁 **Single-meal swaps** — replace one date/meal slot from the calendar; the server checks stock, restaurant hours, and the account's allergies, and leaves the rest of the plan untouched (`POST /menu/swap`, `GET /menu/swap/options`)
 

@@ -1,0 +1,276 @@
+{# Restaurant sign-up. The page is rendered once for a blank form and again for a
+   rejected one, so every field reads its value from `submitted` and its message from
+   `errors`, both keyed by the field names proj2.restaurant_signup.validate expects.
+
+   The hours block is the part worth reading. Restaurant.hours has two consumers that
+   disagree -- format_hours renders prose or JSON, is_restaurant_open parses JSON only --
+   so a prose-hours restaurant looks fine on every page and is never planned from. This
+   form collects a time per day and stores the JSON, which is why there is no free-text
+   hours box here. See the restaurant_signup module docstring. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>List your restaurant · Weeklies</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+  <style>
+    .signup { max-width: 760px; margin: 0 auto; }
+    .section-title {
+      margin: 1.4rem 0 0; font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.65;
+    }
+    .section-note { margin: 0.15rem 0 0; font-size: 0.8rem; opacity: 0.75; }
+    .field-grid {
+      display: grid; gap: 0.9rem 1.1rem; margin-top: 0.9rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    /* style.css sets `form div.field { display: grid }`, which stretches a short input
+       to the height of the tallest cell in its row. These fields lay out in normal flow. */
+    .field-grid div.field { display: block; }
+    .field > label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 0.45rem 0.55rem; border: 1px solid var(--border);
+      border-radius: 6px; background: var(--bg); color: var(--text); font: inherit;
+    }
+    .field .hint { display: block; font-size: 0.75rem; opacity: 0.7; margin-top: 0.3rem; }
+    .field .bad { display: block; font-size: 0.78rem; color: var(--danger); margin-top: 0.3rem; }
+    .field [aria-invalid="true"] { border-color: var(--danger); }
+    .field.required > label::after { content: " *"; color: var(--danger); }
+    .field-wide { grid-column: 1 / -1; }
+
+    /* --- hours --- */
+    .hours { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.9rem 0 0; }
+    .hours legend { padding: 0 0.3rem; font-size: 0.85rem; font-weight: 600; }
+    .day {
+      display: grid; grid-template-columns: 7.5rem 1fr auto 1fr; align-items: center;
+      gap: 0.5rem; padding: 0.3rem 0;
+    }
+    .day + .day { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+    .day .toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+    .day .toggle input { accent-color: var(--primary); margin: 0; }
+    .day input[type="time"] {
+      padding: 0.35rem 0.45rem; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg); color: var(--text); font: inherit; width: 100%;
+    }
+    .day .to { font-size: 0.8rem; opacity: 0.7; }
+    .day .bad { grid-column: 1 / -1; font-size: 0.78rem; color: var(--danger); }
+    /* A day that is not open has nothing to set, so its times grey out. The checkbox is
+       the only thing the server reads to decide the day is open, so this is cosmetic. */
+    .day[data-open="no"] input[type="time"], .day[data-open="no"] .to { opacity: 0.45; }
+
+    .primary {
+      font: inherit; font-weight: 600; padding: 0.55rem 1.2rem; cursor: pointer;
+      border: none; border-radius: 8px; background: var(--primary); color: var(--on-primary);
+      margin-top: 1.4rem;
+    }
+    .alert {
+      padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem;
+      border: 1px solid var(--danger); color: var(--danger);
+      background: color-mix(in srgb, var(--danger) 8%, transparent);
+    }
+    .alert ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+    .alert a { color: inherit; }
+
+    @media (max-width: 560px) {
+      .day { grid-template-columns: 1fr 1fr; }
+      .day .toggle { grid-column: 1 / -1; }
+      .day .to { display: none; }
+    }
+  </style>
+</head>
+<body>
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="logo" aria-hidden="true"></span> Weeklies
+    </a>
+    <nav>
+      <a href="{{ url_for('restaurant_login') }}">Restaurant Login</a>
+    </nav>
+  </div>
+</header>
+
+<main class="main">
+  <div class="container signup">
+
+    {% set val = submitted or {} %}
+
+    {% if errors %}
+      <div class="alert" role="alert">
+        {% if errors.get("_blocked") %}
+          {{ errors["_blocked"] }}
+        {% else %}
+          Your restaurant could not be listed:
+          <ul>
+            {% for field, message in errors.items() %}
+              <li><a href="#{{ field }}">{{ message }}</a></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header" style="font-size: 1.4rem;">List your restaurant on Weeklies</div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom: 1rem;">
+          Weeklies plans a week of meals for its diners and sends you the orders. Tell us
+          where you are and when you are open, and you can add your dishes straight after.
+        </p>
+
+        <form method="post" action="{{ url_for('restaurant_register') }}" id="signup-form" novalidate>
+
+          <h2 class="section-title">Your restaurant</h2>
+          <div class="field-grid">
+            <div class="field required">
+              <label for="name">Restaurant name</label>
+              <input type="text" id="name" name="name" maxlength="{{ schema.fields.name.max_length }}"
+                     value="{{ val.get('name', '') }}" required
+                     {% if errors.get('name') %}aria-invalid="true" aria-describedby="name-bad"{% endif %} />
+              {% if errors.get('name') %}<span class="bad" id="name-bad">{{ errors['name'] }}</span>{% endif %}
+            </div>
+            <div class="field required">
+              <label for="phone">Phone</label>
+              <input type="tel" id="phone" name="phone" value="{{ val.get('phone', '') }}" required
+                     {% if errors.get('phone') %}aria-invalid="true" aria-describedby="phone-bad"{% endif %} />
+              {% if errors.get('phone') %}<span class="bad" id="phone-bad">{{ errors['phone'] }}</span>{% endif %}
+            </div>
+            <div class="field field-wide">
+              <label for="description">Description</label>
+              <textarea id="description" name="description" rows="2"
+                        maxlength="{{ schema.fields.description.max_length }}"
+                        placeholder="A line or two for diners browsing restaurants."
+                        {% if errors.get('description') %}aria-invalid="true" aria-describedby="description-bad"{% endif %}>{{ val.get('description', '') }}</textarea>
+              {% if errors.get('description') %}<span class="bad" id="description-bad">{{ errors['description'] }}</span>{% endif %}
+            </div>
+          </div>
+
+          <h2 class="section-title">Where you are</h2>
+          <div class="field-grid">
+            <div class="field required field-wide">
+              <label for="address">Street address</label>
+              <input type="text" id="address" name="address" maxlength="{{ schema.fields.address.max_length }}"
+                     value="{{ val.get('address', '') }}" required
+                     {% if errors.get('address') %}aria-invalid="true" aria-describedby="address-bad"{% endif %} />
+              {% if errors.get('address') %}<span class="bad" id="address-bad">{{ errors['address'] }}</span>{% endif %}
+            </div>
+            <div class="field required">
+              <label for="city">City</label>
+              <input type="text" id="city" name="city" maxlength="{{ schema.fields.city.max_length }}"
+                     value="{{ val.get('city', '') }}" required
+                     {% if errors.get('city') %}aria-invalid="true" aria-describedby="city-bad"{% endif %} />
+              {% if errors.get('city') %}<span class="bad" id="city-bad">{{ errors['city'] }}</span>{% endif %}
+            </div>
+            <div class="field required">
+              <label for="state">State</label>
+              <input type="text" id="state" name="state" maxlength="2" placeholder="NC"
+                     value="{{ val.get('state', '') }}" required
+                     {% if errors.get('state') %}aria-invalid="true" aria-describedby="state-bad"{% endif %} />
+              {% if errors.get('state') %}<span class="bad" id="state-bad">{{ errors['state'] }}</span>{% endif %}
+            </div>
+            <div class="field required">
+              <label for="zip">ZIP code</label>
+              <input type="text" id="zip" name="zip" maxlength="10" placeholder="27601"
+                     value="{{ val.get('zip', '') }}" required
+                     {% if errors.get('zip') %}aria-invalid="true" aria-describedby="zip-bad"{% endif %} />
+              {% if errors.get('zip') %}<span class="bad" id="zip-bad">{{ errors['zip'] }}</span>{% endif %}
+            </div>
+          </div>
+
+          <h2 class="section-title">When you are open</h2>
+          <p class="section-note">
+            Weeklies only plans a meal at a restaurant that is open at the time the diner
+            asked for, so these times decide when your dishes can be chosen.
+          </p>
+          <fieldset class="hours">
+            <legend class="sr-only">Opening hours</legend>
+            {% for day in schema.hours.days %}
+              {% set is_open = val.get('open_' ~ day) if submitted else day in default_open %}
+              <div class="day" data-open="{{ 'yes' if is_open else 'no' }}">
+                <label class="toggle" for="open_{{ day }}">
+                  <input type="checkbox" id="open_{{ day }}" name="open_{{ day }}" value="1"
+                         data-day-toggle {% if is_open %}checked{% endif %} />
+                  {{ day }}
+                </label>
+                <input type="time" id="{{ day }}_open" name="{{ day }}_open" aria-label="{{ day }} opening time"
+                       value="{{ val.get(day ~ '_open', default_hours[0]) }}"
+                       {% if errors.get(day ~ '_open') %}aria-invalid="true"{% endif %} />
+                <span class="to">to</span>
+                <input type="time" id="{{ day }}_close" name="{{ day }}_close" aria-label="{{ day }} closing time"
+                       value="{{ val.get(day ~ '_close', default_hours[1]) }}"
+                       {% if errors.get(day ~ '_close') %}aria-invalid="true"{% endif %} />
+                {% if errors.get(day ~ '_open') %}<span class="bad">{{ errors[day ~ '_open'] }}</span>{% endif %}
+                {% if errors.get(day ~ '_close') %}<span class="bad">{{ errors[day ~ '_close'] }}</span>{% endif %}
+              </div>
+            {% endfor %}
+          </fieldset>
+
+          <h2 class="section-title">Your account</h2>
+          <div class="field-grid">
+            <div class="field required">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" value="{{ val.get('email', '') }}" required
+                     placeholder="owner@yourrestaurant.com"
+                     {% if errors.get('email') %}aria-invalid="true" aria-describedby="email-bad"{% endif %} />
+              <span class="hint">You will sign in with this.</span>
+              {% if errors.get('email') %}<span class="bad" id="email-bad">{{ errors['email'] }}</span>{% endif %}
+            </div>
+            <div class="field">
+              <label for="status">Taking orders</label>
+              <select id="status" name="status"
+                      {% if errors.get('status') %}aria-invalid="true" aria-describedby="status-bad"{% endif %}>
+                {% for choice in schema.fields.status['values'] %}
+                  <option value="{{ choice }}"
+                    {% if val.get('status', 'open') == choice %}selected{% endif %}>
+                    {{ "Yes, list us now" if choice == "open" else "Not yet, keep us hidden" }}
+                  </option>
+                {% endfor %}
+              </select>
+              <span class="hint">You can change this any time.</span>
+              {% if errors.get('status') %}<span class="bad" id="status-bad">{{ errors['status'] }}</span>{% endif %}
+            </div>
+            <div class="field required">
+              <label for="password">Password</label>
+              <input type="password" id="password" name="password" required
+                     minlength="{{ schema.fields.password.min_length }}"
+                     {% if errors.get('password') %}aria-invalid="true" aria-describedby="password-bad"{% endif %} />
+              <span class="hint">At least {{ schema.fields.password.min_length }} characters.</span>
+              {% if errors.get('password') %}<span class="bad" id="password-bad">{{ errors['password'] }}</span>{% endif %}
+            </div>
+            <div class="field required">
+              <label for="confirm_password">Confirm password</label>
+              <input type="password" id="confirm_password" name="confirm_password" required
+                     {% if errors.get('confirm_password') %}aria-invalid="true" aria-describedby="confirm_password-bad"{% endif %} />
+              {% if errors.get('confirm_password') %}<span class="bad" id="confirm_password-bad">{{ errors['confirm_password'] }}</span>{% endif %}
+            </div>
+          </div>
+
+          <button type="submit" class="primary">List my restaurant</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+          <a href="{{ url_for('restaurant_login') }}" class="note">Already listed? Sign in</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">© 2026 Weeklies</div>
+</footer>
+
+<script>
+  // Greys out a day's times when it is not ticked. The server reads only the checkbox,
+  // so the page is fully usable with this script off.
+  document.querySelectorAll("[data-day-toggle]").forEach(function (box) {
+    box.addEventListener("change", function () {
+      box.closest(".day").dataset.open = box.checked ? "yes" : "no";
+    });
+  });
+</script>
+</body>
+</html>
