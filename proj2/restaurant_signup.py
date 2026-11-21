@@ -7,7 +7,7 @@ the reviews, and the menu editor added alongside this module -- could only ever 
 by an account a developer had seeded. There was a ``/restaurant/login`` with no door
 behind it. This module is the write path.
 
-**Why the form writes per-day JSON rather than the prose the login page's own seed uses.**
+**Why the form writes per-day JSON rather than free text.**
 ``Restaurant.hours`` is read by two consumers that do not agree on a format.
 ``proj2.hours.format_hours`` renders either per-day JSON or free text, so prose hours look
 perfectly fine on every page a person sees. ``proj2.plan_rules.is_restaurant_open`` parses
@@ -17,13 +17,19 @@ about it. ``menu_generation`` surfaces that mismatch only in the one case where 
 restaurant is open at all; while any seeded restaurant still matches, a prose-hours
 restaurant is simply invisible, with no error on any page.
 
-The seeded catalog has it both ways already: 9 restaurants store JSON and 2 store prose,
-and those 2 can never be planned from. A sign-up form that accepted "11am - 10pm" would
-have let every new restaurant sign up into that same silence -- the worst kind of bug for
-somebody who has just joined, because the product looks like it is working. So the form
-collects an opening and closing time per day and stores the JSON contract, and
-``format_hours`` turns it back into prose for display. The two formats stop being two
-contracts: JSON is what is written, prose is only ever a rendering of it.
+``proj2.demo_menu`` seeds all 11 restaurants through ``_daily()``, so a freshly seeded
+catalog is entirely JSON and the hazard is in the column's contract rather than in that
+data. It is not hypothetical: a development database carried two prose rows left by a
+seed predating ``_daily()``, and those two restaurants could never be planned from while
+every page displayed their hours normally. Any database older than that change, or
+hand-edited, holds the same silent rows.
+
+A sign-up form that accepted "11am - 10pm" would have let every new restaurant join into
+that same silence -- the worst kind of bug for somebody who has just signed up, because
+the product looks like it is working. So the form collects an opening and closing time
+per day and stores the JSON contract, and ``format_hours`` turns it back into prose for
+display. The two formats stop being two contracts: JSON is what is written, prose is
+only ever a rendering of it.
 
 **Why a closing time must be after its opening time.** ``is_restaurant_open`` tests
 ``open <= time <= close`` against a single day with no wrap past midnight, so a window
