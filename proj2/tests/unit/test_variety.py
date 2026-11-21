@@ -94,7 +94,69 @@ class TestDistance:
         a, b, c = ({"itm_id": i, "rtr_id": r} for i, r in [(1, 1), (2, 1), (3, 2)])
         fa, fb, fc = map(variety.features, (a, b, c))
         assert variety.distance(fa, fa) == 0.0
-        assert 0.0 < variety.distance(fa, fb) < variety.distance(fa, fc) == 1.0
+        # Still ordered: another dish here, then a dish elsewhere. No longer 1.0 --
+        # see test_absent_tags_are_not_evidence_of_difference.
+        assert 0.0 < variety.distance(fa, fb) < variety.distance(fa, fc) < 1.0
+
+    def test_absent_tags_are_not_evidence_of_difference(self):
+        """Untagged dishes used to score 1.0, beating every described pair, so the
+        planner preferred food it knew nothing about. See the module docstring."""
+        untagged = variety.features({"itm_id": 1, "rtr_id": 1})
+        described = variety.features(
+            {
+                "itm_id": 2,
+                "rtr_id": 2,
+                "protein": "chicken",
+                "cuisine": "italian",
+                "carb_base": "pasta",
+                "cooking_method": "baked",
+                "flavor": "savory",
+                "texture": "soft",
+                "spice_level": 1,
+                "heaviness": "regular",
+                "temperature": "hot",
+            }
+        )
+        opposite = variety.features(
+            {
+                "itm_id": 3,
+                "rtr_id": 3,
+                "protein": "tofu",
+                "cuisine": "thai",
+                "carb_base": "rice",
+                "cooking_method": "fried",
+                "flavor": "spicy",
+                "texture": "crisp",
+                "spice_level": 4,
+                "heaviness": "light",
+                "temperature": "cold",
+            }
+        )
+        # A genuinely varied, fully described pair must outrank an undescribed one.
+        assert variety.distance(described, opposite) > variety.distance(untagged, described)
+
+    def test_a_pair_with_nothing_to_compare_is_neutral_not_identical(self):
+        """0.0 would claim two unknowns are the same meal."""
+        assert variety.distance({}, {}) == variety.NEUTRAL_DISTANCE
+
+    def test_a_repeat_is_the_closest_pair_even_with_no_tags(self):
+        """WEIGHTS promises this, and it is what stops a plan repeating one blank dish."""
+        untagged = variety.features({"itm_id": 7, "rtr_id": 1})
+        elsewhere = variety.features({"itm_id": 8, "rtr_id": 2})
+        assert variety.distance(untagged, untagged) == 0.0
+        assert variety.distance(untagged, untagged) < variety.distance(untagged, elsewhere)
+
+    def test_a_fully_tagged_pair_is_unaffected_by_the_shrinkage(self):
+        """Coverage is 1.0 there, so nothing is pulled toward neutral."""
+        a, b = feat("Chana Masala"), feat("Margherita Pizza")
+        covered = sum(
+            w for c, w in variety.WEIGHTS.items() if a.get(c) is not None and b.get(c) is not None
+        )
+        assert covered == pytest.approx(sum(variety.WEIGHTS.values()))
+        plain = sum(
+            w * variety._column_distance(c, a[c], b[c]) for c, w in variety.WEIGHTS.items()
+        ) / sum(variety.WEIGHTS.values())
+        assert variety.distance(a, b) == pytest.approx(plain)
 
     def test_shared_tags_explain_the_similarity(self):
         shared = variety.shared_tags(feat("Chana Masala"), feat("Palak Paneer"))

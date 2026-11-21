@@ -86,8 +86,13 @@ def test_price_rejects_an_implausible_amount():
 ## --- the required tags, and why ------------------------------------------
 
 
-def test_untagged_dish_scores_the_maximum_distance_against_a_real_dish(conn):
-    """The reason the three tags are required: absent data reads as perfect variety."""
+def test_an_untagged_dish_does_not_outscore_a_real_one(conn):
+    """This used to assert the opposite. Absent data scored a perfect 1.0, so the
+    planner preferred dishes nobody had described; variety.distance now shrinks a
+    barely-comparable pair toward NEUTRAL_DISTANCE. The required tags are still
+    required -- an untagged dish cannot be matched to a diet, a slot or a preference,
+    and its variety is a guess rather than a measurement -- but the catalog is no
+    longer actively biased toward it."""
     rows = {
         int(row["itm_id"]): row
         for row in conn.execute('SELECT * FROM "MenuItem" ORDER BY itm_id LIMIT 2')
@@ -99,8 +104,7 @@ def test_untagged_dish_scores_the_maximum_distance_against_a_real_dish(conn):
     blank_row = conn.execute('SELECT * FROM "MenuItem" WHERE name = "Blank"').fetchone()
     blank = variety.features(blank_row)
 
-    assert variety.distance(real[0], real[1]) < 1.0
-    assert variety.distance(blank, real[0]) == pytest.approx(1.0)
+    assert variety.distance(blank, real[0]) < 1.0
 
 
 def test_a_dish_cannot_be_added_without_the_planner_s_strongest_tags(conn, rtr_id):
