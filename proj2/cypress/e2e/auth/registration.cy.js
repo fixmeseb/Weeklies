@@ -15,11 +15,11 @@ describe("User Registration", () => {
     cy.get('input[name="password"]').type("password123");
     cy.get('input[name="confirm_password"]').type("password123");
 
-    // Select an allergy checkbox
+    // Allergies and required diets are both checkbox grids in _diet_editor.html.
+    // They were bubbles until the diet editor was unified with plan optimization;
+    // a diet is now posted as diets[] carrying the tag, not the label.
     cy.get('input[type="checkbox"][value="Peanuts"]').check();
-
-    // Click a preference bubble
-    cy.contains(".bubble", "Vegetarian").click();
+    cy.get('input[type="checkbox"][name="diets[]"][value="vegetarian"]').check();
 
     cy.get('#registerForm').submit();
 
@@ -34,6 +34,12 @@ describe("User Registration", () => {
     // Should arrive on index/calendar page
     cy.location("pathname").should("eq", "/");
     cy.contains("Welcome, Alice Wonderland").should("be.visible");
+
+    // The allergy and the diet were only clicked before, never checked for. Assert both
+    // survived registration, so the fields stay tested and not merely touched.
+    cy.visit("/profile#diet");
+    cy.get("#dietSummary").should("contain.text", "Peanuts");
+    cy.get('input[type="checkbox"][name="diets[]"][value="vegetarian"]').should("be.checked");
   });
 
   it("shows an alert when passwords do not match", () => {
