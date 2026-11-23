@@ -115,7 +115,7 @@ def test_switcher_offers_the_almanac_style():
 
 
 def test_almanac_style_sets_every_variable():
-    """The Almanac style brings its own colours, so it must set everything a palette does."""
+    """The Almanac style's own block is Classic on paper, so it sets everything a palette does."""
     block = style_block("almanac")
     assert block is not None
     assert [name for name in REQUIRED if not re.search(re.escape(name) + r"\s*:", block)] == []
@@ -123,10 +123,46 @@ def test_almanac_style_sets_every_variable():
 
 
 def test_almanac_style_overrides_the_palettes():
-    """Same specificity as the palette blocks, so it must come after all of them."""
+    """Same specificity as the palette blocks, so it must come after all of them (it is
+    Classic's paper version, and the base the other paper versions build on)."""
     assert STYLE.index(':root[data-style="almanac"] {') > max(
         STYLE.index(f':root[data-palette="{p}"]') for p in PALETTE_IDS[1:]
     )
+
+
+def paper_block(palette_id):
+    match = re.search(
+        r':root\[data-style="almanac"\]\[data-palette="%s"\]\s*\{(.*?)\}' % palette_id,
+        STYLE,
+        re.S,
+    )
+    return match.group(1) if match else None
+
+
+## The paper versions keep the Almanac block's transparent glows and its shadows
+PAPER_REQUIRED = [name for name in REQUIRED if not name.startswith("--glow")]
+
+
+@pytest.mark.parametrize("palette_id", PALETTE_IDS[1:])
+def test_each_palette_has_a_paper_version(palette_id):
+    """Under Seed Catalog & Almanac every theme prints on its own paper."""
+    block = paper_block(palette_id)
+    assert block is not None, f"style.css has no paper version of {palette_id}"
+    missing = [name for name in PAPER_REQUIRED if not re.search(re.escape(name) + r"\s*:", block)]
+    assert not missing
+
+
+@pytest.mark.parametrize("palette_id", PALETTE_IDS)
+def test_switcher_has_a_paper_swatch_for_each_palette(palette_id):
+    entry = re.search(r'\{ id: "%s", name: [^}]*\}' % palette_id, THEME_JS).group(0)
+    paper = re.search(r"paper: \[([^\]]+)\]", entry)
+    assert paper, f"{palette_id} has no paper swatch"
+    bg = _variables("almanac-style" if palette_id == "classic" else f"paper-{palette_id}")["--bg"]
+    assert paper.group(1).split(",")[0].strip().strip('"') == bg
+
+
+def test_theme_picker_stays_usable_under_the_almanac_style():
+    assert "select.disabled" not in THEME_JS
 
 
 def _variables(palette_id):
@@ -134,6 +170,11 @@ def _variables(palette_id):
         block = re.search(r":root\s*\{(.*?)\}", STYLE, re.S).group(1)
     elif palette_id == "almanac-style":
         block = style_block("almanac")
+    elif palette_id.startswith("paper-"):
+        # The paper version over the Almanac block it builds on
+        base = dict(re.findall(r"(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})", style_block("almanac")))
+        own = re.findall(r"(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})", paper_block(palette_id[6:]))
+        return {**base, **dict(own)}
     else:
         block = palette_block(palette_id)
     return dict(re.findall(r"(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})", block))
@@ -172,3 +213,104 @@ def test_text_meets_wcag_aa_contrast(palette_id, fg, bg):
         )
     colours = _variables(palette_id)
     assert _contrast(colours[fg], colours[bg]) >= 4.5, (fg, bg, colours[fg], colours[bg])
+
+
+PAPER_IDS = ["almanac-style"] + [f"paper-{p}" for p in PALETTE_IDS[1:]]
+
+## The Almanac style also prints display headings in --primary on the page, status words
+## on cards, and the restaurant banner in --hero-*.
+PAPER_TEXT_PAIRS = TEXT_PAIRS + [
+    ("--primary", "--bg"),
+    ("--muted", "--elev"),
+    ("--success", "--surface"),
+    ("--warning", "--surface"),
+    ("--danger", "--surface"),
+    ("--info", "--surface"),
+    ("--on-hero", "--hero-a"),
+    ("--on-hero", "--hero-b"),
+]
+
+
+@pytest.mark.parametrize("palette_id", PAPER_IDS)
+@pytest.mark.parametrize("fg, bg", PAPER_TEXT_PAIRS)
+def test_paper_versions_meet_wcag_aa_contrast(palette_id, fg, bg):
+    colours = _variables(palette_id)
+    assert _contrast(colours[fg], colours[bg]) >= 4.5, (fg, bg, colours[fg], colours[bg])
+
+
+@pytest.mark.parametrize("palette_id", PAPER_IDS)
+@pytest.mark.parametrize(
+    "fg, bg", [("--accent", "--bg"), ("--border", "--bg"), ("--star", "--surface")]
+)
+def test_paper_ornaments_and_rules_are_visible(palette_id, fg, bg):
+    """Ornaments, stars and ruled lines are not body text; 3:1 for ornaments and stars
+    (WCAG non-text contrast), and rules need only stand out from the paper."""
+    colours = _variables(palette_id)
+    minimum = 1.4 if fg == "--border" else 3.0
+    assert _contrast(colours[fg], colours[bg]) >= minimum, (fg, bg, colours[fg], colours[bg])
+
+
+## Styles that keep each palette's own colours and change only type and shapes
+COLOUR_KEEPING_STYLES = {
+    "ticket": ("Kitchen Ticket", ["Anton", "IBM+Plex+Mono"]),
+    "primer": ("Primer", ["Jost"]),
+    "menuboard": ("Menu Board", ["Archivo+Black", "Archivo:"]),
+}
+
+
+def _style_entry(style_id):
+    match = re.search(r'\{\s*id: "%s",\s*label: "([^"]+)",(.*?)\n    \}' % style_id, THEME_JS, re.S)
+    return match
+
+
+def test_switcher_offers_every_style_in_order():
+    assert re.findall(r'id: "([a-z]+)",\s*label:', THEME_JS) == [
+        "standard",
+        "almanac",
+        "ticket",
+        "primer",
+        "menuboard",
+    ]
+
+
+@pytest.mark.parametrize("style_id", COLOUR_KEEPING_STYLES)
+def test_new_style_is_offered_with_its_fonts(style_id):
+    label, families = COLOUR_KEEPING_STYLES[style_id]
+    entry = _style_entry(style_id)
+    assert entry, f"theme.js does not offer {style_id}"
+    assert entry.group(1) == label
+    fonts = "".join(re.findall(r'"([^"]*)"', entry.group(2).split("fonts:")[1]))
+    assert fonts.startswith("https://fonts.googleapis.com/css2?")
+    assert all(family in fonts for family in families)
+
+
+@pytest.mark.parametrize("style_id", COLOUR_KEEPING_STYLES)
+def test_new_style_sets_its_type_and_keeps_the_palette_colours(style_id):
+    """These styles work on all nine themes because they never redefine a colour."""
+    block = style_block(style_id)
+    assert block is not None, f"style.css has no block for {style_id}"
+    assert "--font:" in block and "--font-display:" in block
+    assert [name for name in REQUIRED if re.search(re.escape(name) + r"\s*:", block)] == []
+    assert not re.search(r':root\[data-style="%s"\]\[data-palette=' % style_id, STYLE)
+
+
+@pytest.mark.parametrize("style_id", COLOUR_KEEPING_STYLES)
+def test_new_style_draws_only_with_theme_variables(style_id):
+    rules = re.findall(r':root[^{]*data-style="%s"[^{]*\{([^}]*)\}' % style_id, STYLE)
+    assert rules
+    assert [r for r in rules if re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(", r)] == []
+
+
+@pytest.mark.parametrize("palette_id", PALETTE_IDS)
+@pytest.mark.parametrize("status", ["--success", "--warning", "--danger", "--info"])
+def test_menu_board_status_tags_are_readable(palette_id, status):
+    """Menu Board prints order statuses as --bg text on a tag of the status colour."""
+    colours = _variables(palette_id)
+    assert _contrast(colours["--bg"], colours[status]) >= 4.5, (status, colours[status])
+
+
+@pytest.mark.parametrize("palette_id", PALETTE_IDS)
+def test_menu_board_today_board_is_readable(palette_id):
+    """Its board is --text with --bg lettering, and the combo numbers swap the two."""
+    colours = _variables(palette_id)
+    assert _contrast(colours["--bg"], colours["--text"]) >= 4.5
