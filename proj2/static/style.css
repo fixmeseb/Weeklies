@@ -868,9 +868,10 @@ body::before {
 /* =========================================================
    Style: Seed Catalog & Almanac
    static/theme.js sets data-style="almanac" on <html> (picked beside the Theme
-   picker) and loads the fonts. It is a whole look, so it brings its own paper-and-ink
-   colours: this block comes after the palettes and overrides them, and the Theme
-   picker is disabled while it is on.
+   picker) and loads the fonts. It is a whole look printed on paper, so every theme
+   has a paper version: the block below is Classic's (paper and ink), and each other
+   palette's paper version follows it. Those are light paper tinted toward the
+   palette, with ink, rules and ornaments drawn from its colours.
    ========================================================= */
 :root[data-style="almanac"] {
   color-scheme: light;
@@ -890,8 +891,110 @@ body::before {
 }
 :root[data-style="almanac"] body {
   background-color: var(--bg);
-  background-image: radial-gradient(rgba(90, 70, 40, 0.06) 1px, transparent 1px);
+  /* the paper's grain, in the palette's ink */
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 7%, transparent) 1px, transparent 1px);
   background-size: 5px 5px;
+}
+
+/* ---- Paper versions of the palettes (Seed Catalog & Almanac) ----
+   One more attribute than the palette blocks, so these win over both the palette and
+   the paper-and-ink block above wherever they sit. --glow-* stay transparent and the
+   shadows, corners and fonts come from the block above. */
+
+/* Sorbet: a herbarium sheet. Mint-cream paper, green ink, pressed-rose ornaments. */
+:root[data-style="almanac"][data-palette="sorbet"] {
+  --bg: #e8ecd6; --surface: #f3f5e6; --elev: #dde4c8;
+  --text: #1f2b22; --muted: #4c594d;
+  --primary: #2f6b3f; --primary-600: #275a35; --primary-700: #1f4a2b; --on-primary: #f3f5e6;
+  --success: #2e6a3a; --warning: #74500e; --danger: #962c3c; --info: #2b5a82;
+  --border: #a9b894; --hint: #e1e7cd; --ring: rgba(47, 107, 63, 0.45);
+  --accent: #a24d66; --accent-2: #5b7fa6;
+  --hero-a: #2f6b3f; --hero-b: #6f4352; --on-hero: #f3f5e6;
+  --shade: #1f2b22; --star: #8f6310;
+}
+
+/* Seaside: a tide table. Sea-washed paper, terracotta ink, teal ornaments. */
+:root[data-style="almanac"][data-palette="seaside"] {
+  --bg: #dfe8e3; --surface: #edf3ef; --elev: #d2ded8;
+  --text: #2e211c; --muted: #554640;
+  --primary: #7d4f42; --primary-600: #6b4338; --primary-700: #59372e; --on-primary: #edf3ef;
+  --success: #24675a; --warning: #6f4d0e; --danger: #922b3a; --info: #2a5a84;
+  --border: #9fb5ae; --hint: #d8e3de; --ring: rgba(125, 79, 66, 0.45);
+  --accent: #23716d; --accent-2: #9c5468;
+  --hero-a: #23615e; --hero-b: #7d4f42; --on-hero: #edf3ef;
+  --shade: #2e211c; --star: #8a5f10;
+}
+
+/* Midnight Garden: a night-garden almanac. Cream paper, midnight-teal ink, rose ornaments. */
+:root[data-style="almanac"][data-palette="midnight"] {
+  --bg: #e8dcb9; --surface: #f2e9cf; --elev: #dccfa8;
+  --text: #0d1b1e; --muted: #3c4d50;
+  --primary: #1f4148; --primary-600: #183439; --primary-700: #12282c; --on-primary: #f2e9cf;
+  --success: #2c653b; --warning: #6c4a0c; --danger: #8f2638; --info: #2a5573;
+  --border: #a99f7f; --hint: #e0d3ae; --ring: rgba(31, 65, 72, 0.45);
+  --accent: #864470; --accent-2: #4f6f80;
+  --hero-a: #0d1b1e; --hero-b: #2b4a44; --on-hero: #f2e9cf;
+  --shade: #0d1b1e; --star: #85600f;
+}
+
+/* Driftwood: a ship's log. Weathered grey paper, navy ink, steel-blue ornaments. */
+:root[data-style="almanac"][data-palette="driftwood"] {
+  --bg: #e4e3d9; --surface: #efeee6; --elev: #d8d6ca;
+  --text: #283044; --muted: #4c5367;
+  --primary: #283044; --primary-600: #1f2636; --primary-700: #171c29; --on-primary: #efeee6;
+  --success: #2c6546; --warning: #6f4d0e; --danger: #922f3b; --info: #2b567b;
+  --border: #a8a69a; --hint: #dcdbd0; --ring: rgba(77, 111, 134, 0.5);
+  --accent: #4a6a80; --accent-2: #7b6458;
+  --hero-a: #283044; --hero-b: #6f5f56; --on-hero: #efeee6;
+  --shade: #283044; --star: #85600f;
+}
+
+/* Fern: a field guide. Pale fern-green paper, forest ink, khaki ornaments. */
+:root[data-style="almanac"][data-palette="fern"] {
+  --bg: #e9ebd6; --surface: #f3f6e6; --elev: #dcdfc4;
+  --text: #26302a; --muted: #4f5952;
+  --primary: #36453b; --primary-600: #2d3a31; --primary-700: #242f28; --on-primary: #f3f6e6;
+  --success: #2c6539; --warning: #6c4f0d; --danger: #8f3030; --info: #2d5965;
+  --border: #aab09a; --hint: #e1e4cc; --ring: rgba(54, 69, 59, 0.45);
+  --accent: #6a6845; --accent-2: #596869;
+  --hero-a: #36453b; --hero-b: #596869; --on-hero: #f3f6e6;
+  --shade: #26302a; --star: #85640f;
+}
+
+/* Blossom: a flower-seed packet. Rose paper, plum ink, orchid ornaments. */
+:root[data-style="almanac"][data-palette="blossom"] {
+  --bg: #f1e1df; --surface: #f8ecea; --elev: #e7d0cd;
+  --text: #3d1f36; --muted: #66475c;
+  --primary: #8f3279; --primary-600: #7a2867; --primary-700: #651f55; --on-primary: #f8ecea;
+  --success: #2c653a; --warning: #6f4a0e; --danger: #942233; --info: #2b5682;
+  --border: #cfa9b3; --hint: #ecd8d6; --ring: rgba(143, 50, 121, 0.45);
+  --accent: #a33d82; --accent-2: #c46a9e;
+  --hero-a: #8f3279; --hero-b: #6a3a5c; --on-hero: #f8ecea;
+  --shade: #3d1f36; --star: #8a5c10;
+}
+
+/* Admiral: a naval chart. Chart-room paper, navy ink, periwinkle ornaments. */
+:root[data-style="almanac"][data-palette="admiral"] {
+  --bg: #e8e5df; --surface: #f3f1ec; --elev: #dcd8d0;
+  --text: #1b264f; --muted: #454d69;
+  --primary: #274690; --primary-600: #213c7c; --primary-700: #1b264f; --on-primary: #f3f1ec;
+  --success: #2c6539; --warning: #6f4a0e; --danger: #922f3b; --info: #274690;
+  --border: #aeb0bf; --hint: #dedbd3; --ring: rgba(87, 108, 168, 0.5);
+  --accent: #52669f; --accent-2: #302b27;
+  --hero-a: #1b264f; --hero-b: #274690; --on-hero: #f3f1ec;
+  --shade: #1b264f; --star: #85600f;
+}
+
+/* Lagoon: a reef survey. Lagoon-tinted paper, navy ink, deep-teal ornaments. */
+:root[data-style="almanac"][data-palette="lagoon"] {
+  --bg: #dfe7e2; --surface: #ecf2ee; --elev: #d1dcd6;
+  --text: #1b264f; --muted: #474b62;
+  --primary: #1a6169; --primary-600: #155258; --primary-700: #114449; --on-primary: #ecf2ee;
+  --success: #27644b; --warning: #6c4f0d; --danger: #902f3b; --info: #2a5682;
+  --border: #9fb2ad; --hint: #d6e0da; --ring: rgba(26, 97, 105, 0.45);
+  --accent: #237580; --accent-2: #6e6475;
+  --hero-a: #1b264f; --hero-b: #1a6169; --on-hero: #ecf2ee;
+  --shade: #1b264f; --star: #85600f;
 }
 :root[data-style="almanac"] :is(h1, h2, h3, .brand, .cal-title) {
   font-family: var(--font-display);
@@ -900,6 +1003,10 @@ body::before {
 }
 :root[data-style="almanac"] :is(h1, .cal-title) { color: var(--primary); }
 :root[data-style="almanac"] .site-header { border-bottom: 1px solid var(--text); }
+/* The serif runs wider than the standard font: tighter links and pickers keep the
+   header on one line with the longer theme names ("Midnight Garden"). */
+:root[data-style="almanac"] .site-header nav a { padding: 8px 9px; }
+:root[data-style="almanac"] .site-header .palette-picker { padding: 5px 8px 5px 7px; gap: 5px; font-size: 0.86rem; }
 :root[data-style="almanac"] .logo { background: var(--primary); border-radius: 50%; }
 
 /* Show one calendar layout or the other; without JavaScript the standard one shows */
@@ -972,7 +1079,195 @@ body::before {
 
 /* The Style picker sits beside the Theme picker and reuses its pill */
 .picker-set { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.palette-picker.is-disabled { opacity: 0.55; cursor: not-allowed; }
-.palette-picker.is-disabled select { cursor: not-allowed; }
 .style-glyph { width: 16px; text-align: center; font-size: 15px; line-height: 1; color: var(--accent); }
 @media (max-width: 640px) { .palette-picker .palette-name { max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+
+/* =========================================================
+   Styles: Kitchen Ticket, Primer and Menu Board
+   static/theme.js sets data-style="ticket", "primer" or "menuboard" and loads the
+   fonts. Unlike Seed Catalog & Almanac these keep each palette's own colours: the
+   blocks below set only fonts and corners, and every rule after them draws with the
+   theme variables, so each style works on all nine themes.
+   ========================================================= */
+:root[data-style="ticket"] {
+  --font: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-display: "Anton", Impact, "Arial Narrow", sans-serif;
+  --radius: 0; --radius-sm: 0; --radius-xs: 0;
+}
+:root[data-style="primer"] {
+  --font: "Jost", "Futura", "Century Gothic", system-ui, sans-serif;
+  --font-display: "Jost", "Futura", "Century Gothic", system-ui, sans-serif;
+  --radius: 0; --radius-sm: 999px; --radius-xs: 999px;
+}
+:root[data-style="menuboard"] {
+  --font: "Archivo", system-ui, sans-serif;
+  --font-display: "Archivo Black", Impact, system-ui, sans-serif;
+  --radius: 10px; --radius-sm: 8px; --radius-xs: 999px;
+}
+:root:is([data-style="ticket"], [data-style="primer"], [data-style="menuboard"]) body::before { background: none; }
+/* The display faces run wide: tighter links and pickers keep the header on one line */
+:root:is([data-style="ticket"], [data-style="primer"], [data-style="menuboard"]) .site-header nav a { padding: 8px 9px; }
+:root:is([data-style="ticket"], [data-style="primer"], [data-style="menuboard"]) .site-header .palette-picker {
+  padding: 5px 8px 5px 7px; gap: 5px; font-size: 0.86rem;
+}
+
+/* ---- Kitchen Ticket: orders on a kitchen rail ---- */
+:root[data-style="ticket"] :is(h1, h2, h3, .brand, .cal-title, .card-header, .cal-dow) {
+  font-family: var(--font-display); font-weight: 400; text-transform: uppercase; letter-spacing: .03em;
+}
+:root[data-style="ticket"] .site-header { border-bottom: 3px double var(--text); }
+:root[data-style="ticket"] .site-header nav a { text-transform: uppercase; letter-spacing: .02em; font-size: .8rem; padding: 8px 6px; }
+:root[data-style="ticket"] .site-header .palette-picker { font-size: .78rem; }
+:root[data-style="ticket"] .logo { border-radius: 0; background: var(--text); }
+/* A ticket: perforated top edge, dashed rules, no double outline */
+:root[data-style="ticket"] :is(.card, .sheet) {
+  outline: 0; border: 1px solid var(--border); border-top: 0; padding-top: 12px;
+  background: radial-gradient(circle at 9px 0, var(--bg) 6px, transparent 6.5px) 0 0 / 18px 12px repeat-x, var(--surface);
+  box-shadow: 0 10px 0 -6px var(--hint);
+}
+:root[data-style="ticket"] .card-header { border-bottom: 1px dashed var(--muted); color: var(--primary); }
+:root[data-style="ticket"] .card-footer { border-top: 1px dashed var(--muted); }
+:root[data-style="ticket"] .table thead th { font-family: var(--font-display); text-transform: uppercase; }
+:root[data-style="ticket"] :is(.table, .ruled) :is(th, td) { border-bottom-style: dashed; }
+:root[data-style="ticket"] :is(.btn, .order-btn, .swap-btn, button[type="submit"]) {
+  border-radius: 0; text-transform: uppercase; letter-spacing: .06em; box-shadow: none; white-space: nowrap;
+}
+:root[data-style="ticket"] :is(.btn-outline, .swap-btn) { border: 1px dashed var(--text); }
+/* Order statuses are rubber stamps */
+:root[data-style="ticket"] .badge:is(.success, .warning, .danger, .info) {
+  display: inline-block; font-family: var(--font-display); font-style: normal; font-weight: 400;
+  text-transform: uppercase; letter-spacing: .1em; padding: 1px 8px;
+  border: 2px solid currentColor; transform: rotate(-4deg);
+}
+:root[data-style="ticket"] :is(.flash, .flash.success, .flash.danger) { border-style: dashed; border-left-style: solid; }
+/* Home: the day's meals hang as tickets on the rail */
+:root[data-style="ticket"] .card.compact { background: none; border: 0; box-shadow: none; }
+/* The rail the tickets hang from */
+:root[data-style="ticket"] .card.compact :is(h2, .h6) { padding-bottom: 6px; border-bottom: 4px solid var(--text); }
+:root[data-style="ticket"] .card.compact .list {
+  list-style: none; padding: 0; margin-top: 18px; counter-reset: tkt;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 18px; align-items: start;
+}
+:root[data-style="ticket"] .card.compact .list-item {
+  counter-increment: tkt; padding: 24px 16px 16px;
+  background: radial-gradient(circle at 9px 0, var(--bg) 6px, transparent 6.5px) 0 0 / 18px 12px repeat-x, var(--surface);
+  border: 1px solid var(--border); border-top: 0; box-shadow: 0 10px 0 -6px var(--hint); transform: rotate(-.8deg);
+}
+:root[data-style="ticket"] .card.compact .list-item:nth-child(2n) { transform: rotate(.7deg); }
+:root[data-style="ticket"] .card.compact .list-item::before {
+  content: "TKT " counter(tkt, decimal-leading-zero); display: block; margin-bottom: 6px; padding-bottom: 6px;
+  font-size: 12px; color: var(--muted); border-bottom: 1px dashed var(--muted);
+}
+:root[data-style="ticket"] .card.compact .list-item > strong {
+  display: block; font-family: var(--font-display); font-weight: 400; font-size: 20px;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--primary);
+}
+:root[data-style="ticket"] .cal-grid { border-top: 3px double var(--text); }
+:root[data-style="ticket"] .day-cell { border-right-style: dashed; border-bottom-style: dashed; }
+:root[data-style="ticket"] .day-num { font-family: var(--font-display); font-size: 1.1rem; }
+
+/* ---- Primer: a mid-century cookbook in flat shapes ---- */
+:root[data-style="primer"] :is(h1, h2, h3, .brand, .cal-title, .card-header, .cal-dow) {
+  font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+}
+:root[data-style="primer"] .page-title h1 { font-weight: 500; letter-spacing: .14em; }
+:root[data-style="primer"] .site-header { border-bottom: 6px solid var(--primary); }
+:root[data-style="primer"] .site-header nav a { text-transform: uppercase; letter-spacing: .1em; font-size: .86rem; }
+:root[data-style="primer"] .logo { border-radius: 50%; background: radial-gradient(circle at 70% 30%, var(--accent) 0 32%, var(--primary) 33%); }
+/* A page block: flat colour, a thick top rule and a circle in the corner */
+:root[data-style="primer"] :is(.card, .sheet) {
+  position: relative; overflow: hidden; outline: 0; border: 0; border-top: 6px solid var(--text);
+  background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--accent) 35%, transparent) 0 70px, transparent 71px), var(--surface);
+}
+:root[data-style="primer"] .card-header { border-bottom: 2px solid var(--text); color: var(--primary); }
+:root[data-style="primer"] :is(.btn, .order-btn, .swap-btn, button[type="submit"]) {
+  border-radius: 999px; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; box-shadow: none; white-space: nowrap;
+}
+:root[data-style="primer"] :is(.btn-outline, .swap-btn) { border: 2px solid var(--text); }
+:root[data-style="primer"] .badge:is(.success, .warning, .danger, .info) {
+  font-style: normal; text-transform: uppercase; letter-spacing: .1em; font-size: 12px;
+}
+:root[data-style="primer"] .badge:is(.success, .warning, .danger, .info)::before {
+  content: ""; display: inline-block; width: .7em; height: .7em; margin-right: .4em; border-radius: 50%; background: currentColor;
+}
+:root[data-style="primer"] :is(.flash, .flash.success, .flash.danger) { border: 0; border-left: 6px solid var(--primary); }
+:root[data-style="primer"] .flash.success { border-left-color: var(--success); }
+:root[data-style="primer"] .flash.danger { border-left-color: var(--danger); }
+/* Home: the day's meals are numbered courses */
+:root[data-style="primer"] .card.compact .card-body { padding: 18px 20px; }
+:root[data-style="primer"] .card.compact .list { list-style: none; padding: 0; counter-reset: course; display: grid; gap: 14px; }
+:root[data-style="primer"] .card.compact .list-item {
+  counter-increment: course; position: relative; padding: 2px 0 14px 60px; border-bottom: 2px solid var(--border);
+}
+:root[data-style="primer"] .card.compact .list-item:last-child { border-bottom: 0; padding-bottom: 0; }
+:root[data-style="primer"] .card.compact .list-item::before {
+  content: counter(course); position: absolute; left: 0; top: 0; width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--primary); color: var(--on-primary); font-weight: 600; font-size: 20px;
+}
+:root[data-style="primer"] .card.compact .list-item > strong { text-transform: uppercase; letter-spacing: .1em; color: var(--primary); }
+:root[data-style="primer"] .cal-grid { border-top: 6px solid var(--text); }
+:root[data-style="primer"] .day-num {
+  display: inline-grid; place-items: center; width: 2em; height: 2em; border-radius: 50%; font-weight: 500;
+}
+:root[data-style="primer"] .day-cell.today { box-shadow: none; background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+:root[data-style="primer"] .day-cell.today .day-num { background: var(--primary); color: var(--on-primary); opacity: 1; }
+
+/* ---- Menu Board: a lit board over the counter ---- */
+:root[data-style="menuboard"] :is(h1, h2, h3, .brand, .cal-title, .card-header, .cal-dow) {
+  font-family: var(--font-display); font-weight: 400; text-transform: uppercase; letter-spacing: .01em;
+}
+:root[data-style="menuboard"] .site-header nav a { text-transform: uppercase; font-weight: 800; font-size: .8rem; padding: 8px 6px; }
+:root[data-style="menuboard"] .site-header .palette-picker { font-size: .8rem; }
+:root[data-style="menuboard"] .brand {
+  background: var(--primary); color: var(--on-primary); padding: 4px 12px 2px; border-radius: 6px; transform: rotate(-2deg);
+}
+:root[data-style="menuboard"] .brand .logo { display: none; }
+/* A lit panel: heavy frame, rounded corners, a glow from the edges in */
+:root[data-style="menuboard"] :is(.card, .sheet) {
+  outline: 0; border: 3px solid var(--text); border-radius: var(--radius);
+  box-shadow: inset 0 0 40px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+:root[data-style="menuboard"] .card-header { border-bottom: 3px solid var(--text); }
+:root[data-style="menuboard"] :is(.btn, .order-btn, .swap-btn, button[type="submit"]) {
+  border-radius: 999px; text-transform: uppercase; font-weight: 800; box-shadow: none; white-space: nowrap;
+}
+:root[data-style="menuboard"] :is(.btn-outline, .swap-btn) { border: 2px solid var(--text); }
+/* Statuses are price-tag labels */
+:root[data-style="menuboard"] .badge:is(.success, .warning, .danger, .info) {
+  display: inline-block; padding: 2px 10px; border-radius: 4px; font-style: normal; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .04em; font-size: 13px; color: var(--bg);
+}
+:root[data-style="menuboard"] .badge.success { background: var(--success); }
+:root[data-style="menuboard"] .badge.warning { background: var(--warning); }
+:root[data-style="menuboard"] .badge.danger { background: var(--danger); }
+:root[data-style="menuboard"] .badge.info { background: var(--info); }
+:root[data-style="menuboard"] :is(.flash, .flash.success, .flash.danger) { border: 3px solid var(--text); border-radius: var(--radius); }
+:root[data-style="menuboard"] .flash.success { border-color: var(--success); }
+:root[data-style="menuboard"] .flash.danger { border-color: var(--danger); }
+/* Home: the day's meals are combos #1-3 on the board, under a row of marquee bulbs */
+:root[data-style="menuboard"] .card.compact { background: var(--text); color: var(--bg); border-radius: 14px; }
+:root[data-style="menuboard"] .card.compact .card-body { padding: 40px 16px 16px; position: relative; }
+:root[data-style="menuboard"] .card.compact .card-body::before {
+  content: ""; position: absolute; left: 16px; right: 16px; top: 10px; height: 20px;
+  background: radial-gradient(circle, var(--accent) 3px, color-mix(in srgb, var(--accent) 35%, transparent) 4px, transparent 6px) 0 50% / 22px 22px repeat-x;
+}
+:root[data-style="menuboard"] .card.compact :is(h2, .h6) { font-family: var(--font-display); font-weight: 400; text-transform: uppercase; font-size: 1.6rem; color: var(--bg); }
+:root[data-style="menuboard"] .card.compact > .card-body > .muted { color: var(--bg); }
+:root[data-style="menuboard"] .card.compact .list {
+  list-style: none; padding: 0; margin-top: 12px; counter-reset: combo;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px;
+}
+:root[data-style="menuboard"] .card.compact .list-item {
+  counter-increment: combo; padding: 14px 16px 16px; border-radius: 6px; color: var(--text);
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--border), inset 0 0 40px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+:root[data-style="menuboard"] .card.compact .list-item::before {
+  content: "#" counter(combo); display: inline-grid; place-items: center; width: 40px; height: 40px; margin-right: 10px;
+  border-radius: 50%; background: var(--text); color: var(--bg); font-family: var(--font-display); font-size: 16px;
+}
+:root[data-style="menuboard"] .card.compact .list-item > strong { font-family: var(--font-display); font-weight: 400; text-transform: uppercase; font-size: 18px; }
+/* The dish starts on the line under the combo number */
+:root[data-style="menuboard"] .card.compact .list-item > strong::after { content: "\A"; white-space: pre; }
+:root[data-style="menuboard"] .cal-grid { border-top: 3px solid var(--text); }
+:root[data-style="menuboard"] .day-num { font-family: var(--font-display); }
+:root[data-style="menuboard"] .day-cell.today { box-shadow: inset 0 0 0 3px var(--primary); }
