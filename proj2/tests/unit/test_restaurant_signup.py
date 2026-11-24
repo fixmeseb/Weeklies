@@ -175,7 +175,7 @@ def test_a_malformed_zip_is_refused(bad):
 
 
 def test_a_phone_is_stored_as_digits_only():
-    """Matches proj2.Flask_app.register, so the two doors store the column the same way."""
+    """Matches proj2.auth.views.register, so the two doors store the column the same way."""
     assert restaurant_signup.validate(form(phone="(919) 555-0199")).values["phone"] == "9195550199"
 
 

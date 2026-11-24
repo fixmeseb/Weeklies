@@ -3,7 +3,7 @@
 Maps the single `status` column on "Order" onto the lifecycle stages so the
 profile page can draw a stepper instead of one status word.
 
-Lifecycle (driven by the restaurant routes in Flask_app.py):
+Lifecycle (driven by the restaurant routes in food/owner.py):
     Ordered -> Accepted -> Preparing -> Ready -> Delivered
 Cancelled is a side-exit reachable from Ordered/Accepted/Preparing.
 

@@ -77,7 +77,7 @@ CITY_MAX = 80
 EMAIL_MAX = 254
 PASSWORD_MIN = 8
 
-## Mirrors proj2.Flask_app.register, which is the other door into the same product.
+## Mirrors proj2.auth.views.register, which is the other door into the same product.
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 ## Five digits, or ZIP+4.
 ZIP_PATTERN = re.compile(r"^\d{5}(-\d{4})?$")
@@ -248,7 +248,7 @@ def validate(submitted, *, conn=None) -> Validated:
     if problem:
         errors["phone"] = problem
     else:
-        # Stored as digits only, matching proj2.Flask_app.register
+        # Stored as digits only, matching proj2.auth.views.register
         digits = re.sub(r"\D+", "", phone)
         if not PHONE_DIGITS_MIN <= len(digits) <= PHONE_DIGITS_MAX:
             errors["phone"] = "Enter a valid phone number."

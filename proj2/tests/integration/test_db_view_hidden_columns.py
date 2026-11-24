@@ -3,6 +3,7 @@
 Any logged-in customer can open the viewer, so credential columns are
 excluded from the query itself (DB_VIEW_HIDDEN_COLUMNS).
 """
+
 import re
 
 from werkzeug.security import generate_password_hash
@@ -25,6 +26,7 @@ def _get(client, table):
 
 # ---- expected cases ----
 
+
 def test_user_table_hides_password_hash(client, seed_minimal_data, login_session):
     html = _get(client, "User")
     assert "password_HS" not in _headers(html)
@@ -37,7 +39,9 @@ def test_user_table_still_shows_other_columns(client, seed_minimal_data, login_s
     assert seed_minimal_data["usr_email"] in html
 
 
-def test_restaurant_table_hides_password_hash(client, seed_minimal_data, login_session, temp_db_path):
+def test_restaurant_table_hides_password_hash(
+    client, seed_minimal_data, login_session, temp_db_path
+):
     conn = create_connection(temp_db_path)
     try:
         execute_query(
@@ -72,6 +76,7 @@ def test_password_hs_is_in_hidden_set():
 
 # ---- failure / edge cases ----
 
+
 def test_quote_ident_escapes_double_quotes():
     assert Flask_app._quote_ident("name") == '"name"'
     assert Flask_app._quote_ident('we"ird') == '"we""ird"'
@@ -81,9 +86,17 @@ def test_table_with_every_column_hidden_renders_empty(
     client, seed_minimal_data, login_session, monkeypatch
 ):
     """If nothing is left to show, the page renders 'No rows.' instead of erroring."""
-    review_cols = {"rev_id", "rtr_id", "usr_id", "title", "rating", "description", "ord_id",
-                   "created_at"}
-    monkeypatch.setattr(Flask_app, "DB_VIEW_HIDDEN_COLUMNS", frozenset(review_cols))
+    review_cols = {
+        "rev_id",
+        "rtr_id",
+        "usr_id",
+        "title",
+        "rating",
+        "description",
+        "ord_id",
+        "created_at",
+    }
+    monkeypatch.setattr("proj2.food.db_view.DB_VIEW_HIDDEN_COLUMNS", frozenset(review_cols))
     html = _get(client, "Review")
     assert _headers(html) == []
     assert "No rows." in html

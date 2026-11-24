@@ -109,7 +109,6 @@ def test_clear_a_range_of_days(client, temp_db_path, planned):
 
 
 def test_generate_with_replace_clears_the_days_first(client, temp_db_path, planned, monkeypatch):
-    from proj2 import Flask_app
 
     seen = {}
 
@@ -122,7 +121,7 @@ def test_generate_with_replace_clears_the_days_first(client, temp_db_path, plann
             seen["meal_times"] = k.get("meal_times")
             return menu
 
-    monkeypatch.setattr(Flask_app, "MenuGenerator", FakeGenerator)
+    monkeypatch.setattr("proj2.food.plan.MenuGenerator", FakeGenerator)
     client.post(
         "/menu/generate",
         data={"start_date": DAY1, "days": "2", "meal3": "on", "replace": "on"},

@@ -10,15 +10,15 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('insights') }}">Insights</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">My Orders</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('planner.insights') }}">Insights</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">My Orders</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -28,13 +28,13 @@
     <div class="page-title" style="align-items:center; justify-content:space-between;">
       <h1 class="mb-0">Plan Insights</h1>
       <div class="btnrow">
-        <a class="btn" href="{{ url_for('insights', year=prev_year, month=prev_month) }}">&larr; Prev</a>
-        <a class="btn btn-outline" href="{{ url_for('insights') }}">This month</a>
-        <a class="btn" href="{{ url_for('insights', year=next_year, month=next_month) }}">Next &rarr;</a>
+        <a class="btn" href="{{ url_for('planner.insights', year=prev_year, month=prev_month) }}">&larr; Prev</a>
+        <a class="btn btn-outline" href="{{ url_for('planner.insights') }}">This month</a>
+        <a class="btn" href="{{ url_for('planner.insights', year=next_year, month=next_month) }}">Next &rarr;</a>
       </div>
     </div>
     <p class="muted">The weeks planned in <strong>{{ month_name }} {{ year }}</strong>.
-      <a href="{{ url_for('index', year=year, month=month) }}">See them on the calendar</a>.</p>
+      <a href="{{ url_for('planner.index', year=year, month=month) }}">See them on the calendar</a>.</p>
 
     <section class="card" aria-label="Weekly item totals" style="margin-bottom: 20px;">
       <div class="card-body">

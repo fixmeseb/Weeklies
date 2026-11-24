@@ -120,10 +120,10 @@
         {% endif %}
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_accept_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_accept_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn btn-primary btn-action btn-accept">Accept order</button>
           </form>
-          <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
+          <form method="POST" action="{{ url_for('food.restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Are you sure you want to reject this order?');">
             <button type="submit" class="btn btn-outline btn-action btn-reject">Reject</button>
@@ -166,10 +166,10 @@
         </table>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_prepare_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_prepare_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn btn-primary btn-action btn-preparing">Start preparing</button>
           </form>
-          <form method="POST" action="{{ url_for('restaurant_reject_order', ord_id=order.ord_id) }}" 
+          <form method="POST" action="{{ url_for('food.restaurant_reject_order', ord_id=order.ord_id) }}" 
                 
                 onsubmit="return confirm('Cancel this order?');">
             <button type="submit" class="btn btn-outline btn-action btn-reject">Cancel</button>
@@ -210,7 +210,7 @@
         </table>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_ready_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_ready_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn btn-primary btn-action btn-ready">Mark ready</button>
           </form>
         </div>
@@ -249,7 +249,7 @@
         </table>
         
         <div class="order-actions">
-          <form method="POST" action="{{ url_for('restaurant_deliver_order', ord_id=order.ord_id) }}">
+          <form method="POST" action="{{ url_for('food.restaurant_deliver_order', ord_id=order.ord_id) }}">
             <button type="submit" class="btn btn-primary btn-action btn-deliver">Mark delivered</button>
           </form>
         </div>

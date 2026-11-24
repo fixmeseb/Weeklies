@@ -219,4 +219,4 @@ def monkeypatch_pdf(monkeypatch):
     def fake_pdf(db_path, ord_id):
         return b"%PDF-1.4\n%fake\n"
 
-    monkeypatch.setattr("proj2.Flask_app.generate_order_receipt_pdf", fake_pdf, raising=True)
+    monkeypatch.setattr("proj2.food.orders.generate_order_receipt_pdf", fake_pdf, raising=True)

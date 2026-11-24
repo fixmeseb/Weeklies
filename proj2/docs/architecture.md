@@ -1,7 +1,8 @@
 ﻿# Architecture (Overview)
 
 - **Framework**: Flask  
-- **Entrypoint**: Flask_app.py  
+- **Entrypoint**: Flask_app.py, which calls `create_app()` in `__init__.py`  
+- **Routes**: blueprints `auth/`, `account/`, `planner/` and `food/`; the first three do not import `food/`  
 - **Database**: SQLite (`CSC510_DB.db`)
 - **Database helpers**: sqlQueries.py (use only provided helpers)  
 - **Templates / Static**: templates/, static/  
