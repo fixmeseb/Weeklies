@@ -474,7 +474,7 @@ Order (ord_id)
 <li>Order history viewing (users can see their past orders)</li>
 <li>PDF receipt generation</li>
 <li>Calendar-based menu display (reads <code>generated_menu</code> from User table)</li>
-<li>Wallet balance tracking</li>
+<li>Wallet balances, charged when an order is placed and refunded when the restaurant cancels it (<code>proj2/wallet.py</code>)</li>
 </ul>
 <h3>⚠️ Partially Implemented</h3>
 <ul>
@@ -514,7 +514,7 @@ Order (ord_id)
 <li>Estimated delivery time updates</li>
 <li>Order cancellation (by user or restaurant)</li>
 <li>
-<p>Refund processing (update <code>User.wallet</code>)</p>
+<p>Refunds other than a restaurant cancellation (update <code>User.wallet</code>)</p>
 </li>
 <li>
 <p><strong>Inventory Management</strong></p>

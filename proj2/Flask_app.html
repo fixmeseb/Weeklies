@@ -1019,7 +1019,7 @@ Returns:
     </div>
     <a class="headerlink" href="#restaurant_reject_order"></a>
     
-            <div class="docstring"><p>Reject a pending order (Ordered → Cancelled).</p>
+            <div class="docstring"><p>Reject a pending order (Ordered → Cancelled) and refund the customer's wallet.</p>
 </div>
 
 
@@ -1398,8 +1398,8 @@ Args:
     None
 Returns:
     Response: JSON with {'ok', 'ord_id'} on success, or {'ok': False, 'error',
-    'message'} with 400/404/409 (see <a href="ordering.html#build_order">proj2.ordering.build_order</a>). A GET places
-    nothing and redirects to the Restaurants page.</p>
+    'message'} with 400/404/409 (see <a href="ordering.html#build_order">proj2.ordering.build_order</a>), or 402 when the
+    wallet cannot cover it. A GET places nothing and redirects to the Restaurants page.</p>
 </div>
 
 
@@ -1754,7 +1754,7 @@ or JSON start_date / number_of_days / meal_numbers). Other days are left alone.<
 
 <p>Each meal becomes its own order, due at the user's time for that meal on its day, so
 the restaurant sees when it is for. Meals that cannot be ordered (sold out, closed
-then, an allergen, a day already past) are skipped and reported; the rest are placed.
+then, an allergen, a day already past, more than the wallet holds) are skipped and reported; the rest are placed.
 Fields: start_date, days, meal1..3 (or JSON number_of_days / meal_numbers),
 delivery_type and tip (per order).</p>
 </div>

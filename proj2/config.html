@@ -54,6 +54,15 @@
                     <a class="function" href="#order_fees">order_fees</a>
             </li>
             <li>
+                    <a class="variable" href="#STARTING_WALLET_ENV">STARTING_WALLET_ENV</a>
+            </li>
+            <li>
+                    <a class="variable" href="#DEFAULT_STARTING_WALLET_CENTS">DEFAULT_STARTING_WALLET_CENTS</a>
+            </li>
+            <li>
+                    <a class="function" href="#starting_wallet_cents">starting_wallet_cents</a>
+            </li>
+            <li>
                     <a class="variable" href="#SEED_PASSWORD_ENV">SEED_PASSWORD_ENV</a>
             </li>
             <li>
@@ -178,6 +187,53 @@ Returns:
             <div class="docstring"><p>The fee schedule as a JSON-friendly dict, for templates.
 Returns:
     dict: tax_rate, delivery_fee and service_fee.</p>
+</div>
+
+
+                </section>
+                <section id="STARTING_WALLET_ENV">
+                    <div class="attr variable">
+            <span class="name">STARTING_WALLET_ENV</span>        =
+<span class="default_value">&#39;WEEKLIES_STARTING_WALLET&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#STARTING_WALLET_ENV"></a>
+    
+    
+
+                </section>
+                <section id="DEFAULT_STARTING_WALLET_CENTS">
+                    <div class="attr variable">
+            <span class="name">DEFAULT_STARTING_WALLET_CENTS</span>        =
+<span class="default_value">10000</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DEFAULT_STARTING_WALLET_CENTS"></a>
+    
+    
+
+                </section>
+                <section id="starting_wallet_cents">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">starting_wallet_cents</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">environ</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#starting_wallet_cents"></a>
+    
+            <div class="docstring"><p>What a newly registered customer's wallet holds. Orders are paid from the wallet and
+nothing in the app adds funds, so an account starting at zero could never order.
+Args:
+    environ (Mapping | None): Environment to read; defaults to os.environ.
+Returns:
+    int: WEEKLIES_STARTING_WALLET (a dollar amount) in cents, otherwise $100.00.
+Raises:
+    ValueError: the variable is set to something that is not a dollar amount of at
+        least zero.</p>
 </div>
 
 

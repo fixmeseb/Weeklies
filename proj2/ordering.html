@@ -373,13 +373,20 @@ what the planner suggests, not what a customer may buy.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">set_status</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">ord_id</span>, </span><span class="param"><span class="n">status</span>, </span><span class="param"><span class="n">at</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+        <span class="name">set_status</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">ord_id</span>, </span><span class="param"><span class="n">status</span>, </span><span class="param"><span class="n">at</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="n">only_from</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#set_status"></a>
     
             <div class="docstring"><p>Moves an order to a new status and records when.</p>
+
+<p>Args:
+    only_from (Sequence[str] | None): Move it only if its status is one of these,
+        checked by the same statement that changes it</p>
+
+<p>Returns:
+    bool: True if the order was moved</p>
 </div>
 
 

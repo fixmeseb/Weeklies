@@ -84,6 +84,9 @@
                     <a class="function" href="#price_cents">price_cents</a>
             </li>
             <li>
+                    <a class="function" href="#flatten">flatten</a>
+            </li>
+            <li>
                     <a class="function" href="#validate">validate</a>
             </li>
             <li>
@@ -383,6 +386,32 @@ nonnegative amount with at most two decimals rather than rounding it quietly.</p
 
 <p>Raises:
     ValueError: The amount is missing, negative, or has more than two decimals</p>
+</div>
+
+
+                </section>
+                <section id="flatten">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">flatten</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">submitted</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#flatten"></a>
+    
+            <div class="docstring"><p>One plain dict from any submission, with repeated fields joined</p>
+
+<p>A tag picker is a group of checkboxes sharing one name, so a form sends several
+values under that name and <code>Mapping.get</code> would see only the first; a JSON client
+may send a list for the same field. Both become the comma-separated text the tag
+parsers already read, so neither encoding is a special case further down.</p>
+
+<p>Args:
+    submitted (Mapping): A Werkzeug MultiDict, a plain dict, or anything mapping-like</p>
+
+<p>Returns:
+    dict: One value per key, lists joined with ", "</p>
 </div>
 
 
