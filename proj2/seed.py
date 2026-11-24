@@ -134,7 +134,7 @@ def _insert_demo_data(cursor, password):
             "testuser@example.com",
             "9195550101",
             pw_hash,
-            5000,
+            20000,
             "Vegetarian, Italian",
             "Peanuts",
             gen_menu_str,

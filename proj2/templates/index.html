@@ -1043,7 +1043,11 @@
         window.location.href = '{{ url_for("orders") }}' + (data.ord_id ? ('?ordered=' + data.ord_id) : '');
       } else {
         closeModal();
-        alert('Sorry, we could not place your order. Please try again.');
+        if (data && data.error === 'insufficient_funds') {
+          alert('Your wallet has $' + (data.balance_cents / 100).toFixed(2) + '; this order is $' + (data.total_cents / 100).toFixed(2) + '.');
+        } else {
+          alert('Sorry, we could not place your order. Please try again.');
+        }
       }
     } catch (err) {
       closeModal();

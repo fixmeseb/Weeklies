@@ -161,7 +161,7 @@
         <p class="slip-to" id="cartEmptyMsg" style="display:none;">Nothing on the slip yet. Add a dish from the menu.</p>
         <div id="cartGroups"></div>
         <div class="rx-slip-foot">
-          <span>Paid from your wallet</span>
+          <span>Paid from your wallet (${{ '%.2f'|format(wallet_cents / 100) }})</span>
           <button id="clearCartBtn" class="rx-link" type="button">Clear the slip</button>
         </div>
       </section>
@@ -212,7 +212,7 @@
   function writeCart(arr){ setCookie('cart', JSON.stringify(arr), 7); }
 
   // ---------- UI helpers ----------
-  function showToast(msg){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1400); }
+  function showToast(msg, ms){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), ms || 1400); }
   function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function toMoney(n){ return Number.parseFloat(n).toFixed(2); }
   function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
@@ -403,8 +403,12 @@
     };
     try {
       const res = await fetch(`{{ url_for('order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Order failed');
       const data = await res.json();
+      if (data.error === 'insufficient_funds') {
+        showToast(`Your wallet has $${toMoney(data.balance_cents/100)}; this order is $${toMoney(data.total_cents/100)}`, 5000);
+        return;
+      }
+      if (!res.ok) throw new Error('Order failed');
       showToast('Order placed!');
       const cart = readCart().filter(l => Number(l.restaurant_id) !== Number(rtrId));
       writeCart(cart);

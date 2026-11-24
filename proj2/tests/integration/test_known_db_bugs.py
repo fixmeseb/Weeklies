@@ -82,7 +82,7 @@ def bug_db(temp_db_path, monkeypatch):
         )
         conn.execute(
             'INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,'
-            "preferences,allergies,generated_menu) VALUES ('Bug','Hunter',?,'5550000',?,0,"
+            "preferences,allergies,generated_menu) VALUES ('Bug','Hunter',?,'5550000',?,100000,"
             "'spicy','Peanut','')",
             (EMAIL, generate_password_hash(PASSWORD)),
         )
@@ -149,7 +149,6 @@ def test_profile_edit_can_clear_allergies(user_client, bug_db):
 # ---------------------------------------------------------------- ordering
 
 
-@_known_bug(3, "negative tips are accepted and produce a negative total")
 def test_order_rejects_negative_tip(user_client, bug_db):
     resp = user_client.post(
         "/order",

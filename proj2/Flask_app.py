@@ -42,6 +42,7 @@ from proj2.dietary import (
     with_account_diets,
 )
 from proj2 import menu_items
+from proj2 import wallet
 from proj2 import restaurant_signup
 from proj2.meal_swap import (
     SlotNotFoundError,
@@ -60,7 +61,13 @@ from flask import Flask, render_template, url_for, redirect, request, session, s
 
 # Use ONLY these helpers for DB access: get_db() for the connection, then the
 # sqlQueries helpers (which raise on SQL errors) to run statements.
-from proj2.db import DatabaseNotInitialisedError, connect, get_db, init_app as init_db_support
+from proj2.db import (
+    DatabaseNotInitialisedError,
+    connect,
+    get_db,
+    init_app as init_db_support,
+    transaction,
+)
 from proj2.sqlQueries import fetch_one, fetch_all, execute_query
 
 SECRET_KEY_ENV = "WEEKLIES_SECRET_KEY"
@@ -186,6 +193,44 @@ def _order_charges(subtotal: float, delivery_type: str, tip: float) -> dict:
     service_fee = config.SERVICE_FEE
     total = _money(subtotal + tax + delivery_fee + service_fee + tip)
     return {"tax": tax, "delivery_fee": delivery_fee, "service_fee": service_fee, "total": total}
+
+
+def _parse_tip(value):
+    """
+    Read a tip in dollars.
+    Args:
+        value: The submitted tip; blank or missing means no tip.
+    Returns:
+        float | None: The tip rounded to cents, or None if it is negative or not a number.
+    """
+    try:
+        tip = float(value or 0)
+    except (TypeError, ValueError):
+        return None
+    return _money(tip) if math.isfinite(tip) and tip >= 0 else None
+
+
+def _place_order(conn, rtr_id, usr_id, details) -> int:
+    """
+    Charge the customer's wallet for an order and store it, both or neither.
+    Args:
+        conn (sqlite3.Connection): Open database connection.
+        rtr_id (int): The restaurant.
+        usr_id (int): The customer.
+        details (dict): The order's details; its charges' total is what is taken.
+    Returns:
+        int: The new order's id.
+    Raises:
+        wallet.InsufficientFundsError: The wallet holds less than the total.
+    """
+    cents = wallet.to_cents(details["charges"]["total"])
+    with transaction(conn):
+        wallet.charge(conn, usr_id, cents)
+        return execute_query(
+            conn,
+            'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
+            (rtr_id, usr_id, json.dumps({**details, "wallet_cents": cents}), "Ordered"),
+        ).lastrowid
 
 
 def _cents_to_dollars(cents) -> float:
@@ -1437,25 +1482,36 @@ def restaurant_accept_order(ord_id):
 @restaurant_required
 def restaurant_reject_order(ord_id):
     """
-    Reject a pending order (Ordered → Cancelled).
+    Reject a pending order (Ordered → Cancelled) and refund the customer's wallet.
     """
     rtr_id = session.get("rtr_id")
 
     conn = get_db()
     order = fetch_one(
-        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+        conn,
+        'SELECT ord_id, rtr_id, status, usr_id, details FROM "Order" WHERE ord_id = ?',
+        (ord_id,),
     )
 
     if not order or order[1] != rtr_id:
         abort(403)
 
-    if order[2] not in ["Ordered", "Accepted", "Preparing"]:
+    # The status is checked by the same statement that changes it, so cancelling twice at
+    # once refunds only once.
+    with transaction(conn):
+        cancelled = execute_query(
+            conn,
+            'UPDATE "Order" SET status = ? WHERE ord_id = ? '
+            "AND status IN ('Ordered', 'Accepted', 'Preparing')",
+            ("Cancelled", ord_id),
+        )
+        if cancelled.rowcount == 1:
+            wallet.refund_order(conn, order[3], order[4])
+    if cancelled.rowcount != 1:
         return (
             jsonify({"ok": False, "error": "Cannot cancel at this stage"}),
             400,
         )
-
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', ("Cancelled", ord_id))
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1625,7 +1681,16 @@ def register():
                 VALUES
                     (?,          ?,         ?,     ?,     ?,           ?,      ?,            ?)
                 """,
-                (fname, lname, email, digits_only, password_hashed, 0, preferences, allergies),
+                (
+                    fname,
+                    lname,
+                    email,
+                    digits_only,
+                    password_hashed,
+                    config.starting_wallet_cents(),
+                    preferences,
+                    allergies,
+                ),
             )
         except IntegrityError:
             return registration_page("Email already registered")
@@ -2260,7 +2325,9 @@ def order():
         delivery_type = (payload.get("delivery_type") or "delivery").lower()
         if delivery_type not in ("delivery", "pickup"):
             delivery_type = "delivery"
-        tip_dollars = _money(payload.get("tip") or 0)
+        tip_dollars = _parse_tip(payload.get("tip"))
+        if tip_dollars is None:
+            return jsonify({"ok": False, "error": "invalid_tip"}), 400
         eta_minutes = int(payload.get("eta_minutes") or 40)
         iso_date = payload.get("date") or datetime.now().date().isoformat()
         try:
@@ -2357,12 +2424,20 @@ def order():
         }
 
         # Insert the single order row with status "Ordered"
-        conn = get_db()
-        new_ord_id = execute_query(
-            conn,
-            'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
-            (rtr_id, usr_id, json.dumps(details), "Ordered"),
-        ).lastrowid
+        try:
+            new_ord_id = _place_order(get_db(), rtr_id, usr_id, details)
+        except wallet.InsufficientFundsError as exc:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "insufficient_funds",
+                        "balance_cents": exc.balance_cents,
+                        "total_cents": exc.total_cents,
+                    }
+                ),
+                402,
+            )
 
         # Update analytics for this restaurant
         update_analytics_safe(rtr_id)
@@ -2383,10 +2458,7 @@ def order():
     delivery_type = (request.args.get("delivery") or "delivery").lower()
     if delivery_type not in ("delivery", "pickup"):
         delivery_type = "delivery"
-    try:
-        tip_dollars = _money(float(request.args.get("tip", "0")))
-    except Exception:
-        tip_dollars = 0.0
+    tip_dollars = _parse_tip(request.args.get("tip")) or 0.0
     try:
         eta_minutes = int(request.args.get("eta", "40"))
     except Exception:
@@ -2448,12 +2520,10 @@ def order():
         "meal": meal,
     }
 
-    conn = get_db()
-    new_ord_id = execute_query(
-        conn,
-        'INSERT INTO "Order" (rtr_id, usr_id, details, status) VALUES (?, ?, ?, ?)',
-        (rtr_id, usr_id, json.dumps(details), "Ordered"),
-    ).lastrowid
+    try:
+        new_ord_id = _place_order(get_db(), rtr_id, usr_id, details)
+    except wallet.InsufficientFundsError:
+        return redirect(url_for("orders", unpaid=1))
 
     return redirect(url_for("orders", ordered=new_ord_id) if new_ord_id else url_for("orders"))
 
@@ -2582,7 +2652,13 @@ def orders():
     session["usr_id"] = row[0]
 
     placed = request.args.get("ordered", type=int)
-    return render_template("orders.html", orders=user_orders(conn, row[0]), placed=placed)
+    return render_template(
+        "orders.html",
+        orders=user_orders(conn, row[0]),
+        placed=placed,
+        unpaid=request.args.get("unpaid") == "1",
+        wallet_cents=wallet.balance_cents(conn, row[0]),
+    )
 
 
 # Restaurants browse route
@@ -2655,10 +2731,11 @@ def restaurants():
         for m in menu_items
     ]
 
-    allergy_row = fetch_one(
-        conn, 'SELECT allergies FROM "User" WHERE email = ?', (session.get("Email"),)
+    user_row = fetch_one(
+        conn, 'SELECT allergies, wallet FROM "User" WHERE email = ?', (session.get("Email"),)
     )
-    user_allergies = (allergy_row[0] if allergy_row else "") or ""
+    user_allergies = (user_row[0] if user_row else "") or ""
+    wallet_cents = (user_row[1] if user_row else 0) or 0
     banned = parse_allergens(user_allergies)
     for it in item_list:
         it["conflicts"] = sorted(banned & parse_allergens(it["allergens"]))
@@ -2681,6 +2758,7 @@ def restaurants():
         restaurants=rest_list,
         items=item_list,
         user_allergies=_csv_list(user_allergies),
+        wallet_cents=wallet_cents,
     )
 
 

@@ -243,7 +243,7 @@ Order (ord_id)
 - Order history viewing (users can see their past orders)
 - PDF receipt generation
 - Calendar-based menu display (reads `generated_menu` from User table)
-- Wallet balance tracking
+- Wallet balances, charged when an order is placed and refunded when the restaurant cancels it (`proj2/wallet.py`)
 
 ### ⚠️ Partially Implemented
 - **Restaurant Authentication**: Table has `password_HS` field but **no login system**
@@ -276,7 +276,7 @@ Based on the schema analysis, these features are database-ready but need impleme
    - Order status tracking for customers
    - Estimated delivery time updates
    - Order cancellation (by user or restaurant)
-   - Refund processing (update `User.wallet`)
+   - Refunds other than a restaurant cancellation (update `User.wallet`)
 
 5. **Inventory Management**
    - Update `MenuItem.instock` when items sell out

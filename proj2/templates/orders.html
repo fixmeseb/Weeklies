@@ -29,6 +29,9 @@
     {% if placed %}
       <div class="flash success">Order #{{ placed }} placed. You can follow it below.</div>
     {% endif %}
+    {% if unpaid %}
+      <div class="flash danger">That order was not placed: it costs more than the ${{ '%.2f'|format(wallet_cents / 100) }} in your wallet.</div>
+    {% endif %}
     <div class="page-title">
       <h1>My Orders</h1>
       <p class="hide-sm">Track each order, download its receipt and review it once it's delivered.</p>
