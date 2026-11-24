@@ -6,7 +6,8 @@ describe("Profile Editing & Password Change", () => {
 
   it("updates the phone in its pop-up and allergies in the Diet section", () => {
     cy.visit("/profile");
-    cy.get("#particulars .js-open-edit").click();
+    // The Phone row's "change" button (the Address row has one too)
+    cy.contains("#particulars dt", "Phone").next("dd").find(".js-open-edit").click();
     cy.get("#editModal").should("be.visible");
 
     // Change phone number

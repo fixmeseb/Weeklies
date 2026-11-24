@@ -8,7 +8,7 @@ import pytest
 from proj2.Flask_app import _meal_at, order_meals
 from proj2 import variety
 from proj2.meal_budget import plan_entries
-from proj2.menu_generation import LOOKBACK_DAYS
+from proj2.menu_generation import LOOKBACK_DAYS, recent_repeats
 from tests.unit.test_variety import make_generator
 
 START = "2026-11-19"  # a Thursday; the lookback is Mon 16 - Wed 18
@@ -49,6 +49,18 @@ def test_repeat_is_allowed_when_nothing_else_fits():
     gen = make_generator([{"protein": "chicken"}])
     plan = gen.update_menu("[2026-11-18,1,3]", "", "", START, [3])
     assert new_meals(plan) == [(START, 1, 3)]
+
+
+def test_only_meals_within_three_days_count_as_recent_repeats():
+    position = variety.slot_position(START, 3)
+    for day, barred in [
+        ("2026-11-15", False),
+        ("2026-11-16", True),
+        ("2026-11-22", True),
+        ("2026-11-23", False),
+    ]:
+        repeats = recent_repeats([(variety.slot_position(day, 1), 7)], position)
+        assert (7 in repeats) is barred, day
 
 
 def test_only_meals_within_three_days_bar_a_dish():

@@ -3,14 +3,18 @@
 Verified against Flask_app.py:857-983. /restaurant/analytics is protected by
 @restaurant_required. It also records a fresh snapshot on every request.
 """
-import pytest
+
 from proj2.sef26tests.conftest import make_order
 
 
 def _login_owner(client, seed_restaurant):
-    client.post("/restaurant/login", data={
-        "email": seed_restaurant["email"], "password": seed_restaurant["password"],
-    })
+    client.post(
+        "/restaurant/login",
+        data={
+            "email": seed_restaurant["email"],
+            "password": seed_restaurant["password"],
+        },
+    )
 
 
 def test_analytics_valid(client, seed_user, seed_restaurant, temp_db_path):
@@ -33,6 +37,7 @@ def test_analytics_no_auth(client):
 def test_analytics_no_orders(client, seed_restaurant, temp_db_path):
     """UC28 ext 1b: no orders → analytics shows zeros; still 200."""
     from proj2.sqlQueries import create_connection, execute_query, close_connection
+
     conn = create_connection(temp_db_path)
     try:
         execute_query(conn, 'DELETE FROM "Order" WHERE rtr_id=?', (seed_restaurant["rtr_id"],))
@@ -46,11 +51,14 @@ def test_analytics_no_orders(client, seed_restaurant, temp_db_path):
 def test_analytics_invalid_data(client, seed_user, seed_restaurant, temp_db_path):
     """UC28 ext 2a: order with invalid details JSON → row skipped but page still renders."""
     from proj2.sqlQueries import create_connection, execute_query, close_connection
+
     conn = create_connection(temp_db_path)
     try:
-        execute_query(conn,
+        execute_query(
+            conn,
             'INSERT INTO "Order"(rtr_id,usr_id,details,status) VALUES (?,?,?,?)',
-            (seed_restaurant["rtr_id"], seed_user["usr_id"], "not-json", "Ordered"))
+            (seed_restaurant["rtr_id"], seed_user["usr_id"], "not-json", "Ordered"),
+        )
     finally:
         close_connection(conn)
     _login_owner(client, seed_restaurant)
@@ -59,20 +67,28 @@ def test_analytics_invalid_data(client, seed_user, seed_restaurant, temp_db_path
 
 
 def test_analytics_no_popular_item(client, seed_restaurant, temp_db_path):
-    """UC28 ext 2b: no orders → most_popular_item_id is NULL in snapshot."""
+    """UC28 ext 2b: no orders → most_popular_item_id is NULL in snapshot.
+
+    Snapshots are saved when orders change, not when the page is viewed, so this
+    records one directly after removing the orders."""
     from proj2.sqlQueries import create_connection, execute_query, fetch_one, close_connection
+
     conn = create_connection(temp_db_path)
     try:
         execute_query(conn, 'DELETE FROM "Order" WHERE rtr_id=?', (seed_restaurant["rtr_id"],))
     finally:
         close_connection(conn)
-    _login_owner(client, seed_restaurant)
-    client.get("/restaurant/analytics")
+    from proj2 import Flask_app
+
+    with client.application.app_context():
+        assert Flask_app.record_analytics_snapshot(seed_restaurant["rtr_id"]) is True
     conn = create_connection(temp_db_path)
     try:
-        row = fetch_one(conn,
-            'SELECT most_popular_item_id FROM Analytics WHERE rtr_id=? ORDER BY analytics_id DESC LIMIT 1',
-            (seed_restaurant["rtr_id"],))
+        row = fetch_one(
+            conn,
+            "SELECT most_popular_item_id FROM Analytics WHERE rtr_id=? ORDER BY analytics_id DESC LIMIT 1",
+            (seed_restaurant["rtr_id"],),
+        )
     finally:
         close_connection(conn)
     assert row is None or row[0] is None
@@ -81,12 +97,16 @@ def test_analytics_no_popular_item(client, seed_restaurant, temp_db_path):
 def test_analytics_saves_snapshot(seed_user, seed_restaurant, temp_db_path):
     """UC28 variant: record_analytics_snapshot() writes a row and returns True."""
     from proj2.Flask_app import record_analytics_snapshot
+
     result = record_analytics_snapshot(seed_restaurant["rtr_id"])
     assert result is True
     from proj2.sqlQueries import create_connection, fetch_one, close_connection
+
     conn = create_connection(temp_db_path)
     try:
-        row = fetch_one(conn, 'SELECT COUNT(*) FROM Analytics WHERE rtr_id=?', (seed_restaurant["rtr_id"],))
+        row = fetch_one(
+            conn, "SELECT COUNT(*) FROM Analytics WHERE rtr_id=?", (seed_restaurant["rtr_id"],)
+        )
     finally:
         close_connection(conn)
     assert row[0] >= 1

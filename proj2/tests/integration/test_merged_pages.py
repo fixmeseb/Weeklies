@@ -126,14 +126,30 @@ def test_review_page_shows_the_form_then_the_review(client, seed_minimal_data, t
 
 
 def test_todays_menu_has_order_and_swap_buttons(client, seed_minimal_data, temp_db_path):
+    # A fresh user: other tests place orders for test@x.com "now", and between 11:00 and
+    # 16:00 those count as today's lunch, which shows "Ordered" instead of the button.
     today = date.today().isoformat()
     item = fetch_one_item(temp_db_path, seed_minimal_data["rtr_id"])
+    tag = uuid.uuid4().hex[:8]
+    email = f"menu-{tag}@test.com"
     _db(
         temp_db_path,
-        'UPDATE "User" SET generated_menu=? WHERE usr_id=?',
-        (f"[{today},{item},2]", seed_minimal_data["usr_id"]),
+        'INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,preferences,'
+        "allergies,generated_menu) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            "Menu",
+            "User",
+            email,
+            f"555{tag}",
+            generate_password_hash("secret123"),
+            0,
+            "",
+            "",
+            f"[{today},{item},2]",
+        ),
     )
-    _login(client)
+    resp = client.post("/login", data={"email": email, "password": "secret123"})
+    assert resp.status_code in (302, 303)
     html = client.get("/").get_data(as_text=True)
     card = html.split("Today’s Menu")[1].split("<!-- Calendar -->")[0]
     assert 'class="order-btn"' in card and 'class="swap-btn"' in card

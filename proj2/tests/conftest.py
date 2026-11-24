@@ -1,28 +1,26 @@
 import os
 import sys
+import tempfile
+import contextlib
+import sqlite3
+from typing import Any, Optional, Sequence
+
+import pytest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-import tempfile
-import contextlib
-import pytest
-import sqlite3
 
-# Import your app module
-import proj2.Flask_app as Flask_app
-from proj2.db_cli import apply_migrations
-
-# Import your DB helpers
-from proj2.sqlQueries import (
+# proj2 is importable only once ROOT is on sys.path
+import proj2.Flask_app as Flask_app  # noqa: E402
+from proj2.db_cli import apply_migrations  # noqa: E402
+from proj2.sqlQueries import (  # noqa: E402
     create_connection,
     close_connection,
     execute_query,
     fetch_one,
     fetch_all,
 )
-
-from typing import Any, Optional, Sequence
 
 
 def expect_one(row: Optional[Sequence[Any]], err: str) -> Any:
@@ -133,8 +131,10 @@ def seed_minimal_data(temp_db_path):
             execute_query(
                 conn,
                 """
-              INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,generated_menu)
-              VALUES ("Test","User",?, "5551234", ?, 0, "", "", "[2025-11-02,1,3]")
+              INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,generated_menu,
+                                 address,city,state,zip)
+              VALUES ("Test","User",?, "5551234", ?, 0, "", "", "[2025-11-02,1,3]",
+                      "1 Test Way","Raleigh","NC","27606")
             """,
                 (email, _hash_pw("secret123")),
             )

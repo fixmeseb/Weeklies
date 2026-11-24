@@ -81,18 +81,14 @@ def test_analytics_snapshot_captures_popular_item(client, seed_orders_for_analyt
             (rtr_id,),
         )
 
+        # The popular item field exists; it may be None if no orders have items
         assert snapshot is not None, "Snapshot should have popular item field"
-        popular_item_id = snapshot[0]
-
-        # Popular item field should exist (may be None if no orders with items)
-        # Just verify it's created without error
-        assert True, "Popular item field handled correctly"
     finally:
         close_connection(conn)
 
 
-def test_analytics_snapshot_multiple_records(client, seed_orders_for_analytics):
-    """Multiple snapshots can be recorded for same restaurant."""
+def test_analytics_snapshot_one_record_per_day(client, seed_orders_for_analytics):
+    """Recording twice in a day replaces that day's snapshot rather than adding one."""
     from proj2.Flask_app import record_analytics_snapshot, db_path
 
     rtr_id = seed_orders_for_analytics["rtr_id"]
@@ -111,7 +107,7 @@ def test_analytics_snapshot_multiple_records(client, seed_orders_for_analytics):
             (rtr_id,),
         )
 
-        assert len(snapshots) >= 2, "Should have at least 2 snapshots"
+        assert len(snapshots) == 1, "One snapshot per restaurant per day"
     finally:
         close_connection(conn)
 
