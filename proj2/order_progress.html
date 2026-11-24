@@ -66,9 +66,11 @@ profile page can draw a stepper instead of one status word.</p>
     Ordered -> Accepted -> Preparing -> Ready -> Delivered
 Cancelled is a side-exit reachable from Ordered/Accepted/Preparing.</p>
 
-<p>There is no status-history table, so for a Cancelled order we cannot tell
-which stage it reached before being cancelled; every stage is shown as
-"cancelled" rather than guessing.</p>
+<p>Each status change is recorded with its time in the "OrderStatus" table
+(proj2/ordering.py). Given that history, every stage shows when it was reached, and a
+Cancelled order shows the stages it got through before it was cancelled. Without it
+(orders from before the table existed carry only their status then), a Cancelled
+order shows every stage as "cancelled" rather than guessing.</p>
 </div>
 
                 
@@ -111,7 +113,7 @@ Returns:
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">order_progress</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">status</span></span><span class="return-annotation">):</span></span>
+        <span class="name">order_progress</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">status</span>, </span><span class="param"><span class="n">history</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -120,15 +122,19 @@ Returns:
             <div class="docstring"><p>Build the stepper view model for one order.
 Args:
     status: Raw value from the "Order".status column (may be None/unknown).
+    history: [(status, at ISO string)] oldest first, from <a href="ordering.html#status_history">proj2.ordering.status_history</a>;
+        None or empty when nothing was recorded.
 Returns:
     dict: {
         "key": normalized status key, or "unknown",
         "label": text for the status badge,
         "known": False when the status is not part of the lifecycle,
         "cancelled": True for Cancelled orders,
+        "cancelled_at": when it was cancelled ("" if not recorded),
         "percent": 0-100 progress through the lifecycle,
-        "steps": [{"key", "label", "state"}] where state is
-                 "done" | "current" | "upcoming" | "cancelled",
+        "steps": [{"key", "label", "state", "at"}] where state is
+                 "done" | "current" | "upcoming" | "cancelled" and at is when the
+                 stage was reached ("" if not reached or not recorded),
     }</p>
 </div>
 

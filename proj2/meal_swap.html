@@ -207,7 +207,7 @@ Flask_app.parse_generated_menu.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">slot_weekday_and_time</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">date</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">meal</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">):</span></span>
+        <span class="name">slot_weekday_and_time</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">date</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">times</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -217,7 +217,9 @@ Flask_app.parse_generated_menu.</p>
 
 <p>Args:
     date (str): The slot date in YYYY-MM-DD format
-    meal (int): The slot meal number (1, 2, or 3)</p>
+    meal (int): The slot meal number (1, 2, or 3)
+    times (dict | None): The user's meal times (<a href="meal_times.html#times_for">proj2.meal_times.times_for</a>); None
+        uses the defaults</p>
 
 <p>Returns:
     Tuple[str, int]: The weekday ("Mon".."Sun") and the meal's order time in HHMM format</p>
@@ -232,7 +234,7 @@ Flask_app.parse_generated_menu.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">swap_rejection</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">item</span>,</span><span class="param">	<span class="n">user_allergies</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">user_preferences</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+        <span class="name">swap_rejection</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">item</span>,</span><span class="param">	<span class="n">user_allergies</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">user_preferences</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">times</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -246,7 +248,8 @@ Flask_app.parse_generated_menu.</p>
     date (str): The slot date in YYYY-MM-DD format
     meal (int): The slot meal number (1, 2, or 3)
     user_preferences (str | None): The user's comma-separated preferences; the diets
-        they name (see <a href="dietary.html">proj2.dietary</a>) must all be satisfied by the item's diet_tags</p>
+        they name (see <a href="dietary.html">proj2.dietary</a>) must all be satisfied by the item's diet_tags
+    times (dict | None): The user's meal times; None uses the defaults</p>
 
 <p>Returns:
     Tuple[str, str] | None: (error_code, message) if the item is not allowed, otherwise None</p>
@@ -280,7 +283,7 @@ Flask_app.parse_generated_menu.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">list_swap_options</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">conn</span>,</span><span class="param">	<span class="n">user_allergies</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">exclude_itm_id</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">user_preferences</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+        <span class="name">list_swap_options</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">conn</span>,</span><span class="param">	<span class="n">user_allergies</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">exclude_itm_id</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">user_preferences</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">times</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -294,7 +297,8 @@ Flask_app.parse_generated_menu.</p>
     date (str): The slot date in YYYY-MM-DD format
     meal (int): The slot meal number (1, 2, or 3)
     exclude_itm_id (int | None): An item to leave out, typically the one already planned
-    user_preferences (str | None): The user's comma-separated preferences (diet rules)</p>
+    user_preferences (str | None): The user's comma-separated preferences (diet rules)
+    times (dict | None): The user's meal times; None uses the defaults</p>
 
 <p>Returns:
     List[dict]: The eligible items, ordered by itm_id</p>

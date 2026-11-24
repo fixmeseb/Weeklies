@@ -189,6 +189,9 @@
                     <a class="function" href="#save_diet_settings">save_diet_settings</a>
             </li>
             <li>
+                    <a class="function" href="#save_meal_times">save_meal_times</a>
+            </li>
+            <li>
                     <a class="function" href="#change_password">change_password</a>
             </li>
             <li>
@@ -205,6 +208,12 @@
             </li>
             <li>
                     <a class="function" href="#order">order</a>
+            </li>
+            <li>
+                    <a class="variable" href="#USER_ACCOUNT_COLUMNS">USER_ACCOUNT_COLUMNS</a>
+            </li>
+            <li>
+                    <a class="function" href="#account">account</a>
             </li>
             <li>
                     <a class="function" href="#order_meals">order_meals</a>
@@ -250,6 +259,15 @@
             </li>
             <li>
                     <a class="function" href="#generate_menu">generate_menu</a>
+            </li>
+            <li>
+                    <a class="function" href="#remove_planned_meal">remove_planned_meal</a>
+            </li>
+            <li>
+                    <a class="function" href="#clear_plan_days">clear_plan_days</a>
+            </li>
+            <li>
+                    <a class="function" href="#order_plan_days">order_plan_days</a>
             </li>
             <li>
                     <a class="function" href="#swap_meal">swap_meal</a>
@@ -416,16 +434,11 @@ Returns:
     </div>
     <a class="headerlink" href="#record_analytics_snapshot"></a>
     
-            <div class="docstring"><p>Record an analytics snapshot for a restaurant by calculating current order metrics.</p>
+            <div class="docstring"><p>Save today's figures for a restaurant (<a href="ordering.html#restaurant_metrics">proj2.ordering.restaurant_metrics</a>).</p>
 
-<p>This function:</p>
-
-<ol>
-<li>Queries all orders for the restaurant</li>
-<li>Calculates total orders, revenue, average order value, and completion rate</li>
-<li>Identifies the most popular menu item</li>
-<li>Inserts a new snapshot record in the Analytics table</li>
-</ol>
+<p>There is one snapshot per restaurant per day: a later call the same day replaces
+that day's row instead of adding another, so the history has one point per day
+however often orders change. Cancelled orders are left out of revenue.</p>
 
 <p>Args:
     rtr_id (int): The restaurant ID to record analytics for.</p>
@@ -1248,6 +1261,25 @@ Returns:
 
 
                 </section>
+                <section id="save_meal_times">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/profile/meal-times&#39;, methods=[&#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">save_meal_times</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#save_meal_times"></a>
+    
+            <div class="docstring"><p>Save when the user eats breakfast, lunch and dinner (proj2/meal_times.py).</p>
+
+<p>Form fields breakfast_time, lunch_time and dinner_time as HH:MM. Plans, swaps and
+orders check that restaurants are open at these times.</p>
+</div>
+
+
+                </section>
                 <section id="change_password">
                     <div class="attr function">
                     <div class="decorator">@app.route(&#39;/profile/change-password&#39;, methods=[&#39;POST&#39;])</div>
@@ -1365,7 +1397,37 @@ Returns:
 Args:
     None
 Returns:
-    Response: JSON with {'ok', 'ord_id'} on POST; redirects/HTML for legacy GET.</p>
+    Response: JSON with {'ok', 'ord_id'} on success, or {'ok': False, 'error',
+    'message'} with 400/404/409 (see <a href="ordering.html#build_order">proj2.ordering.build_order</a>). A GET places
+    nothing and redirects to the Restaurants page.</p>
+</div>
+
+
+                </section>
+                <section id="USER_ACCOUNT_COLUMNS">
+                    <div class="attr variable">
+            <span class="name">USER_ACCOUNT_COLUMNS</span>        =
+<input id="USER_ACCOUNT_COLUMNS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="USER_ACCOUNT_COLUMNS-view-value"></label><span class="default_value">&#39;usr_id, first_name, last_name, email, phone, wallet, preferences, allergies, generated_menu, address, city, state, zip, breakfast_time, lunch_time, dinner_time, optimization_weights, weekly_cap_cents, nutrition_targets, strict_targets&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#USER_ACCOUNT_COLUMNS"></a>
+    
+    
+
+                </section>
+                <section id="account">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">account</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">email</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="n">usr_id</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#account"></a>
+    
+            <div class="docstring"><p>The logged-in user's "User" row (as sqlite3.Row), by email or id; None if gone.</p>
 </div>
 
 
@@ -1639,6 +1701,62 @@ Returns:
             <div class="docstring"><p>Generate or extend the logged-in user's meal plan and persist it.</p>
 
 <p>Supports application/json and HTML form submissions.</p>
+</div>
+
+
+                </section>
+                <section id="remove_planned_meal">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/menu/remove&#39;, methods=[&#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">remove_planned_meal</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#remove_planned_meal"></a>
+    
+            <div class="docstring"><p>Remove one planned meal: date (YYYY-MM-DD) and meal (1|2|3), as JSON or form fields.
+Every other meal in the plan is left as it was.</p>
+</div>
+
+
+                </section>
+                <section id="clear_plan_days">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/menu/clear&#39;, methods=[&#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">clear_plan_days</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#clear_plan_days"></a>
+    
+            <div class="docstring"><p>Remove the planned meals from start_date for <code>days</code> days (the plan form's fields,
+or JSON start_date / number_of_days / meal_numbers). Other days are left alone.</p>
+</div>
+
+
+                </section>
+                <section id="order_plan_days">
+                    <div class="attr function">
+                    <div class="decorator">@app.route(&#39;/menu/order-plan&#39;, methods=[&#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">order_plan_days</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#order_plan_days"></a>
+    
+            <div class="docstring"><p>Order every planned meal from start_date for <code>days</code> days that is not ordered yet.</p>
+
+<p>Each meal becomes its own order, due at the user's time for that meal on its day, so
+the restaurant sees when it is for. Meals that cannot be ordered (sold out, closed
+then, an allergen, a day already past) are skipped and reported; the rest are placed.
+Fields: start_date, days, meal1..3 (or JSON number_of_days / meal_numbers),
+delivery_type and tip (per order).</p>
 </div>
 
 

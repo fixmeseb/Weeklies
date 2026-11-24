@@ -150,6 +150,9 @@
     <a class="headerlink" href="#test_analytics_no_popular_item"></a>
     
             <div class="docstring"><p>UC28 ext 2b: no orders → most_popular_item_id is NULL in snapshot.</p>
+
+<p>Snapshots are saved when orders change, not when the page is viewed, so this
+records one directly after removing the orders.</p>
 </div>
 
 

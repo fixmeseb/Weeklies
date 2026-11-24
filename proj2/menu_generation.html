@@ -60,6 +60,9 @@
 
             </li>
             <li>
+                    <a class="function" href="#recent_repeats">recent_repeats</a>
+            </li>
+            <li>
                     <a class="function" href="#get_meal_and_order_time">get_meal_and_order_time</a>
             </li>
             <li>
@@ -135,6 +138,10 @@ re-picks each slot with the rest of the plan fixed, and repeats that sweep until
 changes nothing: filling a slot changes what its neighbours should be, so a single pass
 leaves stale picks behind. With nutrition targets, meals that keep a day inside its
 targets outrank everything else (<a href="nutrition.html">proj2.nutrition</a>).</p>
+
+<p>The LOOKBACK_DAYS before the plan's first day count too: the meals planned or ordered
+then are neighbours for variety, and a dish eaten then is not planned again within
+LOOKBACK_DAYS of it unless nothing else fits the slot (recent_repeats).</p>
 
 <p>The result is deterministic: the same catalog and request always give the same plan.</p>
 </div>
@@ -257,20 +264,44 @@ targets outrank everything else (<a href="nutrition.html">proj2.nutrition</a>).<
                                 </dl>
                             </div>
                 </section>
+                <section id="recent_repeats">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">recent_repeats</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">recent</span>, </span><span class="param"><span class="n">position</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">set</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#recent_repeats"></a>
+    
+            <div class="docstring"><p>The items from the lookback days that count as repeats for one slot</p>
+
+<p>Args:
+    recent: (slot position, itm_id) of meals from the lookback days
+    position (int): variety.slot_position() of the slot being filled</p>
+
+<p>Returns:
+    set: itm_ids eaten within LOOKBACK_DAYS calendar days of the slot</p>
+</div>
+
+
+                </section>
                 <section id="get_meal_and_order_time">
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_meal_and_order_time</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">meal_number</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>:</span></span>
+        <span class="name">get_meal_and_order_time</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">meal_number</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">times</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#get_meal_and_order_time"></a>
     
-            <div class="docstring"><p>Maps a meal number to it's cooresponding meal as a string as well as its cooreponding meal time</p>
+            <div class="docstring"><p>Maps a meal number to its meal name and the time it is eaten</p>
 
 <p>Args:
-    meal_number (int): The meal number to get the meal and order times for</p>
+    meal_number (int): The meal number to get the meal and order times for
+    times (dict | None): The user's meal times (<a href="meal_times.html#times_for">proj2.meal_times.times_for</a>); None
+        uses the defaults</p>
 
 <p>Returns:
     str: The name of the meal as a string ("breakfast", "lunch", or "dinner")
@@ -489,7 +520,7 @@ hours), and the checks parse strings, so this is much faster on a large catalog.
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">update_menu</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">menu</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">preferences</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">allergens</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal_numbers</span>,</span><span class="param">	<span class="n">number_of_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">weekly_cap_cents</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">targets</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">strict_targets</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">ordered_meals</span><span class="o">=</span><span class="p">()</span>,</span><span class="param">	<span class="n">objective_weights</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">strategy</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">max_evaluations</span><span class="o">=</span><span class="mi">10000</span>,</span><span class="param">	<span class="n">starts</span><span class="o">=</span><span class="mi">1</span>,</span><span class="param">	<span class="n">seed</span><span class="o">=</span><span class="mi">0</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+        <span class="name">update_menu</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">menu</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">preferences</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">allergens</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">date</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">meal_numbers</span>,</span><span class="param">	<span class="n">number_of_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">weekly_cap_cents</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">targets</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">strict_targets</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">ordered_meals</span><span class="o">=</span><span class="p">()</span>,</span><span class="param">	<span class="n">objective_weights</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">strategy</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">max_evaluations</span><span class="o">=</span><span class="mi">10000</span>,</span><span class="param">	<span class="n">starts</span><span class="o">=</span><span class="mi">1</span>,</span><span class="param">	<span class="n">seed</span><span class="o">=</span><span class="mi">0</span>,</span><span class="param">	<span class="n">meal_times</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
 
         
     </div>
@@ -521,7 +552,11 @@ hours), and the checks parse strings, so this is much faster on a large catalog.
     max_evaluations (int): Shared limit on scored starting plans and neighbors.
     starts (int): Up to this many distinct starts, starting with the greedy plan.
         Nutrition targets use a single start built to respect those targets.
-    seed (int): Seed for randomized starts and move selection.</p>
+    seed (int): Seed for randomized starts and move selection.
+    ordered_meals: (date, itm_id, meal) of meals the user ordered; those in the
+        LOOKBACK_DAYS before {date} count like planned meals from those days
+    meal_times (dict | None): The user's meal times (<a href="meal_times.html#times_for">proj2.meal_times.times_for</a>);
+        restaurants must be open then. None uses the defaults.</p>
 
 <p>Returns:
     str: The updated menu string. Also sets self.variety (<a href="variety.html#PlanVariety">proj2.variety.PlanVariety</a>
