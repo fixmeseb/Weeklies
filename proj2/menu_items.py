@@ -146,7 +146,7 @@ def _flag(submitted, key, default=1):
     return 0 if text in {"0", "no", "n", "false", "f", "off"} else 1
 
 
-def _flatten(submitted):
+def flatten(submitted):
     """
     One plain dict from any submission, with repeated fields joined
 
@@ -187,7 +187,7 @@ def validate(submitted, *, partial=False) -> Validated:
         Validated: The storable values keyed by column, and one message per bad field
     """
     out = Validated()
-    submitted = _flatten(submitted)
+    submitted = flatten(submitted)
     present = set(submitted) & set(EDITABLE_COLUMNS)
 
     def wanted(column):
