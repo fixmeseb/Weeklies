@@ -94,6 +94,12 @@ def apply_migrations(conn, directory=MIGRATIONS_DIR):
             user_columns = {row[1] for row in conn.execute('PRAGMA table_info("User")')}
             if "optimization_weights" in user_columns:
                 sql = ""
+        # The ordering branch shipped this file as 005 before it was renumbered after the
+        # team's 005-009. A database made there already has all of it.
+        elif filename == "010_orders_addresses_meal_times.sql":
+            user_columns = {row[1] for row in conn.execute('PRAGMA table_info("User")')}
+            if "address" in user_columns:
+                sql = ""
         # executescript() commits first and runs outside the sqlite3 module's implicit
         # transactions, so wrap each file in an explicit one.
         try:

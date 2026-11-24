@@ -30,6 +30,7 @@
     .order-header h3 { margin: 0; font-family: var(--font); font-size: 1.1rem; font-weight: 600; color: var(--text); }
     .customer-info { margin-top: .25rem; font-size: .9rem; font-style: italic; color: var(--muted); line-height: 1.5; }
     .customer-info strong { font-style: normal; color: var(--text); font-weight: 600; }
+    .customer-info .due-for { color: var(--primary); }
     .status-badge { font-style: italic; font-weight: 600; font-size: .95rem; }
     .status-ordered { color: var(--warning); }
     .status-accepted { color: var(--info); }
@@ -95,6 +96,8 @@
               <strong>{{ order.customer_name }}</strong><br>
               {{ order.customer_email }} | {{ order.customer_phone }}<br>
               {{ order.delivery_type|title }} | Placed: {{ order.placed_at }}
+              {% if order.for %}<br><strong class="due-for">For {{ order.for }}{% if order.due_at %}, {{ order.due_at[11:16] }}{% endif %}</strong>{% endif %}
+              {% if order.deliver_to %}<br>Deliver to: {{ order.deliver_to }}{% endif %}
             </div>
           </div>
           <div>

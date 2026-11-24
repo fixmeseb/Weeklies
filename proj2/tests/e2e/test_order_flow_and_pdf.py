@@ -1,3 +1,7 @@
+import datetime
+
+# Orders for a day already past are refused, so the planned meal is two days ahead.
+MEAL_DAY = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
 
 
 def test_order_post_and_receipt_pdf(client, seed_minimal_data, login_session, tmp_path):
@@ -18,7 +22,7 @@ def test_order_post_and_receipt_pdf(client, seed_minimal_data, login_session, tm
             "delivery_type": "delivery",
             "tip": 1.23,
             "eta_minutes": 30,
-            "date": "2025-11-02",
+            "date": MEAL_DAY,
             "meal": 3,
         },
     )

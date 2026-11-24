@@ -12,6 +12,10 @@ changes nothing: filling a slot changes what its neighbours should be, so a sing
 leaves stale picks behind. With nutrition targets, meals that keep a day inside its
 targets outrank everything else (proj2.nutrition).
 
+The LOOKBACK_DAYS before the plan's first day count too: the meals planned or ordered
+then are neighbours for variety, and a dish eaten then is not planned again within
+LOOKBACK_DAYS of it unless nothing else fits the slot (recent_repeats).
+
 The result is deterministic: the same catalog and request always give the same plan.
 """
 
@@ -26,6 +30,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from proj2 import meal_times as meal_times_module
 from proj2 import variety
 from proj2.meal_budget import (
     BudgetExceededError,
@@ -71,24 +76,44 @@ MAX_IMPROVEMENT_SWEEPS = 20
 ## deciding the week. Twelve keeps a week's planning well under a tenth of a second.
 RESTART_OPENINGS = 12
 
-## Preset Meal times - In the future, times will be user-provided
+## Days before a new plan's first day whose meals (planned or ordered) shape its variety
 LOOKBACK_DAYS = 3
 
-BREAKFAST_TIME = 1000
-LUNCH_TIME = 1400
-DINNER_TIME = 2000
+## Default meal times (HHMM); a user's own come from proj2.meal_times.times_for
+BREAKFAST_TIME = meal_times_module.DEFAULT_TIMES[1]
+LUNCH_TIME = meal_times_module.DEFAULT_TIMES[2]
+DINNER_TIME = meal_times_module.DEFAULT_TIMES[3]
 
 
 class NoEligibleMealError(ValueError):
     """No menu item passes the rules for one of the requested slots."""
 
 
-def get_meal_and_order_time(meal_number: int) -> Tuple[str, int]:
+def recent_repeats(recent, position: int) -> set:
     """
-    Maps a meal number to it's cooresponding meal as a string as well as its cooreponding meal time
+    The items from the lookback days that count as repeats for one slot
+
+    Args:
+        recent: (slot position, itm_id) of meals from the lookback days
+        position (int): variety.slot_position() of the slot being filled
+
+    Returns:
+        set: itm_ids eaten within LOOKBACK_DAYS calendar days of the slot
+    """
+    day = position // variety.SLOTS_PER_DAY
+    return {
+        itm_id for pos, itm_id in recent if abs(day - pos // variety.SLOTS_PER_DAY) <= LOOKBACK_DAYS
+    }
+
+
+def get_meal_and_order_time(meal_number: int, times: dict = None) -> Tuple[str, int]:
+    """
+    Maps a meal number to its meal name and the time it is eaten
 
     Args:
         meal_number (int): The meal number to get the meal and order times for
+        times (dict | None): The user's meal times (proj2.meal_times.times_for); None
+            uses the defaults
 
     Returns:
         str: The name of the meal as a string ("breakfast", "lunch", or "dinner")
@@ -111,6 +136,8 @@ def get_meal_and_order_time(meal_number: int) -> Tuple[str, int]:
             order_time = DINNER_TIME
         case _:
             raise ValueError("The meal number must be 1, 2, or 3")
+    if times:
+        order_time = int(times[meal_number])
     return meal, order_time
 
 
@@ -458,7 +485,7 @@ class MenuGenerator:
                 cheaper one, then the lower ID
         """
         self._rows()
-        recent_items = self._recent_items(recent, position)
+        recent_items = recent_repeats(recent, position)
         ranked = []
         for itm_id, price_cents in zip(pool["itm_id"].tolist(), pool["price_cents"].tolist()):
             itm_id = int(itm_id)
@@ -475,13 +502,6 @@ class MenuGenerator:
             ranked.append((key, itm_id))
         ranked.sort()
         return ranked
-
-    @staticmethod
-    def _recent_items(recent, position):
-        day = position // variety.SLOTS_PER_DAY
-        return {
-            item for pos, item in recent if abs(day - pos // variety.SLOTS_PER_DAY) <= LOOKBACK_DAYS
-        }
 
     def _restart_openings(self, slots, limit=None):
         """
@@ -732,6 +752,7 @@ class MenuGenerator:
         max_evaluations=10_000,
         starts=1,
         seed=0,
+        meal_times=None,
     ) -> str:
         """
         Fills the empty slots of a plan with the most varied eligible meals
@@ -761,6 +782,10 @@ class MenuGenerator:
             starts (int): Up to this many distinct starts, starting with the greedy plan.
                 Nutrition targets use a single start built to respect those targets.
             seed (int): Seed for randomized starts and move selection.
+            ordered_meals: (date, itm_id, meal) of meals the user ordered; those in the
+                LOOKBACK_DAYS before {date} count like planned meals from those days
+            meal_times (dict | None): The user's meal times (proj2.meal_times.times_for);
+                restaurants must be open then. None uses the defaults.
 
         Returns:
             str: The updated menu string. Also sets self.variety (proj2.variety.PlanVariety
@@ -810,7 +835,7 @@ class MenuGenerator:
             for meal in meals:
                 if (day, meal) in occupied:
                     continue
-                _, order_time = get_meal_and_order_time(meal)
+                _, order_time = get_meal_and_order_time(meal, meal_times)
                 key = (weekday, order_time, meal)
                 if key not in candidates_for:
                     candidates_for[key] = self._eligible_candidates(
@@ -984,7 +1009,7 @@ class MenuGenerator:
                     pool = pool[pool.price_cents <= available]
                 if rng is not None:
                     items = pool["itm_id"].tolist()
-                    used = requested_items(planned) | self._recent_items(recent, slot["position"])
+                    used = requested_items(planned) | recent_repeats(recent, slot["position"])
                     unused = [item for item in items if item not in used]
                     itm_id = int(rng.choice(unused or items))
                 elif index == 0 and opening is not None and opening in set(pool["itm_id"]):
@@ -1067,7 +1092,7 @@ class MenuGenerator:
             for opening in self._restart_openings(slots):
                 chosen, planned, totals_here = build(opening, allowance)
                 repeats = sum(
-                    item in self._recent_items(recent, slot["position"])
+                    item in recent_repeats(recent, slot["position"])
                     for slot, item in zip(slots, chosen)
                 )
                 extra_gain = sum(
@@ -1152,7 +1177,7 @@ class MenuGenerator:
                 if targets
             }
             recent_by_slot = {
-                slot["position"]: self._recent_items(recent, slot["position"]) for slot in slots
+                slot["position"]: recent_repeats(recent, slot["position"]) for slot in slots
             }
 
             def replacement_allowed(position, item, current):

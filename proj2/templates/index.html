@@ -38,6 +38,14 @@
         <div class="row"><span class="lbl">Item</span><span class="val" id="om-item"></span></div>
         <div class="row"><span class="lbl">Date</span><span class="val" id="om-date"></span></div>
         <div class="row"><span class="lbl">Meal</span><span class="val" id="om-meal"></span></div>
+        <div class="row">
+          <label class="lbl" for="om-how">How</label>
+          <select id="om-how" class="input" style="width:auto;">
+            <option value="delivery">Delivery</option>
+            <option value="pickup">Pickup</option>
+          </select>
+        </div>
+        <div class="row" id="om-to-row"><span class="lbl">Deliver to</span><span class="val" id="om-to"></span></div>
         <hr />
         <div class="row"><span class="lbl">Subtotal</span><span class="val" id="om-subtotal"></span></div>
         <div class="row"><span class="lbl">Tax</span><span class="val" id="om-tax"></span></div>
@@ -45,6 +53,7 @@
         <div class="row"><span class="lbl">Service fee</span><span class="val" id="om-service"></span></div>
         <div class="row total"><span class="lbl">Total</span><span class="val" id="om-total"></span></div>
       </div>
+      <p id="om-error" class="flash danger" role="alert" hidden></p>
     </div>
     <div class="order-modal__foot">
       <button type="button" class="btn btn-outline" id="om-cancel">Cancel</button>
@@ -82,6 +91,9 @@
 
     {% if swap_notice %}
       <div class="flash {{ swap_notice[0] }}" role="status">{{ swap_notice[1] }}</div>
+    {% endif %}
+    {% if plan_notice %}
+      <div class="flash {{ plan_notice[0] }}" role="status" id="planNotice">{{ plan_notice[1] }}</div>
     {% endif %}
 
     {% if optimization %}
@@ -149,6 +161,9 @@
                 {# Same buttons as the calendar's day pop-up; the page's click handlers serve both #}
                 {% set today_iso = '%04d-%02d-%02d'|format(today_year, today_month, today_day) %}
                 <div class="actions today-actions">
+                  {% if (today_iso ~ '|' ~ entry.meal) in ordered_slots %}
+                  <span class="ordered-note">Ordered</span>
+                  {% else %}
                   <a class="order-btn" href="#"
                      aria-label="Order today's {{ meal_names.get(entry.meal, 'Meal') }}"
                      data-itm-id="{{ entry.item.itm_id }}"
@@ -159,11 +174,18 @@
                      data-item-name="{{ entry.item.name }}"
                      data-price-cents="{{ entry.item.price }}"
                      data-delivery-type="delivery">Order</a>
+                  {% endif %}
                   <a class="swap-btn" href="#"
                      aria-label="Swap today's {{ meal_names.get(entry.meal, 'Meal') }}"
                      data-meal="{{ entry.meal }}"
                      data-date="{{ today_iso }}"
                      data-item-name="{{ entry.item.name }}">Swap</a>
+                  <form class="remove-form" method="POST" action="{{ url_for('remove_planned_meal') }}">
+                    <input type="hidden" name="date" value="{{ today_iso }}">
+                    <input type="hidden" name="meal" value="{{ entry.meal }}">
+                    <button type="submit" class="remove-btn" data-confirm="Remove today's {{ meal_names.get(entry.meal, 'meal')|lower }} from your plan?"
+                            aria-label="Remove today's {{ meal_names.get(entry.meal, 'Meal') }} from the plan">Remove</button>
+                  </form>
                 </div>
               </li>
             {% endfor %}
@@ -219,10 +241,20 @@
                               <span class="al-px">${{ '%.2f'|format(m.price / 100) }}{% if m.calories %} · {{ m.calories }} cal.{% endif %}</span>
                               {% if m.again %}<span class="al-flag">Sown again {{ m.again | join(', ') }}</span>{% endif %}
                             </button>
+                            {% if (m.date ~ '|' ~ m.meal) in ordered_slots %}
+                            <span class="al-order ordered-note">Ordered</span>
+                            {% else %}
                             <a class="al-order order-btn" href="#"
                                data-itm-id="{{ m.itm_id }}" data-meal="{{ m.meal }}" data-date="{{ m.date }}"
                                data-rtr-id="{{ m.rtr_id }}" data-rtr-name="{{ m.restaurant }}" data-item-name="{{ m.name }}"
                                data-price-cents="{{ m.price }}" data-delivery-type="delivery">Order this</a>
+                            {% endif %}
+                            <form class="remove-form al-remove" method="POST" action="{{ url_for('remove_planned_meal') }}">
+                              <input type="hidden" name="date" value="{{ m.date }}">
+                              <input type="hidden" name="meal" value="{{ m.meal }}">
+                              <button type="submit" class="remove-btn" data-confirm="Remove this entry from your plan?"
+                                      aria-label="Remove {{ meal_names[m.meal] }} on {{ m.date }} from the plan">remove</button>
+                            </form>
                           {% else %}
                             <span class="al-fallow">Fallow</span>
                           {% endif %}
@@ -342,7 +374,11 @@
                           <div class="tags">{{ m.item.description }}</div>
                         {% endif %}
 
+                        {% set slot_day = '%04d-%02d-%02d'|format(year, month, cell.day) %}
                         <div class="actions" style="margin-top:8px;">
+                        {% if (slot_day ~ '|' ~ m.meal) in ordered_slots %}
+                        <span class="ordered-note">Ordered</span>
+                        {% else %}
                         <a
                           class="order-btn"
                           href="#"
@@ -358,6 +394,7 @@
                         >
                           Order {{ meal_names.get(m.meal, 'Meal') }}
                         </a>
+                        {% endif %}
                         <a
                           class="swap-btn"
                           href="#"
@@ -368,6 +405,12 @@
                         >
                           Swap
                         </a>
+                        <form class="remove-form" method="POST" action="{{ url_for('remove_planned_meal') }}">
+                          <input type="hidden" name="date" value="{{ slot_day }}">
+                          <input type="hidden" name="meal" value="{{ m.meal }}">
+                          <button type="submit" class="remove-btn" data-confirm="Remove this {{ meal_names.get(m.meal, 'meal')|lower }} from your plan?"
+                                  aria-label="Remove {{ meal_names.get(m.meal, 'Meal') }} on {{ slot_day }} from the plan">Remove</button>
+                        </form>
                       </div>
                       </div>
                     {% endfor %}
@@ -384,7 +427,7 @@
     <!-- Meal Plan Generation (moved here from the Profile page) -->
     <section id="new-plan" aria-labelledby="new-plan-title" style="margin-top: 28px;">
     <div class="page-title">
-      <h2 id="new-plan-title" class="mb-0">Generate Meal Plan</h2>
+      <h2 id="new-plan-title" class="mb-0">Plan, clear or order days</h2>
     </div>
     <div class="card" style="max-width: var(--container);">
       <div class="card-body">
@@ -457,9 +500,36 @@
               planned and you'll see which day and target is the problem.</p>
           </fieldset>
           <p class="muted"><a href="{{ url_for('profile', _anchor='diet') }}">Edit diet constraints and preferences in Profile</a></p>
+          <div class="form-row">
+            <label><input type="checkbox" name="replace" id="replaceExisting"> Replace meals already planned on these days</label>
+          </div>
           <div class="form-row" style="margin-top: 10px;">
             <button type="submit" class="btn btn-primary" id="generateMenuBtn">Generate Plan</button>
           </div>
+          <fieldset class="plan-more">
+            <legend>Or, for the same days and meals</legend>
+            <div class="plan-more-row">
+              <button type="submit" class="btn btn-outline" id="clearDaysBtn"
+                      formaction="{{ url_for('clear_plan_days') }}" formnovalidate
+                      data-confirm="Remove the chosen meals on these days from your plan?">Clear these days</button>
+            </div>
+            <div class="plan-more-row">
+              <label for="planDelivery">Order them by</label>
+              <select class="input" id="planDelivery" name="delivery_type" style="width:auto;">
+                <option value="delivery">Delivery</option>
+                <option value="pickup">Pickup</option>
+              </select>
+              <button type="submit" class="btn btn-outline" id="orderDaysBtn"
+                      formaction="{{ url_for('order_plan_days') }}" formnovalidate
+                      data-confirm="Place an order for every planned meal on these days that is not ordered yet?">Order these days</button>
+            </div>
+            <p class="muted plan-more-note">
+              Each meal becomes its own order, due at your meal time
+              (breakfast {{ meal_time_labels[1] }}, lunch {{ meal_time_labels[2] }}, dinner {{ meal_time_labels[3] }};
+              <a href="{{ url_for('profile') }}#meal-times">change</a>).
+              {% if delivery_to %}Deliveries go to {{ delivery_to }}.{% else %}<a href="{{ url_for('profile') }}#particulars">Add an address</a> for delivery.{% endif %}
+            </p>
+          </fieldset>
           
           <!-- Loading spinner (hidden by default) - Bright colors for dark mode visibility -->
           <div id="menuLoading" style="display: none; margin-top: 20px; text-align: center; padding: 20px; background: color-mix(in srgb, var(--warning) 10%, transparent); border-radius: 12px; border: 2px solid var(--warning);">
@@ -721,6 +791,20 @@
   .order-summary .row.total { font-weight: 800; border-top: 1px dashed color-mix(in srgb, var(--text) 20%, transparent); margin-top: 6px; padding-top: 10px; }
   .order-summary .lbl { opacity: .9; }
   .order-summary hr { border: none; border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent); margin: 10px 0; }
+  .remove-form { display: inline; margin: 0; max-width: none; width: auto; }
+  .remove-btn {
+    background: none; border: 0; padding: 4px 2px; cursor: pointer; font: inherit; font-size: .85rem;
+    color: var(--danger); text-decoration: underline; text-underline-offset: 2px; box-shadow: none;
+  }
+  .remove-btn:hover { background: none; transform: none; filter: none; }
+  .ordered-note { font-style: italic; font-weight: 600; color: var(--success); font-size: .9rem; }
+  .al-remove { display: block; margin-top: 2px; }
+  .plan-more { border: 1px dashed var(--border); padding: 10px 14px; margin: 12px 0 0; display: grid; gap: 10px; }
+  .plan-more legend { font-style: italic; color: var(--muted); padding: 0 6px; }
+  .plan-more-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .plan-more-note { margin: 0; font-size: .9rem; }
+  #om-error { margin: 10px 0 0; }
+
   /* Catalog look (static/style.css): the month as a ruled grid, meals as plain entries,
      the pop-up and order dialog as sheets, buttons like the Restaurants page's */
   .greet { background: none; padding: 0; border-radius: 0; font-weight: 400 !important; font-style: italic; }
@@ -905,6 +989,34 @@
   window.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
   let pendingOrder = null;
+  const DELIVERY_TO = {{ (delivery_to or '')|tojson }};
+  const MEAL_TIMES = {{ meal_time_labels|tojson }};
+
+  function showWhere(deliveryType) {
+    const row = field('om-to-row');
+    if (deliveryType === 'delivery') {
+      row.hidden = false;
+      field('om-to').textContent = DELIVERY_TO;
+    } else {
+      row.hidden = !!DELIVERY_TO;
+      field('om-to').textContent = DELIVERY_TO ? '' : 'Pickup only until you add an address on your profile.';
+    }
+  }
+  field('om-how').addEventListener('change', () => {
+    if (!pendingOrder) return;
+    const how = field('om-how').value;
+    if (how === 'delivery' && !DELIVERY_TO) {
+      field('om-how').value = 'pickup';
+      const err = field('om-error');
+      err.textContent = 'Add a delivery address on your profile to have meals delivered.';
+      err.hidden = false;
+      return;
+    }
+    const t = computeTotals(pendingOrder.unit_price, how);
+    field('om-delivery').textContent = dollars(t.delivery_fee);
+    field('om-total').textContent = dollars(t.total);
+    showWhere(how);
+  });
 
   // Intercept clicks on any .order-btn (works for items inside the popover)
   document.addEventListener('click', async (e) => {
@@ -920,7 +1032,10 @@
     const rtrName = btn.dataset.rtrName || '';
     const itemName = btn.dataset.itemName || '';
     const priceCents = Number(btn.dataset.priceCents || 0);
-    const deliveryType = (btn.dataset.deliveryType || 'delivery').toLowerCase();
+    const how = field('om-how');
+    const deliveryType = DELIVERY_TO ? (how.value || 'delivery') : 'pickup';
+    how.value = deliveryType;
+    field('om-error').hidden = true;
 
     const unitPrice = round2(priceCents / 100.0);
     const totals = computeTotals(unitPrice, deliveryType);
@@ -929,7 +1044,8 @@
     field('om-rtr').textContent = rtrName;
     field('om-item').textContent = itemName + ' (x1)';
     field('om-date').textContent = date;
-    field('om-meal').textContent = (meal===1 ? 'Breakfast' : meal===2 ? 'Lunch' : 'Dinner');
+    field('om-meal').textContent = (meal===1 ? 'Breakfast' : meal===2 ? 'Lunch' : 'Dinner') + ', ' + MEAL_TIMES[meal];
+    showWhere(deliveryType);
 
     field('om-subtotal').textContent = dollars(totals.subtotal);
     field('om-tax').textContent = dollars(totals.tax);
@@ -937,8 +1053,9 @@
     field('om-service').textContent = dollars(totals.service_fee);
     field('om-total').textContent = dollars(totals.total);
 
-    // Stash order payload for confirm
+    // Stash order payload for confirm (delivery_type is read again when confirmed)
     pendingOrder = {
+      unit_price: unitPrice,
       restaurant_id: rtrId,
       items: [{ itm_id: itmId, qty: 1 }],
       delivery_type: deliveryType,
@@ -1030,26 +1147,32 @@
 
   omConfirm.addEventListener('click', async () => {
     if (!pendingOrder) return;
+    const errBox = field('om-error');
+    errBox.hidden = true;
+    const { unit_price, ...body } = pendingOrder;
+    body.delivery_type = field('om-how').value || 'delivery';
+    omConfirm.disabled = true;
     try {
       const res = await fetch('{{ url_for("order") }}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pendingOrder)
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (data && data.ok) {
         closeModal();
-        // redirect to profile with ?ordered=<id> like legacy flow
+        pendingOrder = null;
         window.location.href = '{{ url_for("orders") }}' + (data.ord_id ? ('?ordered=' + data.ord_id) : '');
-      } else {
-        closeModal();
-        alert('Sorry, we could not place your order. Please try again.');
+        return;
       }
+      // Say why (sold out, closed then, an allergen, no address...) and keep the dialog open.
+      errBox.textContent = (data && data.message) || 'Sorry, we could not place your order.';
+      errBox.hidden = false;
     } catch (err) {
-      closeModal();
-      alert('Network error placing order.');
+      errBox.textContent = 'Network error placing order. Please try again.';
+      errBox.hidden = false;
     } finally {
-      pendingOrder = null;
+      omConfirm.disabled = false;
     }
   });
 })();

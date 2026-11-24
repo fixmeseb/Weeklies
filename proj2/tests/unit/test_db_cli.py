@@ -242,3 +242,32 @@ def test_combined_migrations_preserve_branch_data(tmp_path, preview):
         assert targets == ('{"calories":{"min":1000}}' if preview == "nutrition" else "")
         conn.execute("SELECT protein_g, sodium_mg FROM MenuItem")
         conn.execute("SELECT task_id FROM Task")
+
+
+def test_ordering_branch_database_upgrades_past_its_old_005(tmp_path):
+    # The ordering branch numbered its migration 005; on main it is 010, after 005-009.
+    directory = tmp_path / "ordering"
+    directory.mkdir()
+    for version, source in db_cli.migrations():
+        if version <= 4:
+            _write(directory, os.path.basename(source), open(source, encoding="utf-8").read())
+    renamed = os.path.join(db_cli.MIGRATIONS_DIR, "010_orders_addresses_meal_times.sql")
+    _write(
+        directory,
+        "005_orders_addresses_meal_times.sql",
+        open(renamed, encoding="utf-8").read(),
+    )
+    with sqlite3.connect(":memory:") as conn:
+        assert db_cli.apply_migrations(conn, directory) == [1, 2, 3, 4, 5]
+        conn.execute(
+            "INSERT INTO User (email, address, lunch_time) VALUES (?, ?, ?)",
+            ("demo@example.com", "1 Main St", 1230),
+        )
+        assert db_cli.apply_migrations(conn) == [6, 7, 8, 9, 10]
+        assert conn.execute("SELECT address, lunch_time FROM User").fetchone() == (
+            "1 Main St",
+            1230,
+        )
+        conn.execute("SELECT protein_g, sodium_mg FROM MenuItem")
+        conn.execute("SELECT weekly_cap_cents, nutrition_targets FROM User")
+        conn.execute("SELECT ost_id FROM OrderStatus")

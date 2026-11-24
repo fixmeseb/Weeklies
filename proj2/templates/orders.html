@@ -55,7 +55,7 @@
               <tr>
                 <td>{{ order.id }}</td>
                 <td>{{ order.restaurant }}</td> <!-- NEW -->
-                <td>{{ order.date }}</td>
+                <td>{{ order.date }}{% if order.for %}<br><span class="order-for">for {{ order.for }}</span>{% endif %}</td>
                 <td>
                   {# UC13 progress: view model built by proj2/order_progress.py #}
                   {% set p = order.progress %}
@@ -67,10 +67,12 @@
                       <li class="step step-{{ step.state }}" data-step="{{ step.key }}" data-state="{{ step.state }}"{% if step.state == 'current' %} aria-current="step"{% endif %}>
                         <span class="step-dot" aria-hidden="true"></span>
                         <span class="step-label">{{ step.label }}</span>
+                        {% if step.at %}<span class="step-at">{{ step.at }}</span>{% endif %}
                         <span class="sr-only">({{ step.state }})</span>
                       </li>
                       {% endfor %}
                     </ol>
+                    {% if p.cancelled and p.cancelled_at %}<span class="step-at cancelled-at">Cancelled {{ p.cancelled_at }}</span>{% endif %}
                     {% endif %}
                   </div>
                 </td>
@@ -141,8 +143,11 @@
   .step-current .step-dot { background:var(--primary); border-color:var(--primary); box-shadow:0 0 0 3px var(--ring); }
   .step-current[data-step="delivered"] .step-dot { background:var(--success); border-color:var(--success); box-shadow:none; }
   .step-current .step-label { color:var(--text); font-weight:600; }
+  .step-at { display:block; font-size:.72rem; color:var(--muted); font-style:italic; }
+  .cancelled-at { margin-top:4px; color:var(--danger); }
+  .order-for { font-size:.85rem; font-style:italic; color:var(--muted); }
   .stepper-cancelled .step { opacity:.45; }
-  @media (max-width:639px){ .step { min-width:22px; } .step-label { display:none; } }
+  @media (max-width:639px){ .step { min-width:22px; } .step-label, .step .step-at { display:none; } }
   .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 
 </style>

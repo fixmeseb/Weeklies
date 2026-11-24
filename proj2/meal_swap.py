@@ -118,13 +118,15 @@ def _item_sql(conn) -> str:
 """
 
 
-def slot_weekday_and_time(date: str, meal: int):
+def slot_weekday_and_time(date: str, meal: int, times: dict = None):
     """
     Maps a slot to the weekday and order time used for availability checks
 
     Args:
         date (str): The slot date in YYYY-MM-DD format
         meal (int): The slot meal number (1, 2, or 3)
+        times (dict | None): The user's meal times (proj2.meal_times.times_for); None
+            uses the defaults
 
     Returns:
         Tuple[str, int]: The weekday ("Mon".."Sun") and the meal's order time in HHMM format
@@ -133,11 +135,13 @@ def slot_weekday_and_time(date: str, meal: int):
         ValueError: if the date is not a valid YYYY-MM-DD date or the meal is not 1, 2, or 3
     """
     weekday = DAYS_OF_WEEK[datetime.date.fromisoformat(date).weekday()]
-    _, order_time = get_meal_and_order_time(meal)
+    _, order_time = get_meal_and_order_time(meal, times)
     return weekday, order_time
 
 
-def swap_rejection(item, user_allergies: str, date: str, meal: int, user_preferences: str = None):
+def swap_rejection(
+    item, user_allergies: str, date: str, meal: int, user_preferences: str = None, times=None
+):
     """
     Checks whether a menu item may fill a date/meal slot for a user (see proj2.plan_rules)
 
@@ -148,13 +152,14 @@ def swap_rejection(item, user_allergies: str, date: str, meal: int, user_prefere
         meal (int): The slot meal number (1, 2, or 3)
         user_preferences (str | None): The user's comma-separated preferences; the diets
             they name (see proj2.dietary) must all be satisfied by the item's diet_tags
+        times (dict | None): The user's meal times; None uses the defaults
 
     Returns:
         Tuple[str, str] | None: (error_code, message) if the item is not allowed, otherwise None
     """
     if item is None:
         return item_rejection(None, user_allergies, user_preferences, None, None)
-    weekday, order_time = slot_weekday_and_time(date, meal)
+    weekday, order_time = slot_weekday_and_time(date, meal, times)
     return item_rejection(item, user_allergies, user_preferences, weekday, order_time, meal)
 
 
@@ -174,7 +179,13 @@ def load_swap_item(conn, itm_id: int):
 
 
 def list_swap_options(
-    conn, user_allergies: str, date: str, meal: int, exclude_itm_id=None, user_preferences=None
+    conn,
+    user_allergies: str,
+    date: str,
+    meal: int,
+    exclude_itm_id=None,
+    user_preferences=None,
+    times=None,
 ):
     """
     Lists every menu item that would pass swap_rejection for a slot
@@ -186,6 +197,7 @@ def list_swap_options(
         meal (int): The slot meal number (1, 2, or 3)
         exclude_itm_id (int | None): An item to leave out, typically the one already planned
         user_preferences (str | None): The user's comma-separated preferences (diet rules)
+        times (dict | None): The user's meal times; None uses the defaults
 
     Returns:
         List[dict]: The eligible items, ordered by itm_id
@@ -196,7 +208,7 @@ def list_swap_options(
         item = dict(zip(_ITEM_COLUMNS, row))
         if item["itm_id"] == exclude_itm_id:
             continue
-        if swap_rejection(item, user_allergies, date, meal, user_preferences) is None:
+        if swap_rejection(item, user_allergies, date, meal, user_preferences, times) is None:
             options.append(item)
     return options
 
