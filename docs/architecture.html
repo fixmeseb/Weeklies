@@ -7,7 +7,8 @@
 <article><p>﻿# Architecture (Overview)</p>
 <ul>
 <li><strong>Framework</strong>: Flask  </li>
-<li><strong>Entrypoint</strong>: Flask_app.py  </li>
+<li><strong>Entrypoint</strong>: Flask_app.py, which calls <code>create_app()</code> in <code>__init__.py</code>  </li>
+<li><strong>Routes</strong>: blueprints <code>auth/</code>, <code>account/</code>, <code>planner/</code> and <code>food/</code>; the first three do not import <code>food/</code>  </li>
 <li><strong>Database</strong>: SQLite (<code>CSC510_DB.db</code>)</li>
 <li><strong>Database helpers</strong>: sqlQueries.py (use only provided helpers)  </li>
 <li><strong>Templates / Static</strong>: templates/, static/  </li>

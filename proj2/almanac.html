@@ -78,7 +78,7 @@ of a grower's almanac.</p>
 <p>build_weeks turns the plan into one entry per Monday–Sunday week: the meals as
 numbered catalog entries by day, a crop-rotation chart of proteins by day, and the
 week's notes (variety score and the most similar nearby meals, from
-<a href="Flask_app.html#calendar_week_variety">proj2.Flask_app.calendar_week_variety</a>). The template draws it; static/theme.js
+<a href="planner/meal_plan.html#calendar_week_variety">proj2.planner.meal_plan.calendar_week_variety</a>). The template draws it; static/theme.js
 decides whether this style or the standard month grid is shown.</p>
 </div>
 
@@ -197,11 +197,11 @@ decides whether this style or the standard month grid is shown.</p>
 <p>Args:
     entries (Iterable[Tuple[str, int, int]]): (date, itm_id, meal) for every planned
         meal, e.g. from <a href="meal_budget.html#plan_entries">proj2.meal_budget.plan_entries</a>
-    items_by_id (Mapping[int, dict]): Item details by itm_id (Flask_app.fetch_menu_items_by_ids):
+    items_by_id (Mapping[int, dict]): Item details by itm_id (meal_plan.fetch_menu_items_by_ids):
         name, price, calories, rtr_id, restaurant_name
     catalog (Mapping[int, Mapping]): MenuItem rows by itm_id, for the protein tags
     weekly_variety (Mapping[str, dict]): week start -> {"score", "similar"} from
-        Flask_app.calendar_week_variety; its keys choose which weeks are drawn</p>
+        meal_plan.calendar_week_variety; its keys choose which weeks are drawn</p>
 
 <p>Returns:
     List[dict]: One dict per week, in date order (see the keys set below)</p>

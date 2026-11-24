@@ -28,15 +28,19 @@
             <h2>Submodules</h2>
             <ul>
                     <li><a href="proj2/Flask_app.html">Flask_app</a></li>
+                    <li><a href="proj2/account.html">account</a></li>
                     <li><a href="proj2/allergens.html">allergens</a></li>
                     <li><a href="proj2/almanac.html">almanac</a></li>
+                    <li><a href="proj2/auth.html">auth</a></li>
                     <li><a href="proj2/config.html">config</a></li>
+                    <li><a href="proj2/customer.html">customer</a></li>
                     <li><a href="proj2/db.html">db</a></li>
                     <li><a href="proj2/db_cli.html">db_cli</a></li>
                     <li><a href="proj2/demo_menu.html">demo_menu</a></li>
                     <li><a href="proj2/demo_nutrition.html">demo_nutrition</a></li>
                     <li><a href="proj2/dietary.html">dietary</a></li>
                     <li><a href="proj2/fndds_foods.html">fndds_foods</a></li>
+                    <li><a href="proj2/food.html">food</a></li>
                     <li><a href="proj2/hill_climbing.html">hill_climbing</a></li>
                     <li><a href="proj2/hours.html">hours</a></li>
                     <li><a href="proj2/meal_budget.html">meal_budget</a></li>
@@ -48,20 +52,30 @@
                     <li><a href="proj2/menu_items.html">menu_items</a></li>
                     <li><a href="proj2/menu_tags_io.html">menu_tags_io</a></li>
                     <li><a href="proj2/nutrition.html">nutrition</a></li>
+                    <li><a href="proj2/order_history.html">order_history</a></li>
                     <li><a href="proj2/order_progress.html">order_progress</a></li>
                     <li><a href="proj2/ordering.html">ordering</a></li>
                     <li><a href="proj2/pdf_receipt.html">pdf_receipt</a></li>
                     <li><a href="proj2/plan_edit.html">plan_edit</a></li>
                     <li><a href="proj2/plan_optimization.html">plan_optimization</a></li>
                     <li><a href="proj2/plan_rules.html">plan_rules</a></li>
+                    <li><a href="proj2/planner.html">planner</a></li>
                     <li><a href="proj2/restaurant_signup.html">restaurant_signup</a></li>
                     <li><a href="proj2/seed.html">seed</a></li>
                     <li><a href="proj2/sef26tests.html">sef26tests</a></li>
+                    <li><a href="proj2/settings.html">settings</a></li>
                     <li><a href="proj2/sqlQueries.html">sqlQueries</a></li>
                     <li><a href="proj2/tasks.html">tasks</a></li>
                     <li><a href="proj2/variety.html">variety</a></li>
                     <li><a href="proj2/wallet.html">wallet</a></li>
             </ul>
+
+            <h2>API Documentation</h2>
+                <ul class="memberlist">
+            <li>
+                    <a class="function" href="#create_app">create_app</a>
+            </li>
+    </ul>
 
 
 
@@ -77,11 +91,45 @@
                     <h1 class="modulename">
 proj2    </h1>
 
-                
+                        <div class="docstring"><p>Weeklies: a Flask app. Build it with <code><a href="#create_app">create_app()</a></code>.</p>
+
+<p>The routes are split into blueprints:</p>
+
+<pre><code>auth     /login, /logout, /register
+account  /profile and everything under it
+planner  / (the calendar) and /insights
+food     restaurants, ordering, reviews, changing the plan, the owner pages and /db
+</code></pre>
+
+<p><code>auth</code>, <code>account</code> and <code>planner</code> do not import <code>food</code>; code they share with it lives
+outside the blueprints (<code>customer</code>, <code>order_history</code>) or in <code>planner/meal_plan</code>.
+<code>proj2/Flask_app.py</code> builds the app the Flask CLI and <code>python -m <a href="proj2/Flask_app.html">proj2.Flask_app</a></code> use.</p>
+</div>
+
                 
                 
                 
             </section>
+                <section id="create_app">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">create_app</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">test_config</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#create_app"></a>
+    
+            <div class="docstring"><p>Create and configure the Flask app.</p>
+
+<p>Args:
+    test_config (dict | None): Settings applied last, overriding the environment.
+Returns:
+    Flask: The app, with its own config.</p>
+</div>
+
+
+                </section>
     </main>
 <script>
     function escapeHTML(html) {
