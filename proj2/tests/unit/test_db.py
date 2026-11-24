@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from proj2 import Flask_app, config, db
+from proj2 import config, db
 from proj2.db_cli import init_database
 from proj2.sqlQueries import execute_query, fetch_one
 
@@ -116,7 +116,7 @@ def test_sql_error_in_route_is_logged_and_returns_500(app, monkeypatch, caplog):
     def broken_fetch(*_args, **_kwargs):
         raise sqlite3.OperationalError("simulated failure")
 
-    monkeypatch.setattr(Flask_app, "fetch_one", broken_fetch)
+    monkeypatch.setattr("proj2.auth.views.fetch_one", broken_fetch)
     monkeypatch.setitem(app.config, "PROPAGATE_EXCEPTIONS", False)
     with app.test_client() as c:
         resp = c.post("/login", data={"email": "a@x.com", "password": "pw"})

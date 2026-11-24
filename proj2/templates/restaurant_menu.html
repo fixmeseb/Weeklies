@@ -354,7 +354,7 @@
     {% if request.args.get("removed") %}<div class="alert good" role="status">Dish removed.</div>{% endif %}
 
     <div class="toolbar">
-      <form method="get" action="{{ url_for('restaurant_menu') }}" role="search">
+      <form method="get" action="{{ url_for('food.restaurant_menu') }}" role="search">
         <label class="sr-only" for="q">Search your menu</label>
         <input type="search" id="q" name="q" value="{{ query or '' }}"
                placeholder="Search dishes…" />
@@ -364,7 +364,7 @@
       <nav class="filters" aria-label="Filter the menu">
         {% for key, caption in [("all", "All"), ("on", "On the menu"), ("off", "Off the menu"),
                                 ("untagged", "Needs tags")] %}
-          <a href="{{ url_for('restaurant_menu', show=key if key != 'all' else none, q=query or none) }}"
+          <a href="{{ url_for('food.restaurant_menu', show=key if key != 'all' else none, q=query or none) }}"
              {% if show == key %}aria-current="true"{% endif %}>{{ caption }}</a>
         {% endfor %}
       </nav>
@@ -372,7 +372,7 @@
 
     <details class="panel" {% if open_add %}open{% endif %}>
       <summary>Add a dish</summary>
-      {{ dish_form(url_for("restaurant_menu_new"), "new-", none,
+      {{ dish_form(url_for("food.restaurant_menu_new"), "new-", none,
                    submitted if not editing else {}, errors if not editing else {},
                    "Add to menu", form_id="add-dish-form") }}
     </details>
@@ -387,7 +387,7 @@
       {% if not items %}
         <p class="empty">
           {% if query or show != "all" %}
-            Nothing here matches. <a href="{{ url_for('restaurant_menu') }}">Show the whole menu</a>.
+            Nothing here matches. <a href="{{ url_for('food.restaurant_menu') }}">Show the whole menu</a>.
           {% else %}
             Nothing on the menu yet. Add your first dish above — diners can only be offered
             dishes that are listed here and in stock.
@@ -424,15 +424,15 @@
             <td data-label="Actions">
               <div class="row-actions">
                 {% if open_edit %}
-                  <a class="action" href="{{ url_for('restaurant_menu', q=query or none, show=show if show != 'all' else none) }}#dish-{{ item['itm_id'] }}">Close</a>
+                  <a class="action" href="{{ url_for('food.restaurant_menu', q=query or none, show=show if show != 'all' else none) }}#dish-{{ item['itm_id'] }}">Close</a>
                 {% else %}
-                  <a class="action" href="{{ url_for('restaurant_menu', edit=item['itm_id'], q=query or none, show=show if show != 'all' else none) }}#dish-{{ item['itm_id'] }}">Edit</a>
+                  <a class="action" href="{{ url_for('food.restaurant_menu', edit=item['itm_id'], q=query or none, show=show if show != 'all' else none) }}#dish-{{ item['itm_id'] }}">Edit</a>
                 {% endif %}
-                <form method="post" action="{{ url_for('restaurant_menu_stock', itm_id=item['itm_id']) }}">
+                <form method="post" action="{{ url_for('food.restaurant_menu_stock', itm_id=item['itm_id']) }}">
                   <button type="submit">{{ "Take off" if item["instock"] else "Put back" }}</button>
                   <input type="hidden" name="instock" value="{{ 0 if item['instock'] else 1 }}" />
                 </form>
-                <form method="post" action="{{ url_for('restaurant_menu_delete', itm_id=item['itm_id']) }}"
+                <form method="post" action="{{ url_for('food.restaurant_menu_delete', itm_id=item['itm_id']) }}"
                       onsubmit="return confirm('Delete {{ item['name']|e }} for good? Taking it off the menu is usually what you want, and keeps plans that already include it working.');">
                   <button type="submit" class="danger">Delete</button>
                 </form>
@@ -443,9 +443,9 @@
           <tr class="editing">
             <td class="edit-cell" colspan="5">
               <h3 style="margin:0.2rem 0 0;font-size:0.95rem">Editing {{ item["name"] }}</h3>
-              {{ dish_form(url_for("restaurant_menu_edit", itm_id=item["itm_id"]),
+              {{ dish_form(url_for("food.restaurant_menu_edit", itm_id=item["itm_id"]),
                            "e%s-"|format(item["itm_id"]), item, submitted, errors, "Save changes",
-                           url_for("restaurant_menu", q=query or none,
+                           url_for("food.restaurant_menu", q=query or none,
                                    show=show if show != "all" else none),
                            form_id="edit-dish-form") }}
             </td>

@@ -11,15 +11,15 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('insights') }}">Insights</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">My Orders</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('planner.insights') }}">Insights</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">My Orders</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -78,7 +78,7 @@
                 </td>
                 <td>
                   <a class="btn btn-outline btn-sm"
-                    href="{{ url_for('order_receipt', ord_id=order.id) }}">
+                    href="{{ url_for('food.order_receipt', ord_id=order.id) }}">
                     PDF
                   </a>
                 </td>
@@ -87,12 +87,12 @@
                   {% if order.status|lower == 'delivered' %}
                     {% if order.has_review %}
                       <a class="btn btn-outline btn-sm"
-                         href="{{ url_for('review_order', ord_id=order.id) }}">
+                         href="{{ url_for('food.review_order', ord_id=order.id) }}">
                         View Review
                       </a>
                     {% else %}
                       <a class="btn btn-primary btn-sm"
-                         href="{{ url_for('review_order', ord_id=order.id) }}">
+                         href="{{ url_for('food.review_order', ord_id=order.id) }}">
                         Review
                       </a>
                     {% endif %}
@@ -106,7 +106,7 @@
           </table>
         </div>
         {% else %}
-        <p>No orders yet. <a href="{{ url_for('restaurants') }}">Browse the restaurants</a> to place one.</p>
+        <p>No orders yet. <a href="{{ url_for('food.restaurants') }}">Browse the restaurants</a> to place one.</p>
         {% endif %}
       </div>
     </div>

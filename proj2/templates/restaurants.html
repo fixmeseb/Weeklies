@@ -118,15 +118,15 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo" aria-hidden="true"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo" aria-hidden="true"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('insights') }}">Insights</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">My Orders</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('planner.insights') }}">Insights</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">My Orders</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -219,7 +219,7 @@
   const ORDER_FEES = {{ order_fees|tojson }};  // from proj2/config.py via inject_order_fees
   function formatAddress(r){ if (!r) return ''; if (r.address_full) return r.address_full; const parts=[r.address,r.city,r.state,r.zip].filter(Boolean); return parts.join(', '); }
   function listWords(xs){ return xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
-  const reviewsUrl = (id) => `{{ url_for('restaurant_reviews', rtr_id=0) }}`.replace('/0', `/${id}`);
+  const reviewsUrl = (id) => `{{ url_for('food.restaurant_reviews', rtr_id=0) }}`.replace('/0', `/${id}`);
 
   // ---------- Filters ----------
   const searchInput = document.getElementById('searchInput');
@@ -401,7 +401,7 @@
       // No date or meal: an order from here is for as soon as possible.
     };
     try {
-      const res = await fetch(`{{ url_for('order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const res = await fetch(`{{ url_for('food.order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data || !data.ok) {
         // The server says why: sold out, closed now, an allergen, no delivery address, too little in the wallet...
@@ -411,7 +411,7 @@
       showToast('Order placed!');
       const cart = readCart().filter(l => Number(l.restaurant_id) !== Number(rtrId));
       writeCart(cart);
-      window.location.href = "{{ url_for('orders') }}" + (data && data.ord_id ? ('?ordered=' + data.ord_id) : '');
+      window.location.href = "{{ url_for('food.orders') }}" + (data && data.ord_id ? ('?ordered=' + data.ord_id) : '');
     } catch (e) {
       console.error(e);
       showToast('Could not place the order');

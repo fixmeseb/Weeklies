@@ -82,7 +82,12 @@ Weeklies delivers **5 completed milestones** for Project 2 and an architectural 
 Weeklies/
 │
 ├── 📁 proj2/                          # Main Flask Application
-│   ├── 🐍 Flask_app.py                # Core Flask app with all routes
+│   ├── 🐍 Flask_app.py                # Entry point: builds the app
+│   ├── 🏭 __init__.py                 # create_app(): settings, error pages, blueprints
+│   ├── 📁 auth/                       # Login, logout and registration
+│   ├── 📁 account/                    # Profile, diet settings, password
+│   ├── 📁 planner/                    # Calendar and insights pages
+│   ├── 📁 food/                       # Restaurants, orders, plan changes, owner pages, /db
 │   ├── 🥗 menu_generation.py          # Meal planner (rules + variety)
 │   ├── 🎲 variety.py                  # Variety score between meals and plans
 │   ├── 📄 pdf_receipt.py              # PDF generation service

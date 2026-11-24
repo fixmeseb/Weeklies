@@ -12,15 +12,15 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}"><span class="logo"></span> Weeklies</a>
+    <a class="brand" href="{{ url_for('planner.index') }}"><span class="logo"></span> Weeklies</a>
     <nav>
-      <a href="{{ url_for('index') }}">Home</a>
-      <a href="{{ url_for('insights') }}">Insights</a>
-      <a href="{{ url_for('restaurants') }}">Restaurants</a>
-      <a href="{{ url_for('orders') }}">My Orders</a>
-      <a href="{{ url_for('profile') }}">Profile</a>
-      {% if db_view_enabled %}<a href="{{ url_for('db_view') }}">DB</a>{% endif %}
-      <a href="{{ url_for('logout') }}" data-confirm="Log out now?">Logout</a>
+      <a href="{{ url_for('planner.index') }}">Home</a>
+      <a href="{{ url_for('planner.insights') }}">Insights</a>
+      <a href="{{ url_for('food.restaurants') }}">Restaurants</a>
+      <a href="{{ url_for('food.orders') }}">My Orders</a>
+      <a href="{{ url_for('account.profile') }}">Profile</a>
+      {% if db_view_enabled %}<a href="{{ url_for('food.db_view') }}">DB</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Logout</a>
     </nav>
   </div>
 </header>
@@ -64,7 +64,7 @@
           <li><a href="#wallet"><span class="px-display">IV.</span> Wallet</a></li>
           <li><a href="#password"><span class="px-display">V.</span> Password</a></li>
         </ol>
-        <a class="px-logout" href="{{ url_for('logout') }}" data-confirm="Log out now?">Log out</a>
+        <a class="px-logout" href="{{ url_for('auth.logout') }}" data-confirm="Log out now?">Log out</a>
       </nav>
 
       <!-- Chapters -->
@@ -95,7 +95,7 @@
           {% if diet_notice %}
             <div class="flash {{ diet_notice[0] }}" role="status">{{ diet_notice[1] }}</div>
           {% endif %}
-          <form method="POST" action="{{ url_for('edit_profile') }}" id="dietProfileForm">
+          <form method="POST" action="{{ url_for('account.edit_profile') }}" id="dietProfileForm">
             <input type="hidden" name="section" value="diet">
             <fieldset class="diet-settings">
               <legend>Hard constraints</legend>
@@ -142,7 +142,7 @@
           </p>
           {% if times_error %}<p class="flash danger" role="alert" id="timesError">{{ times_error }}</p>{% endif %}
           {% if times_saved %}<p class="flash success" role="status" id="timesSaved">Meal times saved.</p>{% endif %}
-          <form id="timesForm" class="px-times" method="POST" action="{{ url_for('save_meal_times') }}">
+          <form id="timesForm" class="px-times" method="POST" action="{{ url_for('account.save_meal_times') }}">
             <label for="breakfastTime">Breakfast <input class="input" id="breakfastTime" name="breakfast_time" type="time" value="{{ times_text[1] }}" required></label>
             <label for="lunchTime">Lunch <input class="input" id="lunchTime" name="lunch_time" type="time" value="{{ times_text[2] }}" required></label>
             <label for="dinnerTime">Dinner <input class="input" id="dinnerTime" name="dinner_time" type="time" value="{{ times_text[3] }}" required></label>
@@ -157,9 +157,9 @@
             <p class="px-note">
               {% if last_order %}
                 Last order{% if last_order.date %} on {{ last_order.date }}{% endif %} from {{ last_order.restaurant }}{% if last_order.status %} ({{ last_order.status|lower }}){% endif %}.
-                <a href="{{ url_for('orders') }}">See every order</a>
+                <a href="{{ url_for('food.orders') }}">See every order</a>
               {% else %}
-                No orders yet. <a href="{{ url_for('restaurants') }}">Browse the restaurants</a>
+                No orders yet. <a href="{{ url_for('food.restaurants') }}">Browse the restaurants</a>
               {% endif %}
             </p>
           </div>
@@ -167,7 +167,7 @@
 
         <section id="password" aria-labelledby="ch4">
           <h2 id="ch4" class="px-display">V. Password</h2>
-          <form id="pwForm" class="px-pw" novalidate method="POST" action="{{ url_for('change_password') }}">
+          <form id="pwForm" class="px-pw" novalidate method="POST" action="{{ url_for('account.change_password') }}">
             <label for="pwCurrent">Current password
               <input class="input" id="pwCurrent" name="current_password" type="password" autocomplete="current-password" required>
             </label>
@@ -194,7 +194,7 @@
       <h3 id="editModalTitle" style="margin:0; font-size:18px;">Change phone number</h3>
       <button type="button" class="btn btn-outline btn-sm" id="closeEditModalBtn" aria-label="Close">Close</button>
     </div>
-    <form method="POST" action="{{ url_for('edit_profile') }}" id="editProfileForm" novalidate>
+    <form method="POST" action="{{ url_for('account.edit_profile') }}" id="editProfileForm" novalidate>
       <div class="modal-body">
         <div class="form-grid">
           <div>

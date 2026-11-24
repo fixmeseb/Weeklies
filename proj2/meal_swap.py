@@ -4,7 +4,7 @@ Single-meal swaps: replace one date/meal slot of a user's generated menu.
 The generated menu is stored on the User row as a string of entries like
 "[YYYY-MM-DD,itm_id,meal]" where meal is 1 (breakfast), 2 (lunch) or 3 (dinner).
 Legacy entries without a meal number are treated as dinner, matching
-Flask_app.parse_generated_menu.
+planner.meal_plan.parse_generated_menu.
 """
 
 import datetime

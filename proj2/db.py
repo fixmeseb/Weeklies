@@ -115,6 +115,11 @@ def transaction(conn):
         conn.commit()
 
 
+def db_path() -> str:
+    """Path of the current app's database, for code that opens its own connection."""
+    return current_app.config["DATABASE"]
+
+
 def init_app(app):
     """Register the database config, teardown hook and CLI commands on ``app``."""
     app.config.setdefault("DATABASE", config.db_path())

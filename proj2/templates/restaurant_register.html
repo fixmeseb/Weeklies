@@ -84,11 +84,11 @@
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="brand" href="{{ url_for('index') }}">
+    <a class="brand" href="{{ url_for('planner.index') }}">
       <span class="logo" aria-hidden="true"></span> Weeklies
     </a>
     <nav>
-      <a href="{{ url_for('restaurant_login') }}">Restaurant Login</a>
+      <a href="{{ url_for('food.restaurant_login') }}">Restaurant Login</a>
     </nav>
   </div>
 </header>
@@ -121,7 +121,7 @@
           where you are and when you are open, and you can add your dishes straight after.
         </p>
 
-        <form method="post" action="{{ url_for('restaurant_register') }}" id="signup-form" novalidate>
+        <form method="post" action="{{ url_for('food.restaurant_register') }}" id="signup-form" novalidate>
 
           <h2 class="section-title">Your restaurant</h2>
           <div class="field-grid">
@@ -252,7 +252,7 @@
         </form>
 
         <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
-          <a href="{{ url_for('restaurant_login') }}" class="note">Already listed? Sign in</a>
+          <a href="{{ url_for('food.restaurant_login') }}" class="note">Already listed? Sign in</a>
         </div>
       </div>
     </div>

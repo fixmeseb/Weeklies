@@ -172,16 +172,16 @@ def test_order_meals_skips_cancelled_unreadable_and_other_users(orders_db):
 
 
 def test_generate_route_passes_the_users_orders(client, login_session, monkeypatch):
-    import proj2.Flask_app as flask_app
+    from proj2.food import plan
 
     seen = {}
-    real = flask_app.MenuGenerator.update_menu
+    real = plan.MenuGenerator.update_menu
 
     def spy(self, *args, **kwargs):
         seen["ordered_meals"] = kwargs.get("ordered_meals")
         return real(self, *args, **kwargs)
 
-    monkeypatch.setattr(flask_app, "order_meals", lambda conn, usr_id: [("2026-11-18", 1, 3)])
-    monkeypatch.setattr(flask_app.MenuGenerator, "update_menu", spy)
+    monkeypatch.setattr(plan, "order_meals", lambda conn, usr_id: [("2026-11-18", 1, 3)])
+    monkeypatch.setattr(plan.MenuGenerator, "update_menu", spy)
     client.post("/menu/generate", json={"start_date": START, "meal_numbers": [3]})
     assert seen["ordered_meals"] == [("2026-11-18", 1, 3)]
