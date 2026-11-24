@@ -3324,7 +3324,9 @@ def _owner_page(errors=None, submitted=None, editing=None, open_add=False):
         tag_columns=menu_items.TAG_COLUMNS,
         required_tags=menu_items.REQUIRED_TAGS,
         errors=errors or {},
-        submitted=submitted or {},
+        # A tag picker posts one value per ticked box behind an always-sent empty one, so
+        # the raw form's .get() would read every picker back as empty.
+        submitted=menu_items.flatten(submitted or {}),
         editing=editing,
         open_add=open_add,
         query=query,
