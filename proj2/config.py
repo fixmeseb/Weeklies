@@ -8,6 +8,7 @@ This module imports nothing beyond the standard library so scripts can use it ch
 
 import os
 import secrets
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 _PROJ_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -46,6 +47,37 @@ def order_fees() -> dict:
         dict: tax_rate, delivery_fee and service_fee.
     """
     return {"tax_rate": TAX_RATE, "delivery_fee": DELIVERY_FEE, "service_fee": SERVICE_FEE}
+
+
+# ---------------------- Wallets ----------------------
+
+STARTING_WALLET_ENV = "WEEKLIES_STARTING_WALLET"
+DEFAULT_STARTING_WALLET_CENTS = 10_000
+
+
+def starting_wallet_cents(environ=None) -> int:
+    """
+    What a newly registered customer's wallet holds. Orders are paid from the wallet and
+    nothing in the app adds funds, so an account starting at zero could never order.
+    Args:
+        environ (Mapping | None): Environment to read; defaults to os.environ.
+    Returns:
+        int: WEEKLIES_STARTING_WALLET (a dollar amount) in cents, otherwise $100.00.
+    Raises:
+        ValueError: the variable is set to something that is not a dollar amount of at
+            least zero.
+    """
+    environ = os.environ if environ is None else environ
+    text = (environ.get(STARTING_WALLET_ENV) or "").strip()
+    if not text:
+        return DEFAULT_STARTING_WALLET_CENTS
+    try:
+        dollars = Decimal(text)
+    except InvalidOperation:
+        dollars = None
+    if dollars is None or not dollars.is_finite() or dollars < 0:
+        raise ValueError(f"{STARTING_WALLET_ENV} must be a dollar amount, not {text!r}")
+    return int((dollars * 100).to_integral_value(ROUND_HALF_UP))
 
 
 # ---------------------- Seed-script passwords ----------------------

@@ -53,6 +53,7 @@ from proj2.dietary import (
     with_account_diets,
 )
 from proj2 import menu_items
+from proj2 import wallet
 from proj2 import restaurant_signup
 from proj2.meal_swap import (
     SlotNotFoundError,
@@ -203,6 +204,25 @@ def _order_charges(subtotal: float, delivery_type: str, tip: float) -> dict:
     service_fee = config.SERVICE_FEE
     total = _money(subtotal + tax + delivery_fee + service_fee + tip)
     return {"tax": tax, "delivery_fee": delivery_fee, "service_fee": service_fee, "total": total}
+
+
+def _place_order(conn, rtr_id, usr_id, details) -> int:
+    """
+    Charge the customer's wallet for an order and store it, both or neither.
+    Args:
+        conn (sqlite3.Connection): Open database connection.
+        rtr_id (int): The restaurant.
+        usr_id (int): The customer.
+        details (dict): The order's details; its charges' total is what is taken.
+    Returns:
+        int: The new order's id.
+    Raises:
+        wallet.InsufficientFundsError: The wallet holds less than the total.
+    """
+    cents = wallet.to_cents(details["charges"]["total"])
+    with transaction(conn):
+        wallet.charge(conn, usr_id, cents)
+        return insert_order(conn, usr_id, rtr_id, {**details, "wallet_cents": cents})
 
 
 def _cents_to_dollars(cents) -> float:
@@ -1378,25 +1398,33 @@ def restaurant_accept_order(ord_id):
 @restaurant_required
 def restaurant_reject_order(ord_id):
     """
-    Reject a pending order (Ordered → Cancelled).
+    Reject a pending order (Ordered → Cancelled) and refund the customer's wallet.
     """
     rtr_id = session.get("rtr_id")
 
     conn = get_db()
     order = fetch_one(
-        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
+        conn,
+        'SELECT ord_id, rtr_id, status, usr_id, details FROM "Order" WHERE ord_id = ?',
+        (ord_id,),
     )
 
     if not order or order[1] != rtr_id:
         abort(403)
 
-    if order[2] not in ["Ordered", "Accepted", "Preparing"]:
+    # The status is checked by the same statement that changes it, so cancelling twice at
+    # once refunds only once.
+    with transaction(conn):
+        cancelled = set_status(
+            conn, ord_id, "Cancelled", only_from=("Ordered", "Accepted", "Preparing")
+        )
+        if cancelled:
+            wallet.refund_order(conn, order[3], order[4])
+    if not cancelled:
         return (
             jsonify({"ok": False, "error": "Cannot cancel at this stage"}),
             400,
         )
-
-    set_status(conn, ord_id, "Cancelled")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -1566,7 +1594,16 @@ def register():
                 VALUES
                     (?,          ?,         ?,     ?,     ?,           ?,      ?,            ?)
                 """,
-                (fname, lname, email, digits_only, password_hashed, 0, preferences, allergies),
+                (
+                    fname,
+                    lname,
+                    email,
+                    digits_only,
+                    password_hashed,
+                    config.starting_wallet_cents(),
+                    preferences,
+                    allergies,
+                ),
             )
         except IntegrityError:
             return registration_page("Email already registered")
@@ -2225,8 +2262,8 @@ def order():
         None
     Returns:
         Response: JSON with {'ok', 'ord_id'} on success, or {'ok': False, 'error',
-        'message'} with 400/404/409 (see proj2.ordering.build_order). A GET places
-        nothing and redirects to the Restaurants page.
+        'message'} with 400/404/409 (see proj2.ordering.build_order), or 402 when the
+        wallet cannot cover it. A GET places nothing and redirects to the Restaurants page.
     """
     # Must be logged in
     if session.get("Username") is None:
@@ -2257,7 +2294,21 @@ def order():
         )
     except OrderError as err:
         return jsonify({"ok": False, "error": err.code, "message": err.message}), err.status
-    new_ord_id = insert_order(conn, usr_id, rtr_id, details)
+    try:
+        new_ord_id = _place_order(conn, rtr_id, usr_id, details)
+    except wallet.InsufficientFundsError as exc:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "insufficient_funds",
+                    "message": exc.message,
+                    "balance_cents": exc.balance_cents,
+                    "total_cents": exc.total_cents,
+                }
+            ),
+            402,
+        )
     update_analytics_safe(rtr_id)
     return jsonify({"ok": True, "ord_id": new_ord_id})
 
@@ -2492,10 +2543,11 @@ def restaurants():
         for m in menu_items
     ]
 
-    allergy_row = fetch_one(
-        conn, 'SELECT allergies FROM "User" WHERE email = ?', (session.get("Email"),)
+    user_row = fetch_one(
+        conn, 'SELECT allergies, wallet FROM "User" WHERE email = ?', (session.get("Email"),)
     )
-    user_allergies = (allergy_row[0] if allergy_row else "") or ""
+    user_allergies = (user_row[0] if user_row else "") or ""
+    wallet_cents = (user_row[1] if user_row else 0) or 0
     banned = parse_allergens(user_allergies)
     for it in item_list:
         it["conflicts"] = sorted(banned & parse_allergens(it["allergens"]))
@@ -2518,6 +2570,7 @@ def restaurants():
         restaurants=rest_list,
         items=item_list,
         user_allergies=_csv_list(user_allergies),
+        wallet_cents=wallet_cents,
     )
 
 
@@ -3024,7 +3077,7 @@ def order_plan_days():
 
     Each meal becomes its own order, due at the user's time for that meal on its day, so
     the restaurant sees when it is for. Meals that cannot be ordered (sold out, closed
-    then, an allergen, a day already past) are skipped and reported; the rest are placed.
+    then, an allergen, a day already past, more than the wallet holds) are skipped and reported; the rest are placed.
     Fields: start_date, days, meal1..3 (or JSON number_of_days / meal_numbers),
     delivery_type and tip (per order).
     """
@@ -3077,7 +3130,18 @@ def order_plan_days():
             if err.code == "no_address":
                 break  # the same for every meal
             continue
-        placed.append(insert_order(conn, usr_id, rtr_id, details))
+        try:
+            placed.append(_place_order(conn, rtr_id, usr_id, details))
+        except wallet.InsufficientFundsError as exc:  # a later, cheaper meal may still fit
+            skipped.append(
+                {
+                    "date": day,
+                    "meal": meal,
+                    "error": "insufficient_funds",
+                    "message": exc.message,
+                }
+            )
+            continue
         update_analytics_safe(rtr_id)
     message = f"Ordered {len(placed)} meal{'' if len(placed) == 1 else 's'}."
     if skipped:
