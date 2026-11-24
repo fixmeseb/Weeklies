@@ -83,7 +83,7 @@ def seed_user(temp_db_path):
                 conn,
                 'INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,generated_menu,'
                 "address,city,state,zip) "
-                'VALUES ("SEF","User",?,"5551234567",?,0,"","","","1 Test Way","Raleigh","NC","27606")',
+                'VALUES ("SEF","User",?,"5551234567",?,100000000,"","","","1 Test Way","Raleigh","NC","27606")',
                 (USER_EMAIL, pw_hash),
             )
             row = fetch_one(conn, 'SELECT usr_id FROM "User" WHERE email=?', (USER_EMAIL,))

@@ -133,7 +133,7 @@ def seed_minimal_data(temp_db_path):
                 """
               INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,preferences,allergies,generated_menu,
                                  address,city,state,zip)
-              VALUES ("Test","User",?, "5551234", ?, 0, "", "", "[2025-11-02,1,3]",
+              VALUES ("Test","User",?, "5551234", ?, 100000000, "", "", "[2025-11-02,1,3]",
                       "1 Test Way","Raleigh","NC","27606")
             """,
                 (email, _hash_pw("secret123")),

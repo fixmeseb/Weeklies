@@ -82,7 +82,7 @@ def bug_db(temp_db_path, monkeypatch):
         )
         conn.execute(
             'INSERT INTO "User"(first_name,last_name,email,phone,password_HS,wallet,'
-            "preferences,allergies,generated_menu) VALUES ('Bug','Hunter',?,'5550000',?,0,"
+            "preferences,allergies,generated_menu) VALUES ('Bug','Hunter',?,'5550000',?,100000,"
             "'spicy','Peanut','')",
             (EMAIL, generate_password_hash(PASSWORD)),
         )

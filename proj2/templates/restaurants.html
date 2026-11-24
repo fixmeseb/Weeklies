@@ -161,7 +161,7 @@
         <p class="slip-to" id="cartEmptyMsg" style="display:none;">Nothing on the slip yet. Add a dish from the menu.</p>
         <div id="cartGroups"></div>
         <div class="rx-slip-foot">
-          <span>Paid from your wallet</span>
+          <span>Paid from your wallet (${{ '%.2f'|format(wallet_cents / 100) }})</span>
           <button id="clearCartBtn" class="rx-link" type="button">Clear the slip</button>
         </div>
       </section>
@@ -212,7 +212,7 @@
   function writeCart(arr){ setCookie('cart', JSON.stringify(arr), 7); }
 
   // ---------- UI helpers ----------
-  function showToast(msg){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1400); }
+  function showToast(msg, ms){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), ms || 1400); }
   function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function toMoney(n){ return Number.parseFloat(n).toFixed(2); }
   function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
@@ -404,8 +404,8 @@
       const res = await fetch(`{{ url_for('order') }}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data || !data.ok) {
-        // The server says why: sold out, closed now, an allergen, no delivery address...
-        showToast((data && data.message) || 'Could not place the order');
+        // The server says why: sold out, closed now, an allergen, no delivery address, too little in the wallet...
+        showToast((data && data.message) || 'Could not place the order', 5000);
         return;
       }
       showToast('Order placed!');

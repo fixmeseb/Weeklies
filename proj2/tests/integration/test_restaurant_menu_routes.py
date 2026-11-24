@@ -448,6 +448,46 @@ def test_a_rejected_add_reopens_the_add_panel(client, owner):
     assert '<details class="panel" open>' in body
 
 
+def _ticked(body, form_id):
+    """The (name, value) of every ticked box in one form."""
+    form = body.split(f'id="{form_id}"')[1].split("</form>")[0]
+    boxes = re.findall(r'<input type="checkbox"[^>]*>', form)
+    return {
+        (re.search(r'name="([^"]*)"', box)[1], re.search(r'value="([^"]*)"', box)[1])
+        for box in boxes
+        if re.search(r"\schecked\b", box)
+    }
+
+
+# What a browser posts: the picker's empty hidden value, then one value per ticked box
+CONTRADICTION = {
+    "protein": ["", "fish", "legumes"],
+    "cuisine": ["", "japanese"],
+    "carb_base": ["", "rice"],
+    "diet_tags": ["", "vegan"],
+}
+TICKED = {(name, value) for name, values in CONTRADICTION.items() for value in values if value}
+
+
+def test_a_refused_dish_keeps_its_ticked_boxes(client, owner):
+    body = client.post("/restaurant/menu/new", data=dish(**CONTRADICTION)).data.decode()
+    assert "contradicts itself" in body
+    assert _ticked(body, "add-dish-form") == TICKED
+
+
+def test_a_refused_edit_keeps_its_ticked_boxes(client, owner, app_context):
+    itm_id, errors = menu_items.create(
+        get_db(), owner["rtr_id"], dish(name="Edited Plate", diet_tags="vegetarian")
+    )
+    assert errors == {}
+    body = client.post(
+        f"/restaurant/menu/{itm_id}/edit", data=dish(name="Edited Plate", **CONTRADICTION)
+    ).data.decode()
+    assert "contradicts itself" in body
+    # what was submitted, with the stored tofu and vegetarian ticks gone
+    assert _ticked(body, "edit-dish-form") == TICKED
+
+
 def test_a_rejected_edit_keeps_that_dish_s_form_open(client, owner, app_context):
     conn = get_db()
     itm_id = next(

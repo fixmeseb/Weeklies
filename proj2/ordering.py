@@ -325,10 +325,25 @@ def _record_history(conn, ord_id, status, at=None):
     )
 
 
-def set_status(conn, ord_id, status, at=None) -> None:
-    """Moves an order to a new status and records when."""
-    execute_query(conn, 'UPDATE "Order" SET status = ? WHERE ord_id = ?', (status, ord_id))
+def set_status(conn, ord_id, status, at=None, only_from=None) -> bool:
+    """
+    Moves an order to a new status and records when.
+
+    Args:
+        only_from (Sequence[str] | None): Move it only if its status is one of these,
+            checked by the same statement that changes it
+
+    Returns:
+        bool: True if the order was moved
+    """
+    sql, params = 'UPDATE "Order" SET status = ? WHERE ord_id = ?', (status, ord_id)
+    if only_from is not None:
+        sql += f" AND status IN ({','.join('?' * len(only_from))})"
+        params += tuple(only_from)
+    if execute_query(conn, sql, params).rowcount != 1:
+        return False
     _record_history(conn, ord_id, status, at)
+    return True
 
 
 def status_history(conn, ord_ids) -> dict:
