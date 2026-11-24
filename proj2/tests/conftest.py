@@ -1,3 +1,4 @@
+# ruff: noqa: E402 -- proj2 is importable only after the sys.path setup below
 import os
 import sys
 
