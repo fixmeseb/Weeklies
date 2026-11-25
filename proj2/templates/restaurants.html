@@ -88,6 +88,10 @@
     .slip-table thead th { font-family: var(--font-display, var(--font)); font-weight: 400; text-align: left; padding: 4px 2px;
       border-top: 2px solid var(--text); border-bottom: 1px solid var(--text); }
     .slip-table td { padding: 6px 2px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    /* Short enough to leave room for the total and Place order. The scrollbar sits in the
+       slip's padding, and long words wrap, so the lines never scroll sideways. */
+    .slip-lines { --scroll-box-height: 40vh; margin-right: -16px; padding-right: 4px; }
+    .slip-table td:nth-child(2) { overflow-wrap: anywhere; }
     .slip-table .num { text-align: right; white-space: nowrap; font-variant-numeric: oldstyle-nums; }
     .slip-table .qty { width: 54px; font: inherit; padding: 4px; }
     .slip-table .note { display: block; font-style: italic; font-size: 13px; color: var(--muted); }
@@ -146,7 +150,9 @@
         <label><input type="checkbox" id="fSafe"{% if user_allergies %} checked{% endif %}{% if not user_allergies %} disabled{% endif %}> Without my allergens</label>
         <label><input type="checkbox" id="fLight"> Under 600 calories</label>
       </fieldset>
-      <ol id="restList" class="rest-index"></ol>
+      <div class="scroll-box" id="restBox" tabindex="0" role="region" aria-label="Restaurant list">
+        <ol id="restList" class="rest-index"></ol>
+      </div>
     </aside>
 
     <!-- One restaurant's menu, as a catalog page -->
@@ -217,6 +223,14 @@
   function toMoney(n){ return Number.parseFloat(n).toFixed(2); }
   function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
   const ORDER_FEES = {{ order_fees|tojson }};  // from proj2/config.py via inject_order_fees
+  // Scroll `el` into view inside its scroll box without moving the page
+  function showInBox(box, el){
+    if (!box || !el) return;
+    const b = box.getBoundingClientRect(), e = el.getBoundingClientRect();
+    const top = b.top + (box.querySelector('thead') || { offsetHeight: 0 }).offsetHeight;
+    if (e.top < top) box.scrollTop -= top - e.top;
+    else if (e.bottom > b.bottom) box.scrollTop += e.bottom - b.bottom;
+  }
   function formatAddress(r){ if (!r) return ''; if (r.address_full) return r.address_full; const parts=[r.address,r.city,r.state,r.zip].filter(Boolean); return parts.join(', '); }
   function listWords(xs){ return xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
   const reviewsUrl = (id) => `{{ url_for('food.restaurant_reviews', rtr_id=0) }}`.replace('/0', `/${id}`);
@@ -304,6 +318,12 @@
       </div>
     </div>`;
   }
+  // The dish list's scroll position: read it, or set it after the list is drawn again
+  function dishScroll(top){
+    const box = document.getElementById('dishBox');
+    if (box && top !== undefined) box.scrollTop = top;
+    return box ? box.scrollTop : 0;
+  }
   function renderPage(r){
     if (!r) {
       pageEl.innerHTML = `<p class="rx-empty">${RESTS.length ? 'No restaurant matches your search and filters.' : 'No restaurants yet.'}</p>`;
@@ -332,7 +352,8 @@
         </div>
         <a href="${reviewsUrl(r.rtr_id)}">${rating}</a>
       </header>
-      ${dishes.length ? `<div class="rx-dishes">${dishes.map(dishHtml).join('')}</div>`
+      ${dishes.length ? `<div class="scroll-box has-controls" id="dishBox" tabindex="0" role="region" aria-label="Dishes from ${esc(r.name)}">
+          <div class="rx-dishes">${dishes.map(dishHtml).join('')}</div></div>`
         : `<p class="rx-empty">No dishes match${searchTerm ? ' your search' : ''}${fLight.checked || fSafe.checked ? ' and filters' : ''}.</p>`}
       ${aside}`;
 
@@ -347,7 +368,11 @@
       });
     });
     const t = document.getElementById('toggleSetAside');
-    if (t) t.addEventListener('click', () => { showSetAside = !showSetAside; render(); });
+    if (t) t.addEventListener('click', () => {
+      const top = dishScroll();
+      showSetAside = !showSetAside; render();
+      dishScroll(top);
+    });
   }
 
   function statusWord(r){
@@ -377,6 +402,8 @@
     writeCart(cart);
     showToast(`Added ${it.name} to the slip`);
     renderCart();
+    const line = existing ? cart.indexOf(existing) : cart.length - 1;
+    showInBox(cartGroupsWrap.querySelector('.slip-lines'), cartGroupsWrap.querySelector(`tr[data-i="${line}"]`));
   }
 
   // ---------- Totals / Place order ----------
@@ -424,6 +451,8 @@
   function renderCart(){
     const cart = readCart();
     cartEmptyMsg.style.display = cart.length ? 'none' : 'block';
+    const lineBox = () => cartGroupsWrap.querySelector('.slip-lines');
+    const scrolled = lineBox() ? lineBox().scrollTop : 0;
     cartGroupsWrap.innerHTML = '';
     if (!cart.length) return;
 
@@ -439,6 +468,7 @@
 
       groupEl.innerHTML = `
         <p class="slip-to">To be sent to ${esc(title)}</p>
+        <div class="scroll-box slip-lines" tabindex="0" role="region" aria-label="Dishes on the slip">
         <table class="slip-table">
           <thead><tr><th scope="col">Qty</th><th scope="col">Dish</th><th scope="col" class="num">Price</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
           <tbody>${lines.map((l, i) => `
@@ -450,6 +480,7 @@
             </tr>`).join('')}
           </tbody>
         </table>
+        </div>
         <div class="slip-opts">
           <label for="deliver-${rtrId}">Type</label>
           <select id="deliver-${rtrId}" class="input"><option value="delivery">Delivery</option><option value="pickup">Pickup</option></select>
@@ -498,6 +529,7 @@
       updateSummary();
       cartGroupsWrap.appendChild(groupEl);
     });
+    lineBox().scrollTop = scrolled;
   }
 
   document.getElementById('clearCartBtn').addEventListener('click', () => { if (!confirm('Clear the whole slip?')) return; writeCart([]); renderCart(); });
@@ -505,6 +537,7 @@
   // Init
   selectedId = initialSelection();
   render();
+  showInBox(document.getElementById('restBox'), restListEl.querySelector('[aria-pressed="true"]'));
   renderCart();
 </script>
 

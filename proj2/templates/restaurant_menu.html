@@ -118,6 +118,8 @@
     table.menu th {
       font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;
     }
+    /* solid, so rows do not show through the headings while the list scrolls */
+    .scroll-box > table.menu th { opacity: 1; color: var(--muted); }
     .dish-name { font-weight: 600; }
     .dish-desc { font-size: 0.82rem; opacity: 0.75; margin-top: 0.15rem; }
     .tagline { font-size: 0.78rem; opacity: 0.85; }
@@ -394,6 +396,8 @@
           {% endif %}
         </p>
       {% else %}
+      {# While a dish is being edited its form is in the table, so the list is not boxed #}
+      <div{% if not editing %} class="scroll-box has-controls" tabindex="0" role="region" aria-label="Your dishes"{% endif %}>
       <table class="menu">
         <thead>
           <tr><th>Dish</th><th>Price</th><th>Tags</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr>
@@ -454,6 +458,7 @@
         {% endfor %}
         </tbody>
       </table>
+      </div>
       {% endif %}
     </div>
 

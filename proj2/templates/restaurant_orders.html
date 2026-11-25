@@ -87,6 +87,7 @@
       <h2 class="section-title">
         Pending Orders ({{ orders_by_status.Ordered|length }})
       </h2>
+      <div class="scroll-box has-controls" tabindex="0" role="region" aria-label="Pending orders">
       {% for order in orders_by_status.Ordered %}
       <div class="order-card">
         <div class="order-header">
@@ -131,6 +132,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
     </section>
     {% endif %}
     
@@ -140,6 +142,7 @@
       <h2 class="section-title">
         Accepted Orders ({{ orders_by_status.Accepted|length }})
       </h2>
+      <div class="scroll-box has-controls" tabindex="0" role="region" aria-label="Accepted orders">
       {% for order in orders_by_status.Accepted %}
       <div class="order-card">
         <div class="order-header">
@@ -177,6 +180,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
     </section>
     {% endif %}
     
@@ -186,6 +190,7 @@
       <h2 class="section-title">
         Preparing ({{ orders_by_status.Preparing|length }})
       </h2>
+      <div class="scroll-box has-controls" tabindex="0" role="region" aria-label="Orders being prepared">
       {% for order in orders_by_status.Preparing %}
       <div class="order-card">
         <div class="order-header">
@@ -216,6 +221,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
     </section>
     {% endif %}
     
@@ -225,6 +231,7 @@
       <h2 class="section-title">
         Ready for Pickup/Delivery ({{ orders_by_status.Ready|length }})
       </h2>
+      <div class="scroll-box has-controls" tabindex="0" role="region" aria-label="Orders ready">
       {% for order in orders_by_status.Ready %}
       <div class="order-card">
         <div class="order-header">
@@ -255,6 +262,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
     </section>
     {% endif %}
     
@@ -264,6 +272,7 @@
       <h2 class="section-title">
         Recently Delivered
       </h2>
+      <div class="scroll-box has-controls" tabindex="0" role="region" aria-label="Recently delivered orders">
       {% for order in orders_by_status.Delivered[:10] %}
       <div class="order-card is-past">
         <div class="order-header">
@@ -279,6 +288,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
     </section>
     {% endif %}
     

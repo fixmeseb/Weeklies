@@ -818,6 +818,27 @@ body::before {
 .ruled th, .ruled td { padding: 8px; }
 .table tr:hover td { background: color-mix(in srgb, var(--primary) 6%, transparent); }
 
+/* Scroll boxes: a long list scrolls inside its own box instead of stretching the page.
+   Give the element tabindex="0", role="region" and a label, so it can be scrolled from the
+   keyboard. Phones, very short windows and print show the whole list: a box inside a
+   scrolling page is awkward to swipe, and paper cannot scroll. */
+.scroll-box { position: relative; }  /* keeps absolutely positioned children inside the box */
+@media screen and (min-width: 901px) and (min-height: 500px) {
+  .scroll-box {
+    max-height: var(--scroll-box-height, 70vh); overflow: auto;
+    scrollbar-width: thin; scrollbar-color: var(--muted) transparent;
+  }
+  /* Room for the focus ring of a control at the edge of the box */
+  .scroll-box.has-controls { padding-inline: 4px; margin-inline: -4px; }
+  /* Table headings stay in view. Collapsed borders scroll away from a sticky cell, so the
+     rules above and below it are drawn as shadows. */
+  .scroll-box:has(> table) { scroll-padding-top: 3.5rem; }
+  .scroll-box > table > thead th {
+    position: sticky; top: 0; z-index: 2; background: var(--surface); border: 0;
+    box-shadow: inset 0 2px 0 var(--text), inset 0 -1px 0 var(--text);
+  }
+}
+
 /* Statuses read as words, not pills */
 .badge {
   padding: 0; border: 0; border-radius: 0; background: none;

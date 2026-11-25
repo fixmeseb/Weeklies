@@ -44,6 +44,7 @@
         {% if item_total_error %}
           <p class="flash danger">{{ item_total_error }}</p>
         {% elif weekly_item_totals %}
+          <div class="table-wrap scroll-box" tabindex="0" role="region" aria-label="Weekly item totals by week">
           <table class="table">
             <thead><tr><th scope="col">Week starting</th><th scope="col">Item total</th></tr></thead>
             <tbody>
@@ -52,6 +53,7 @@
               {% endfor %}
             </tbody>
           </table>
+          </div>
         {% else %}
           <p class="muted">Generate a meal plan to see its weekly item totals.</p>
         {% endif %}
@@ -64,6 +66,7 @@
         <p class="muted">How different each week's meals are from each other, from 0% (the same
           meal every time) to 100%. Meals close together in time count the most.</p>
         {% if weekly_variety %}
+          <div class="table-wrap scroll-box" tabindex="0" role="region" aria-label="Plan variety by week">
           <table class="table">
             <thead><tr><th scope="col">Week starting</th><th scope="col">Variety</th>
               <th scope="col">Most similar nearby meals</th></tr></thead>
@@ -77,6 +80,7 @@
               {% endfor %}
             </tbody>
           </table>
+          </div>
         {% else %}
           <p class="muted">Generate a meal plan to see how varied it is.</p>
         {% endif %}
