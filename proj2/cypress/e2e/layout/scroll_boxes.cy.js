@@ -71,8 +71,12 @@ describe("Scroll boxes", () => {
 
   it("never scrolls the slip sideways, in any style, and prints whole lists", () => {
     ["standard", "almanac", "ticket", "primer", "menuboard"].forEach((style) => {
-      cy.clearCookie("cart");
-      cy.visit("/restaurants", { onBeforeLoad: (w) => w.localStorage.setItem("weeklies-style", style) });
+      cy.visit("/restaurants", {
+        onBeforeLoad: (w) => {
+          w.localStorage.clear(); // an empty slip for each style
+          w.localStorage.setItem("weeklies-style", style);
+        },
+      });
       cy.contains(".rest-entry", "Saffron Tandoor").click();
       cy.get("#fSafe").uncheck({ force: true });
       for (let i = 0; i < 6; i++) cy.get(".add-btn").eq(i).click();

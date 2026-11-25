@@ -165,4 +165,23 @@ describe("Restaurant Menu Management", () => {
       });
     });
   });
+
+  it("asks before deleting a dish with an apostrophe in its name", () => {
+    openAddForm();
+    cy.get(`${ADD} #new-name`).type("Nonna's \"Best\" Pie");
+    cy.get(`${ADD} #new-price`).type("9.50");
+    cy.get(`${ADD} input[name="protein"][value="tofu"]`).check();
+    cy.get(`${ADD} input[name="cuisine"][value="italian"]`).check();
+    cy.get(`${ADD} input[name="carb_base"][value="grain"]`).check();
+    cy.get(ADD).contains("button", "Add to menu").click();
+    cy.contains("table.menu tr", "Nonna's").should("exist");
+
+    const question = cy.stub().returns(false).as("question");
+    cy.on("window:confirm", question);
+    cy.contains("table.menu tr", "Nonna's").contains("button", "Delete").click();
+    cy.get("@question").should("have.been.calledOnce")
+      .its("firstCall.args.0").should("contain", "Delete Nonna's \"Best\" Pie for good?");
+    cy.visit("/restaurant/menu");
+    cy.contains("table.menu tr", "Nonna's").should("exist");
+  });
 });

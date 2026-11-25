@@ -42,6 +42,7 @@ from proj2.ordering import OrderError, build_order
 from proj2.plan_optimization import OBJECTIVES, parse_weights
 from proj2.plan_rules import SLOT_NAMES
 from proj2.planner.meal_plan import SWAP_ERROR_MESSAGES, fetch_menu_items_by_ids
+from proj2.request_data import json_object
 from proj2.sqlQueries import execute_query, fetch_all, fetch_one
 
 
@@ -97,7 +98,10 @@ def generate_menu():
 
     # Parse inputs
     if request.is_json:
-        payload = request.get_json(silent=True) or {}
+        payload = json_object()
+        for field in ("start_date", "preferences", "allergens"):
+            if not isinstance(payload.get(field) or "", str):
+                return jsonify({"ok": False, "error": f"{field} must be text."}), 400
         start_date = (payload.get("start_date") or date.today().isoformat()).strip()
         try:
             meal_numbers = [int(x) for x in (payload.get("meal_numbers") or [1, 2, 3])]
@@ -186,9 +190,13 @@ def generate_menu():
     if number_of_days > 14:
         number_of_days = 14
 
+    try:
+        first, last = plan_edit.days_range(start_date, number_of_days)
+    except plan_edit.PlanEditError as exc:
+        return generation_error(str(exc), 400)
+
     # "Replace" re-plans the chosen meals on these days instead of only filling gaps.
     if replace:
-        first, last = plan_edit.days_range(start_date, number_of_days)
         existing_menu, _ = plan_edit.clear_days(existing_menu, first, last, meal_numbers)
 
     # Generate
@@ -240,7 +248,7 @@ def generate_menu():
     # fetch, which asks for JSON and then opens the calendar
     notice = nutrition_notice(gen.nutrition_report())
     if notice and from_form:
-        session["plan_notice"] = notice
+        session["plan_notice"] = ("warning", notice)
 
     if want_json:
         return jsonify(
@@ -276,13 +284,15 @@ def _plan_reply(ok, message, status=200, back_to=None, **extra):
         return jsonify(body), status
     session["plan_notice"] = ("success" if ok else "danger", message)
     if back_to:
-        year, month, _ = back_to.split("-")
-        return redirect(url_for("planner.index", year=int(year), month=int(month), week=back_to))
+        day = date.fromisoformat(back_to)
+        return redirect(
+            url_for("planner.index", year=day.year, month=day.month, week=day.isoformat())
+        )
     return redirect(url_for("planner.index"))
 
 
 def _plan_form():
-    return (request.get_json(silent=True) or {}) if request.is_json else request.form
+    return json_object() if request.is_json else request.form
 
 
 def _save_plan(conn, usr_id, menu):
@@ -324,7 +334,10 @@ def _range_from(form):
         days = 1
     days = min(max(days, 1), 31)
     if request.is_json:
-        meals = [int(m) for m in (form.get("meal_numbers") or [1, 2, 3])]
+        try:
+            meals = [int(m) for m in (form.get("meal_numbers") or [1, 2, 3])]
+        except (TypeError, ValueError):
+            raise plan_edit.PlanEditError("The meals must be a list of 1, 2 or 3.")
     else:
         meals = [m for m in (1, 2, 3) if form.get(f"meal{m}")] or [1, 2, 3]
     first, last = plan_edit.days_range(form.get("start_date") or date.today().isoformat(), days)
@@ -464,7 +477,7 @@ def swap_meal():
     diets, and saved weekly cap.
     """
     want_json = request.is_json
-    payload = (request.get_json(silent=True) or {}) if want_json else request.form
+    payload = json_object() if want_json else request.form
 
     def _fail(code, message, status):
         if want_json:

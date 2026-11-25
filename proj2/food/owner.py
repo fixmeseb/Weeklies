@@ -1,7 +1,6 @@
 """The owner's order queue and reviews, and the banner over the owner pages."""
 
 import json
-import math
 from datetime import datetime
 
 from flask import abort, jsonify, redirect, render_template, request, session, url_for
@@ -13,6 +12,7 @@ from proj2.food.blueprint import bp
 from proj2.food.owner_auth import restaurant_required
 from proj2.order_history import _order_for
 from proj2.ordering import set_status
+from proj2.request_data import page_number
 from proj2.sqlQueries import fetch_all, fetch_one
 
 
@@ -191,12 +191,10 @@ def restaurant_owner_reviews():
 
     conn = get_db()
     # Get query parameters
-    page = max(1, int(request.args.get("page", 1)))
     sort = request.args.get("sort", "recent")
     filter_rating = request.args.get("filter", "all")
 
     per_page = 10
-    offset = (page - 1) * per_page
 
     # Build WHERE clause for filter
     where_clause = "rtr_id = ?"
@@ -222,6 +220,8 @@ def restaurant_owner_reviews():
     total_reviews = fetch_one(
         conn, f'SELECT COUNT(*) FROM "Review" WHERE {where_clause}', tuple(params)
     )[0]
+    page, total_pages = page_number(total_reviews, per_page)
+    offset = (page - 1) * per_page
 
     # Calculate average rating
     avg_row = fetch_one(conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,))
@@ -279,8 +279,6 @@ def restaurant_owner_reviews():
             }
         )
 
-    total_pages = math.ceil(total_reviews / per_page) if total_reviews > 0 else 1
-
     return render_template(
         "restaurant_owner_reviews.html",
         restaurant_name=restaurant_name,
@@ -305,10 +303,8 @@ def restaurant_accept_order(ord_id):
     rtr_id = session.get("rtr_id")
 
     conn = get_db()
-    # Verify order belongs to this restaurant and is in 'Ordered' status
-    order = fetch_one(
-        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
-    )
+    # Verify order belongs to this restaurant
+    order = fetch_one(conn, 'SELECT ord_id, rtr_id FROM "Order" WHERE ord_id = ?', (ord_id,))
 
     if not order:
         abort(404)
@@ -316,14 +312,13 @@ def restaurant_accept_order(ord_id):
     if order[1] != rtr_id:
         abort(403)  # Not this restaurant's order
 
-    if order[2] != "Ordered":
+    # The status is checked by the same statement that changes it, so an order cancelled
+    # (and refunded) meanwhile is not moved on. The steps below do the same.
+    if not set_status(conn, ord_id, "Accepted", only_from=("Ordered",)):
         return (
             jsonify({"ok": False, "error": "Order not in pending state"}),
             400,
         )
-
-    # Update status
-    set_status(conn, ord_id, "Accepted")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -385,20 +380,16 @@ def restaurant_prepare_order(ord_id):
     rtr_id = session.get("rtr_id")
 
     conn = get_db()
-    order = fetch_one(
-        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
-    )
+    order = fetch_one(conn, 'SELECT ord_id, rtr_id FROM "Order" WHERE ord_id = ?', (ord_id,))
 
     if not order or order[1] != rtr_id:
         abort(403)
 
-    if order[2] != "Accepted":
+    if not set_status(conn, ord_id, "Preparing", only_from=("Accepted",)):
         return (
             jsonify({"ok": False, "error": "Order must be accepted first"}),
             400,
         )
-
-    set_status(conn, ord_id, "Preparing")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -418,20 +409,16 @@ def restaurant_ready_order(ord_id):
     rtr_id = session.get("rtr_id")
 
     conn = get_db()
-    order = fetch_one(
-        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
-    )
+    order = fetch_one(conn, 'SELECT ord_id, rtr_id FROM "Order" WHERE ord_id = ?', (ord_id,))
 
     if not order or order[1] != rtr_id:
         abort(403)
 
-    if order[2] != "Preparing":
+    if not set_status(conn, ord_id, "Ready", only_from=("Preparing",)):
         return (
             jsonify({"ok": False, "error": "Order must be preparing first"}),
             400,
         )
-
-    set_status(conn, ord_id, "Ready")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)
@@ -451,20 +438,16 @@ def restaurant_deliver_order(ord_id):
     rtr_id = session.get("rtr_id")
 
     conn = get_db()
-    order = fetch_one(
-        conn, 'SELECT ord_id, rtr_id, status FROM "Order" WHERE ord_id = ?', (ord_id,)
-    )
+    order = fetch_one(conn, 'SELECT ord_id, rtr_id FROM "Order" WHERE ord_id = ?', (ord_id,))
 
     if not order or order[1] != rtr_id:
         abort(403)
 
-    if order[2] != "Ready":
+    if not set_status(conn, ord_id, "Delivered", only_from=("Ready",)):
         return (
             jsonify({"ok": False, "error": "Order must be ready first"}),
             400,
         )
-
-    set_status(conn, ord_id, "Delivered")
 
     # Update analytics for this restaurant
     update_analytics_safe(rtr_id)

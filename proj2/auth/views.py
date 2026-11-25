@@ -55,7 +55,7 @@ def login():
         password = request.form.get("password") or ""
 
         user = find_customer_for_login(email)
-        if user and check_password_hash(user["password_HS"], password):
+        if user and user["password_HS"] and check_password_hash(user["password_HS"], password):
             start_customer_session(user, email)
             return redirect(url_for("planner.index"))
         return render_template("login.html", error="Invalid credentials")

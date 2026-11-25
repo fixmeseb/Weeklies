@@ -38,6 +38,12 @@ def _requested_day():
     return day if 1 < day.year < 9999 else None  # room for the weeks either side
 
 
+def _check_month(year, month):
+    """Not found (404) for a month that does not exist or has no month either side of it."""
+    if not (1 <= month <= 12 and 1 < year < 9999):
+        abort(404)
+
+
 @bp.route("/", defaults={"year": None, "month": None})
 @bp.route("/<int:year>/<int:month>")
 def index(year, month):
@@ -59,6 +65,7 @@ def index(year, month):
     if not year or not month:
         shown_day = requested_day or today
         year, month = shown_day.year, shown_day.month
+    _check_month(year, month)
 
     # Load current user's generated_menu, and the targets the plan form opens with
     conn = get_db()
@@ -121,8 +128,6 @@ def index(year, month):
                 request.args.get("swap_error"), "That meal could not be swapped."
             ),
         )
-    elif session.get("plan_notice"):
-        swap_notice = ("warning", session.pop("plan_notice"))
 
     return render_template(
         "index.html",
@@ -174,8 +179,7 @@ def insights(year, month):
     today = date.today()
     if not year or not month:
         year, month = today.year, today.month
-    if not 1 <= month <= 12:
-        abort(404)
+    _check_month(year, month)
 
     conn = get_db()
     user = fetch_one(
