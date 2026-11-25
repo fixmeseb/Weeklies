@@ -88,12 +88,14 @@
     </div>
     <a class="headerlink" href="#index"></a>
     
-            <div class="docstring"><p>Render the calendar home view for the current or specified month.
+            <div class="docstring"><p>Render the calendar home view for the current or specified month. The Almanac style
+draws one week instead: the one holding ?week=YYYY-MM-DD (see shown_week).
 Args:
     year (int | None): Optional year path parameter.
-    month (int | None): Optional month path parameter (1–12).
+    month (int | None): Optional month path parameter (1–12). Without them, the month
+        of ?week, else the current month.
 Returns:
-    Response: HTML page showing the monthly plan and today's meals (requires login).</p>
+    Response: HTML page showing the plan and today's meals (requires login).</p>
 </div>
 
 

@@ -54,7 +54,16 @@
                     <a class="function" href="#calendar_week_variety">calendar_week_variety</a>
             </li>
             <li>
+                    <a class="function" href="#planned_weeks">planned_weeks</a>
+            </li>
+            <li>
+                    <a class="function" href="#week_variety">week_variety</a>
+            </li>
+            <li>
                     <a class="function" href="#month_item_totals">month_item_totals</a>
+            </li>
+            <li>
+                    <a class="function" href="#shown_week">shown_week</a>
             </li>
             <li>
                     <a class="function" href="#month_nav">month_nav</a>
@@ -201,7 +210,37 @@ Returns:
     </div>
     <a class="headerlink" href="#calendar_week_variety"></a>
     
-            <div class="docstring"><p>Variety of each Monday–Sunday week shown in a calendar month (see <a href="../variety.html">proj2.variety</a>)</p>
+            <div class="docstring"><p>Variety of each Monday–Sunday week planned in a calendar month (see week_variety)</p>
+</div>
+
+
+                </section>
+                <section id="planned_weeks">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">planned_weeks</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">gen_str</span>, </span><span class="param"><span class="n">year</span>, </span><span class="param"><span class="n">month</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#planned_weeks"></a>
+    
+            <div class="docstring"><p>The weeks (start dates, in order) with a meal planned on a day of a calendar month.</p>
+</div>
+
+
+                </section>
+                <section id="week_variety">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">week_variety</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">gen_str</span>, </span><span class="param"><span class="n">weeks</span>, </span><span class="param"><span class="n">items_by_id</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#week_variety"></a>
+    
+            <div class="docstring"><p>Variety of Monday–Sunday weeks (see <a href="../variety.html">proj2.variety</a>). Weeks with nothing planned are left out.</p>
 
 <p>Returns:
     dict: week start -> {"score": percent or None, "similar": [sentence, ...]}</p>
@@ -223,6 +262,30 @@ Returns:
 
 <p>Returns:
     Tuple[dict, str | None]: (week start -> cents, error message or None)</p>
+</div>
+
+
+                </section>
+                <section id="shown_week">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">shown_week</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">requested</span>, </span><span class="param"><span class="n">gen_str</span>, </span><span class="param"><span class="n">year</span>, </span><span class="param"><span class="n">month</span>, </span><span class="param"><span class="n">today</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#shown_week"></a>
+    
+            <div class="docstring"><p>The week the Almanac style shows with a calendar month</p>
+
+<p>Args:
+    requested (date | None): A day in the week asked for
+    gen_str (str): The plan (User.generated_menu)
+    year (int), month (int): The calendar month shown
+    today (date): Today
+Returns:
+    date: The Monday of the week asked for; else this week, when the month is this
+        month; else the first week planned in the month, or its first week.</p>
 </div>
 
 
