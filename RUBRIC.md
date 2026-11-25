@@ -85,7 +85,7 @@ single largest recoverable loss on the rubric.
 | **INSTALL.md: how to install** | [`INSTALL.md`](./INSTALL.md) | **3** | Windows and macOS/Linux paths, each ending in a verified run, plus the documentation build. |
 | **LICENSE.md: rules of use** | [`LICENSE.md`](./LICENSE.md) | **3** | MIT, in the standard location. |
 | **CODE-OF-CONDUCT.md: rules of behavior** | [`CODE-OF-CONDUCT.md`](./CODE-OF-CONDUCT.md) | **3** | Contributor Covenant with a named contact. |
-| **CONTRIBUTING.md: coding standards & tips to extend** | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | **3** | Branch conventions, how to run both suites, formatting rules, and the pull request workflow. It tells contributors to fill out a pull request template, which this repository does not yet have. |
+| **CONTRIBUTING.md: coding standards & tips to extend** | [`CONTRIBUTING.md`](./CONTRIBUTING.md), [`PULL_REQUEST_TEMPLATE.md`](./.github/PULL_REQUEST_TEMPLATE.md), [issue templates](./.github/ISSUE_TEMPLATE) | **3** | Branch conventions, how to run both suites, formatting rules, and the pull request workflow — and the templates it refers to now exist, so a contributor is prompted for the issue link, the verification steps and the lint gate rather than being told about them once. |
 | **Style checker, formatter, syntax checker config + badges** | [`pyproject.toml`](./pyproject.toml), [`scripts/check-changed.sh`](./scripts/check-changed.sh) | **3** | Black and Ruff are configured in `pyproject.toml`, badged in the README, and — unusually — actually **enforced**: `check-changed.sh` fails CI on any Python file the branch touched that is unformatted or unclean. |
 | **DOI badge from Zenodo** | [`CITATION.cff`](./CITATION.cff), [`.zenodo.json`](./.zenodo.json) | **0** | The old badge resolved to **`rdpatel2/Weeklies: v1.1.0 – Project 2 Release`**, the upstream archive, whose nine listed authors are the Project 1 and Project 2 teams; **no member of this team is on it**. It has been removed rather than left to mislead. Archive metadata is staged in `.zenodo.json` and `CITATION.cff`, so this becomes a 3 the moment the `v3.0.0` release is archived — see step 6 below. |
 | **THIRD_PARTY_LIBRARIES.md: every dependency with license** | [`THIRD_PARTY_LIBRARIES.md`](./THIRD_PARTY_LIBRARIES.md) | **3** | Every Python, development and Node dependency with its version and licence, plus the USDA FoodData Central dataset and its CC0 1.0 terms. |
@@ -144,8 +144,10 @@ Ordered by points per hour of effort.
       `CITATION.cff`, and add its badge to `README.md`.
 7. **Even out the fourth member's contribution — +1.** One member is at 5 commits against 33, 33
    and 24.
-8. **Add a pull request template.** No points on its own, but `CONTRIBUTING.md` already promises
-   one.
+8. ~~**Add a pull request template.**~~ Done: [`PULL_REQUEST_TEMPLATE.md`](./.github/PULL_REQUEST_TEMPLATE.md)
+   and bug/feature [issue templates](./.github/ISSUE_TEMPLATE), whose chooser also links the
+   Discord server and the API docs. No points on its own; `CONTRIBUTING.md` had promised a
+   template that did not exist.
 
 ---
 

@@ -1,0 +1,10 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Ask the team on Discord
+    url: https://discord.gg/raSqAj6R8
+    about: >-
+      Quick questions, design arguments and review nudges. Anything that ends in a code
+      change should also get an issue here, so the reasoning sits next to the commit.
+  - name: 📘 API documentation
+    url: https://fixmeseb.github.io/Weeklies/
+    about: Generated reference for every module, built from main by the Docs workflow.
