@@ -128,8 +128,6 @@ def index(year, month):
                 request.args.get("swap_error"), "That meal could not be swapped."
             ),
         )
-    elif session.get("plan_notice"):
-        swap_notice = ("warning", session.pop("plan_notice"))
 
     return render_template(
         "index.html",

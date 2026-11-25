@@ -5,6 +5,7 @@ answer 500, lose something, or undo a refund.
 
 import sqlite3
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -275,3 +276,21 @@ def test_other_ways_to_write_a_date_still_return_to_the_calendar(
     shop.sign_in(client)
     resp = client.post("/menu/remove", data={"date": day, "meal": "1"})
     assert resp.status_code == 302 and "/2026/1?week=2026-01-05" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------- plan notices
+
+
+def test_removing_a_meal_says_so_in_words(client, shop):
+    day = (date.today() + timedelta(days=1)).isoformat()
+    shop.run(
+        'UPDATE "User" SET generated_menu=? WHERE usr_id=?',
+        f"[{day},{shop.itm_id},3]",
+        shop.usr_id,
+    )
+    shop.sign_in(client)
+    client.post("/menu/remove", data={"date": day, "meal": "3"})
+    page = client.get("/").get_data(as_text=True)
+    assert f'class="flash success" role="status" id="planNotice">Dinner on {day} removed' in page
+    assert "flash warning" not in page
+    assert "removed from your plan." not in client.get("/").get_data(as_text=True)  # shown once

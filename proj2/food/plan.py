@@ -248,7 +248,7 @@ def generate_menu():
     # fetch, which asks for JSON and then opens the calendar
     notice = nutrition_notice(gen.nutrition_report())
     if notice and from_form:
-        session["plan_notice"] = notice
+        session["plan_notice"] = ("warning", notice)
 
     if want_json:
         return jsonify(
