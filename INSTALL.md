@@ -80,7 +80,7 @@ flask init-db    # create an empty database
 
 The schema lives in numbered files in `proj2/migrations/`. After pulling changes that add one, run `flask migrate` to bring your database up to date without losing data. Databases made by the old setup scripts have no schema version and are refused: recreate them with `flask seed`.
 
-If the database is missing or empty, the app shows a "Database not initialised" error instead of starting normally.
+If the database is missing, empty, or not at the schema version the code needs, the app refuses to start or shows a "Database not initialised" error. The terminal names the problem and the command that fixes it.
 
 ### Running the Application
 Once dependencies are installed and the database is set up, you can run the Flask server from the repo root:

@@ -57,6 +57,7 @@ def bug_db(temp_db_path, monkeypatch):
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )
         ]
+        version = src.execute("PRAGMA user_version").fetchone()[0]
     finally:
         src.close()
 
@@ -64,6 +65,7 @@ def bug_db(temp_db_path, monkeypatch):
     try:
         for stmt in ddl:
             conn.execute(stmt)
+        conn.execute(f"PRAGMA user_version = {version}")
         conn.execute(
             'INSERT INTO "Restaurant"(name,email,address,city,state,zip,hours,status) '
             "VALUES ('Cafe Bug','owner@bug.com','1 Main','Raleigh','NC','27606',?,'open')",

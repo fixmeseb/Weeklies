@@ -51,9 +51,9 @@ def create_app(test_config=None):
     def _database_not_initialised(exc):
         app.logger.error("%s", exc)
         return (
-            "<h1>Database not initialised</h1><p>The server's database is missing or empty. "
-            "Run <code>flask --app proj2.Flask_app init-db</code> and "
-            "<code>flask --app proj2.Flask_app seed</code>.</p>",
+            "<h1>Database not initialised</h1><p>The server's database is missing, empty or not "
+            "at the schema version this code needs. The server log says which, and how to "
+            "fix it.</p>",
             500,
         )
 

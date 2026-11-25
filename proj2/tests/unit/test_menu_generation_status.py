@@ -11,31 +11,26 @@ import sqlite3
 
 import pytest
 
+from proj2.db_cli import init_database
 from proj2.menu_generation import MenuGenerator, is_taking_orders
 
 ALL_DAY = json.dumps({d: [0, 2359] for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]})
 
-SCHEMA = """
-CREATE TABLE "User" (usr_id INTEGER);
-CREATE TABLE "Order" (ord_id INTEGER);
-CREATE TABLE Review (review_id INTEGER);
-CREATE TABLE Analytics (analytics_id INTEGER);
-CREATE TABLE Restaurant (rtr_id INTEGER PRIMARY KEY, name TEXT, status TEXT, hours TEXT);
-CREATE TABLE MenuItem (itm_id INTEGER PRIMARY KEY, rtr_id INTEGER, name TEXT, description TEXT,
-                       price INTEGER, calories INTEGER, instock INTEGER, allergens TEXT);
-"""
+ADD_RESTAURANT = "INSERT INTO Restaurant (rtr_id, name, status, hours) VALUES (?, ?, ?, ?)"
+ADD_ITEM = (
+    "INSERT INTO MenuItem (itm_id, rtr_id, name, description, price, calories, instock, allergens)"
+    " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+)
 
 
 def _db(tmp_path, status):
     """A one-restaurant, one-item catalog whose restaurant carries `status`."""
     path = str(tmp_path / "status.db")
+    init_database(path)
     conn = sqlite3.connect(path)
     try:
-        conn.executescript(SCHEMA)
-        conn.execute("INSERT INTO Restaurant VALUES (1, 'Cafe', ?, ?)", (status, ALL_DAY))
-        conn.execute(
-            "INSERT INTO MenuItem VALUES (1, 1, 'Soup', 'Hot', 500, 300, 1, '')",
-        )
+        conn.execute(ADD_RESTAURANT, (1, "Cafe", status, ALL_DAY))
+        conn.execute(ADD_ITEM, (1, 1, "Soup", "Hot", 500, 300, 1, ""))
         conn.commit()
     finally:
         conn.close()
@@ -73,11 +68,11 @@ def test_generation_and_swap_never_disagree(tmp_path, status):
 
 def test_a_closed_restaurant_does_not_hide_an_open_one(tmp_path):
     path = str(tmp_path / "mixed.db")
+    init_database(path)
     conn = sqlite3.connect(path)
     try:
-        conn.executescript(SCHEMA)
         conn.executemany(
-            "INSERT INTO Restaurant VALUES (?, ?, ?, ?)",
+            ADD_RESTAURANT,
             [
                 (1, "Shut", "Closed", ALL_DAY),
                 (2, "Lowercase", "open", ALL_DAY),
