@@ -33,9 +33,6 @@
             <h2>API Documentation</h2>
                 <ul class="memberlist">
             <li>
-                    <a class="variable" href="#REQUIRED_TABLES">REQUIRED_TABLES</a>
-            </li>
-            <li>
                     <a class="class" href="#DatabaseNotInitialisedError">DatabaseNotInitialisedError</a>
                             <ul class="memberlist">
                 </ul>
@@ -55,6 +52,9 @@
             </li>
             <li>
                     <a class="function" href="#connect">connect</a>
+            </li>
+            <li>
+                    <a class="function" href="#check_schema_version">check_schema_version</a>
             </li>
             <li>
                     <a class="function" href="#get_db">get_db</a>
@@ -99,8 +99,11 @@ connections themselves.</p>
 <li>return <code>sqlite3.Row</code> rows, so columns can be read by name (<code>row["email"]</code>)
 as well as by position;</li>
 <li>enforce foreign keys (<code>PRAGMA foreign_keys = ON</code>);</li>
-<li>never create a database file: a missing or empty database raises
-<code><a href="#DatabaseNotInitialisedError">DatabaseNotInitialisedError</a></code> instead of looking like an empty table.</li>
+<li>never create a database file, and check the schema version
+(<code>PRAGMA user_version</code>, set by the migrations): a database that is missing,
+empty, made by the old scripts, or not yet migrated raises
+<code><a href="#DatabaseNotInitialisedError">DatabaseNotInitialisedError</a></code> with the command that fixes it, instead of
+failing later as an empty table or "no such table".</li>
 </ul>
 
 <p>The database path comes from <code>app.config["DATABASE"]</code>, which defaults to
@@ -111,18 +114,6 @@ as well as by position;</li>
                 
                 
             </section>
-                <section id="REQUIRED_TABLES">
-                    <div class="attr variable">
-            <span class="name">REQUIRED_TABLES</span>        =
-<span class="default_value">frozenset({&#39;MenuItem&#39;, &#39;Analytics&#39;, &#39;Review&#39;, &#39;User&#39;, &#39;Order&#39;, &#39;Restaurant&#39;})</span>
-
-        
-    </div>
-    <a class="headerlink" href="#REQUIRED_TABLES"></a>
-    
-    
-
-                </section>
                 <section id="DatabaseNotInitialisedError">
                     <div class="attr class">
             
@@ -133,7 +124,7 @@ as well as by position;</li>
     </div>
     <a class="headerlink" href="#DatabaseNotInitialisedError"></a>
     
-            <div class="docstring"><p>The database file is missing or lacks the app's tables.</p>
+            <div class="docstring"><p>The database is missing, empty, or not at the schema version this code needs.</p>
 </div>
 
 
@@ -252,9 +243,25 @@ as well as by position;</li>
 
 <p>Args:
     path: SQLite database file. It must already exist.
-    verify: Check that the app's tables exist (skipped by init-db, which creates them).
+    verify: Check the schema version (skipped by the migration code itself).
 Raises:
-    DatabaseNotInitialisedError: the file is missing, or (with verify) lacks tables.</p>
+    DatabaseNotInitialisedError: the file is missing, or (with verify) is not at the
+        latest schema version.</p>
+</div>
+
+
+                </section>
+                <section id="check_schema_version">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">check_schema_version</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">conn</span>, </span><span class="param"><span class="n">path</span><span class="o">=</span><span class="s1">'the database'</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#check_schema_version"></a>
+    
+            <div class="docstring"><p>Raise DatabaseNotInitialisedError unless <code>conn</code> is at the latest migration.</p>
 </div>
 
 
