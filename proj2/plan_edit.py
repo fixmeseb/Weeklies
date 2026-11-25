@@ -91,5 +91,8 @@ def clear_days(menu: str, start, end, meals=(1, 2, 3)):
 def days_range(start, number_of_days: int):
     """(first day, last day) of number_of_days days from start, as YYYY-MM-DD."""
     first = datetime.date.fromisoformat(_day(start, "first day"))
-    last = first + datetime.timedelta(days=max(1, int(number_of_days)) - 1)
+    try:
+        last = first + datetime.timedelta(days=max(1, int(number_of_days)) - 1)
+    except OverflowError:
+        raise PlanEditError("Those days run past the last date the calendar has.")
     return first.isoformat(), last.isoformat()

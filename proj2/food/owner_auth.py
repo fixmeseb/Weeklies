@@ -60,7 +60,7 @@ def restaurant_login():
             (email,),
         )
 
-        if restaurant and check_password_hash(restaurant[3], password):
+        if restaurant and restaurant[3] and check_password_hash(restaurant[3], password):
             # Set restaurant session
             session["restaurant_mode"] = True
             session["rtr_id"] = restaurant[0]

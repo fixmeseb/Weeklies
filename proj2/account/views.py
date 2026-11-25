@@ -266,9 +266,10 @@ def change_password():
         session["usr_id"] = usr_id
 
     # Read form fields
-    current_password = (request.form.get("current_password") or "").strip()
-    new_password = (request.form.get("new_password") or "").strip()
-    confirm_password = (request.form.get("confirm_password") or "").strip()
+    # Spaces are kept, as they are at sign-up and sign-in
+    current_password = request.form.get("current_password") or ""
+    new_password = request.form.get("new_password") or ""
+    confirm_password = request.form.get("confirm_password") or ""
 
     # Basic validations (mirror your frontend behavior)
     if not current_password:
@@ -287,7 +288,7 @@ def change_password():
         return redirect(url_for("auth.logout"))
 
     stored_hash = row[0]
-    if not check_password_hash(stored_hash, current_password):
+    if not stored_hash or not check_password_hash(stored_hash, current_password):
         # wrong current password
         return redirect(url_for("account.profile", pw_error="incorrect_current"))
 

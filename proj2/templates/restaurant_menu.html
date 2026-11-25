@@ -437,7 +437,8 @@
                   <input type="hidden" name="instock" value="{{ 0 if item['instock'] else 1 }}" />
                 </form>
                 <form method="post" action="{{ url_for('food.restaurant_menu_delete', itm_id=item['itm_id']) }}"
-                      onsubmit="return confirm('Delete {{ item['name']|e }} for good? Taking it off the menu is usually what you want, and keeps plans that already include it working.');">
+                      data-question="Delete {{ item['name'] }} for good? Taking it off the menu is usually what you want, and keeps plans that already include it working."
+                      onsubmit="return confirm(this.dataset.question);">
                   <button type="submit" class="danger">Delete</button>
                 </form>
               </div>

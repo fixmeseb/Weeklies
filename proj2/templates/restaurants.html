@@ -198,24 +198,35 @@
     list.forEach((it, i) => dishNo.set(it.itm_id, i + 1));
   });
 
-  // ---------- Cookie helpers ----------
-  function setCookie(name, value, days) {
-    const d = new Date();
-    d.setTime(d.getTime() + days*24*60*60*1000);
-    document.cookie = name + "=" + encodeURIComponent(value) + ";expires=" + d.toUTCString() + ";path=/;SameSite=Lax";
+  // ---------- The slip, kept in this browser for each customer ----------
+  const CART_KEY = 'weeklies-cart-' + {{ (session.get('usr_id') or session.get('Email') or '')|string|tojson }};
+  const CART_UNSAVED = 'Your browser could not save the slip, so nothing was changed.';
+  const CART_DAYS = 7;   // since the slip last changed
+  function readCart(){
+    try {
+      const kept = JSON.parse(localStorage.getItem(CART_KEY) || 'null');
+      if (!kept || !Array.isArray(kept.lines) || Date.now() - kept.saved > CART_DAYS*24*60*60*1000) return [];
+      return kept.lines;
+    } catch { return []; }
   }
-  function getCookie(name) {
-    const cname = name + "=";
-    const decoded = decodeURIComponent(document.cookie);
-    const parts = decoded.split(';');
-    for (let c of parts) {
-      while (c.charAt(0) === ' ') c = c.substring(1);
-      if (c.indexOf(cname) === 0) return c.substring(cname.length, c.length);
-    }
-    return null;
+  // False when the browser could not keep it; the slip is then as it was before
+  function writeCart(lines){
+    try {
+      if (lines.length) localStorage.setItem(CART_KEY, JSON.stringify({ saved: Date.now(), lines }));
+      else localStorage.removeItem(CART_KEY);
+      return true;
+    } catch { return false; }
   }
-  function readCart(){ try { const raw = getCookie('cart'); if (!raw) return []; const j = JSON.parse(raw); return Array.isArray(j) ? j : []; } catch { return []; } }
-  function writeCart(arr){ setCookie('cart', JSON.stringify(arr), 7); }
+  // The slip used to be a cookie, which held about 17 dishes: carry it over once
+  (function takeCartCookie(){
+    const found = document.cookie.split('; ').find(c => c.startsWith('cart='));
+    if (!found) return;
+    try {
+      const lines = JSON.parse(decodeURIComponent(found.slice('cart='.length)));
+      if (Array.isArray(lines) && lines.length && !readCart().length && !writeCart(lines)) return;
+    } catch { /* not a slip: drop it */ }
+    document.cookie = 'cart=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+  })();
 
   // ---------- UI helpers ----------
   function showToast(msg, ms){ const t=document.getElementById('toast'); t.textContent = msg || 'Added.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), ms || 1400); }
@@ -399,7 +410,7 @@
     if (cart.length && other) { showToast('The slip is for another restaurant. Clear it to switch.'); return; }
     const existing = cart.find(l => l.restaurant_id===r.rtr_id && l.item.itm_id===it.itm_id && (l.notes||'')===(note||''));
     if (existing) existing.qty = (existing.qty||1) + qty; else cart.push({ restaurant_id: r.rtr_id, restaurant_name: r.name, item: { itm_id: it.itm_id, name: it.name, unit_price: ((it.price_cents||0)/100).toFixed(2) }, qty, notes: note||'' });
-    writeCart(cart);
+    if (!writeCart(cart)) { showToast(CART_UNSAVED, 5000); return; }
     showToast(`Added ${it.name} to the slip`);
     renderCart();
     const line = existing ? cart.indexOf(existing) : cart.length - 1;
@@ -507,10 +518,13 @@
         const qtyInput = row.querySelector('.qty');
         qtyInput.addEventListener('input', () => {
           const val = Math.max(1, Number(qtyInput.value||1));
-          l.qty = val;
           const full = readCart();
           const match = full.find(x => x.restaurant_id===l.restaurant_id && x.item.itm_id===l.item.itm_id && (x.notes||'')===(l.notes||''));
-          if (match) { match.qty = val; writeCart(full); }
+          if (match) {
+            match.qty = val;
+            if (!writeCart(full)) { qtyInput.value = l.qty || 1; showToast(CART_UNSAVED, 5000); return; }
+          }
+          l.qty = val;
           row.querySelector('.line-total').textContent = '$' + toMoney(val * Number(l.item.unit_price||0));
           updateSummary();
         });
@@ -518,7 +532,7 @@
           const full = readCart();
           const idx = full.findIndex(x => x.restaurant_id===l.restaurant_id && x.item.itm_id===l.item.itm_id && (x.notes||'')===(l.notes||''));
           if (idx >= 0) full.splice(idx, 1);
-          writeCart(full);
+          if (!writeCart(full)) showToast(CART_UNSAVED, 5000);
           renderCart();
         });
       });

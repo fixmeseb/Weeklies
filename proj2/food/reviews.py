@@ -1,13 +1,14 @@
 """Customers' reviews of orders, and a restaurant's public reviews."""
 
 import json
-import math
 from datetime import datetime
+from sqlite3 import IntegrityError
 
 from flask import abort, redirect, render_template, request, session, url_for
 
 from proj2.db import get_db
 from proj2.food.blueprint import bp
+from proj2.request_data import page_number
 from proj2.sqlQueries import execute_query, fetch_all, fetch_one
 
 
@@ -153,14 +154,19 @@ def review_order(ord_id):
 
         # Insert review
         created_at = datetime.now().isoformat()
-        execute_query(
-            conn,
-            """
-            INSERT INTO "Review" (rtr_id, usr_id, title, rating, description, ord_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (rtr_id, usr_id, title, rating_int, description, ord_id, created_at),
-        )
+        try:
+            execute_query(
+                conn,
+                """
+                INSERT INTO "Review" (rtr_id, usr_id, title, rating, description, ord_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (rtr_id, usr_id, title, rating_int, description, ord_id, created_at),
+            )
+        except IntegrityError:
+            # Submitted twice at once: the other one is saved, and the page below shows it
+            if not user_review(conn, ord_id, usr_id):
+                raise
 
         return redirect(url_for("food.review_order", ord_id=ord_id))
 
@@ -198,13 +204,11 @@ def restaurant_reviews(rtr_id):
     restaurant = {"name": restaurant_row[0]}
 
     # Get query parameters
-    page = max(1, int(request.args.get("page", 1)))
     sort = request.args.get("sort", "recent")
     filter_rating = request.args.get("filter", "all")
     highlight = request.args.get("highlight")  # Optional review ID to highlight
 
     per_page = 10
-    offset = (page - 1) * per_page
 
     # Build WHERE clause for filter
     where_clause = "rtr_id = ?"
@@ -230,6 +234,8 @@ def restaurant_reviews(rtr_id):
     total_reviews = fetch_one(
         conn, f'SELECT COUNT(*) FROM "Review" WHERE {where_clause}', tuple(params)
     )[0]
+    page, total_pages = page_number(total_reviews, per_page)
+    offset = (page - 1) * per_page
 
     # Calculate average rating
     avg_row = fetch_one(conn, 'SELECT AVG(rating) FROM "Review" WHERE rtr_id = ?', (rtr_id,))
@@ -287,8 +293,6 @@ def restaurant_reviews(rtr_id):
                 "is_highlighted": str(rev_id) == highlight,
             }
         )
-
-    total_pages = math.ceil(total_reviews / per_page) if total_reviews > 0 else 1
 
     return render_template(
         "restaurant_reviews.html",

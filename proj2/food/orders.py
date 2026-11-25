@@ -12,6 +12,7 @@ from proj2.food.blueprint import bp
 from proj2.order_history import user_orders
 from proj2.ordering import OrderError, build_order, insert_order
 from proj2.pdf_receipt import generate_order_receipt_pdf
+from proj2.request_data import json_object
 from proj2.sqlQueries import fetch_one
 
 
@@ -115,9 +116,7 @@ def order():
     if not user:
         return redirect(url_for("auth.logout"))
     try:
-        rtr_id, details = build_order(
-            conn, user, request.get_json(silent=True) or {}, _order_charges
-        )
+        rtr_id, details = build_order(conn, user, json_object(), _order_charges)
     except OrderError as err:
         return jsonify({"ok": False, "error": err.code, "message": err.message}), err.status
     try:
