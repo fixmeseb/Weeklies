@@ -172,8 +172,10 @@ Every push to any branch, and every pull request into `main` or `dev-branch`, ru
 3. **Unit, integration and e2e tests** — `pytest` with `coverage`, uploaded to Codecov
 4. **Cypress** — 19 browser specs against a live Flask server on a seeded database
 
-[`docs.yml`](./.github/workflows/docs.yml) builds the pdoc site on every pull request into
-`main` and publishes it to GitHub Pages when `main` moves.
+[`docs.yml`](./.github/workflows/docs.yml) runs when a push or a pull request into `main`
+touches `proj2/`, `scripts/`, `pdoc.toml` or the workflow itself. It builds the pdoc site and
+attaches it as an artifact on pull requests, and publishes it to the `gh-pages` branch when
+`main` moves.
 
 You can view live status from the badges above.
 
