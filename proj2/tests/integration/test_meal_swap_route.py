@@ -8,6 +8,7 @@ expected plan contents are known exactly.
 import json
 import re
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -239,6 +240,7 @@ def test_form_swap_redirects_to_slot_month(logged_in, plan, temp_db_path):
     assert resp.status_code == 302
     assert "/2025/11" in resp.headers["Location"]
     assert "swapped=1" in resp.headers["Location"]
+    assert "week=2025-11-03" in resp.headers["Location"]  # the Almanac style stays on the week
     assert f"[{MONDAY},{ids['safe']},3]" in stored_menu(temp_db_path, plan["usr_id"])
 
 
@@ -434,5 +436,56 @@ def test_calendar_has_the_almanac_style(logged_in, plan):
 
 def test_almanac_style_for_a_month_with_no_plan(logged_in, plan):
     html = logged_in.get("/2025/1").get_data(as_text=True)
-    assert "Nothing is sown for January 2025 yet." in html
+    assert "Nothing is sown for the 30th of December, 2024 to the 5th of January, 2025 yet." in html
     assert '<article class="al"' not in html
+
+
+def _week_nav(html):
+    return html.split('id="weekNav"')[1].split('<div class="almanac-only">')[0]
+
+
+def test_almanac_style_moves_by_week(logged_in, plan):
+    """Prev and Next go to the weeks either side, planned or not, across months."""
+    nav = _week_nav(logged_in.get("/2025/11").get_data(as_text=True))
+    assert "Week of the 3rd to the 9th of November, 2025" in nav
+    assert 'href="/?week=2025-10-27"' in nav and 'href="/?week=2025-11-10"' in nav
+
+    html = logged_in.get("/?week=2025-10-27").get_data(as_text=True)
+    assert "Nothing is sown for the 27th of October to the 2nd of November, 2025 yet." in html
+    assert 'href="/?week=2025-11-03"' in _week_nav(html)
+
+    html = logged_in.get("/?week=2025-11-05").get_data(as_text=True)  # any day of the week
+    assert html.count('<article class="al"') == 1
+    assert 'aria-label="Week of 2025-11-03"' in html
+
+
+def test_almanac_style_draws_one_week_of_the_month(logged_in, plan, temp_db_path):
+    later = f"{plan['menu']},[2025-11-12,{plan['ids']['dinner']},3]"
+    conn = create_connection(temp_db_path)
+    try:
+        execute_query(
+            conn, 'UPDATE "User" SET generated_menu=? WHERE usr_id=?', (later, plan["usr_id"])
+        )
+    finally:
+        close_connection(conn)
+    html = logged_in.get("/2025/11").get_data(as_text=True)
+    assert 'aria-label="Week of 2025-11-03"' in html  # the first one planned
+    assert 'aria-label="Week of 2025-11-10"' not in html
+    html = logged_in.get("/?week=2025-11-10").get_data(as_text=True)
+    assert 'aria-label="Week of 2025-11-10"' in html
+
+
+def test_month_buttons_still_move_by_month(logged_in, plan):
+    html = logged_in.get("/?week=2025-11-10").get_data(as_text=True)
+    toolbar = html.split('class="calendar-toolbar std-only"')[1].split('id="weekNav"')[0]
+    assert "November 2025" in toolbar
+    assert 'href="/2025/10"' in toolbar and 'href="/2025/12"' in toolbar
+
+
+@pytest.mark.parametrize("week", ["", "nonsense", "2025-02-30", "0001-01-01", "9999-12-31"])
+def test_an_unusable_week_shows_this_week(logged_in, plan, week):
+    response = logged_in.get("/", query_string={"week": week})
+    today = date.today()
+    assert response.status_code == 200
+    monday = today - timedelta(days=today.weekday())
+    assert f'href="/?week={monday + timedelta(days=7)}"' in response.get_data(as_text=True)

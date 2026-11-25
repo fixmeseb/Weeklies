@@ -277,7 +277,7 @@ def _plan_reply(ok, message, status=200, back_to=None, **extra):
     session["plan_notice"] = ("success" if ok else "danger", message)
     if back_to:
         year, month, _ = back_to.split("-")
-        return redirect(url_for("planner.index", year=int(year), month=int(month)))
+        return redirect(url_for("planner.index", year=int(year), month=int(month), week=back_to))
     return redirect(url_for("planner.index"))
 
 
@@ -549,7 +549,9 @@ def swap_meal():
             }
         )
     year, month, _ = slot_date.split("-")
-    return redirect(url_for("planner.index", year=int(year), month=int(month), swapped=1))
+    return redirect(
+        url_for("planner.index", year=int(year), month=int(month), swapped=1, week=slot_date)
+    )
 
 
 @bp.route("/menu/swap/options")

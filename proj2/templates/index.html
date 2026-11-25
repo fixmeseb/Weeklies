@@ -198,13 +198,21 @@
 
     <!-- Calendar -->
     <div class="calendar-wrap calendar-wide">
-      <!-- Unified calendar toolbar -->
-      <div class="calendar-toolbar" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 8px 0 14px;">
+      <!-- Calendar toolbar: by month, or by week in the Almanac style -->
+      <div class="calendar-toolbar std-only" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 8px 0 14px;">
         <div class="cal-title" style="font-weight:700; font-size:1.25rem;">{{ month_name }} {{ year }}</div>
         <div class="btnrow">
           <a class="btn" href="{{ url_for('planner.index', year=prev_year, month=prev_month) }}">&larr; Prev</a>
           <a class="btn btn-outline" href="{{ url_for('planner.index') }}">Today</a>
           <a class="btn" href="{{ url_for('planner.index', year=next_year, month=next_month) }}">Next &rarr;</a>
+        </div>
+      </div>
+      <div class="calendar-toolbar almanac-only" id="weekNav" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin: 8px 0 14px;">
+        <div class="cal-title" style="font-size:1.25rem;">Week of {{ week_title }}</div>
+        <div class="btnrow">
+          <a class="btn" href="{{ url_for('planner.index', week=prev_week) }}" aria-label="Previous week">&larr; Prev</a>
+          <a class="btn btn-outline" href="{{ url_for('planner.index') }}">This week</a>
+          <a class="btn" href="{{ url_for('planner.index', week=next_week) }}" aria-label="Next week">Next &rarr;</a>
         </div>
       </div>
 
@@ -308,7 +316,7 @@
           <div class="al al-empty">
             <header class="al-mast">
               <h2>The Weeklies Almanac &amp; Meal Catalog</h2>
-              <p>Nothing is sown for {{ month_name }} {{ year }} yet.</p>
+              <p>Nothing is sown for {{ week_title }} yet.</p>
               <div class="al-orn" aria-hidden="true">❦ ❦ ❦</div>
             </header>
             <p class="al-intro">Generate a meal plan with the form below and this page will set it out by the day.</p>
@@ -1135,7 +1143,7 @@
       const data = await res.json();
       if (data && data.ok) {
         const [y, m] = swapSlot.date.split('-');
-        window.location.href = '/' + Number(y) + '/' + Number(m) + '?swapped=1';
+        window.location.href = '/' + Number(y) + '/' + Number(m) + '?swapped=1&week=' + swapSlot.date;
         return;
       }
       smStatus.textContent = (data && data.message) || 'Sorry, that swap could not be made.';

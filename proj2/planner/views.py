@@ -1,7 +1,7 @@
 """The calendar home page and the insights page."""
 
 import calendar
-from datetime import date
+from datetime import date, timedelta
 
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
 
@@ -21,29 +21,44 @@ from proj2.planner.meal_plan import (
     month_item_totals,
     month_nav,
     parse_generated_menu,
+    shown_week,
+    week_variety,
 )
 from proj2.sqlQueries import fetch_one
 
 bp = Blueprint("planner", __name__)
 
 
+def _requested_day():
+    """?week=YYYY-MM-DD as a date, or None if it is missing or not a usable date."""
+    try:
+        day = date.fromisoformat(request.args.get("week", ""))
+    except ValueError:
+        return None
+    return day if 1 < day.year < 9999 else None  # room for the weeks either side
+
+
 @bp.route("/", defaults={"year": None, "month": None})
 @bp.route("/<int:year>/<int:month>")
 def index(year, month):
     """
-    Render the calendar home view for the current or specified month.
+    Render the calendar home view for the current or specified month. The Almanac style
+    draws one week instead: the one holding ?week=YYYY-MM-DD (see shown_week).
     Args:
         year (int | None): Optional year path parameter.
-        month (int | None): Optional month path parameter (1–12).
+        month (int | None): Optional month path parameter (1–12). Without them, the month
+            of ?week, else the current month.
     Returns:
-        Response: HTML page showing the monthly plan and today's meals (requires login).
+        Response: HTML page showing the plan and today's meals (requires login).
     """
     if session.get("Username") is None:
         return redirect(url_for("auth.login"))
 
     today = date.today()
+    requested_day = _requested_day()
     if not year or not month:
-        year, month = today.year, today.month
+        shown_day = requested_day or today
+        year, month = shown_day.year, shown_day.month
 
     # Load current user's generated_menu, and the targets the plan form opens with
     conn = get_db()
@@ -70,8 +85,9 @@ def index(year, month):
     all_item_ids = sorted({e["itm_id"] for entries in gen_map.values() for e in entries})
     items_by_id = fetch_menu_items_by_ids(all_item_ids)
 
-    weekly_variety = calendar_week_variety(conn, gen_str, year, month, items_by_id)
-    # The same weeks drawn as almanac pages, for the "Seed Catalog & Almanac" style
+    # One week drawn as an almanac page, for the "Seed Catalog & Almanac" style
+    week = shown_week(requested_day, gen_str, year, month, today)
+    weekly_variety = week_variety(conn, gen_str, [week.isoformat()], items_by_id)
     almanac_weeks = (
         almanac.build_weeks(
             plan_entries(gen_str), items_by_id, variety.catalog_rows(conn), weekly_variety
@@ -126,6 +142,9 @@ def index(year, month):
         today_menu=today_menu,
         generation_error=session.pop("menu_generation_error", None),
         almanac_weeks=almanac_weeks,
+        week_title=almanac.week_title(week),
+        prev_week=(week - timedelta(days=7)).isoformat(),
+        next_week=(week + timedelta(days=7)).isoformat(),
         optimization=session.pop("menu_optimization", None),
         optimization_objectives=OBJECTIVES,
         # The plan form opens with the targets last planned with (see generate_menu)

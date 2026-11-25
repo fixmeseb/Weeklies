@@ -70,7 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('Generation successful, redirecting...');
           // Small delay to ensure spinner is visible before redirect
           setTimeout(() => {
-            window.location.href = '/';
+            // Open on the days just planned
+            const start = formData.get('start_date');
+            window.location.href = start ? '/?week=' + encodeURIComponent(start) : '/';
           }, 100);
         } else {
           console.error('Generation failed with status:', response.status);

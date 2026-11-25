@@ -189,14 +189,27 @@ def describe_similar_pair(pair, items_by_id) -> str:
 
 def calendar_week_variety(conn, gen_str, year, month, items_by_id):
     """
-    Variety of each Monday–Sunday week shown in a calendar month (see proj2.variety)
+    Variety of each Monday–Sunday week planned in a calendar month (see week_variety)
+    """
+    return week_variety(conn, gen_str, planned_weeks(gen_str, year, month), items_by_id)
+
+
+def planned_weeks(gen_str, year, month):
+    """The weeks (start dates, in order) with a meal planned on a day of a calendar month."""
+    prefix = f"{year:04d}-{month:02d}-"
+    days = {day for day, _, _ in plan_entries(gen_str) if day.startswith(prefix)}
+    return sorted({week_start(day) for day in days})
+
+
+def week_variety(conn, gen_str, weeks, items_by_id):
+    """
+    Variety of Monday–Sunday weeks (see proj2.variety). Weeks with nothing planned are left out.
 
     Returns:
         dict: week start -> {"score": percent or None, "similar": [sentence, ...]}
     """
-    prefix = f"{year:04d}-{month:02d}-"
     entries = list(plan_entries(gen_str))
-    weeks = sorted({week_start(day) for day, _, _ in entries if day.startswith(prefix)})
+    weeks = sorted(set(weeks) & {week_start(day) for day, _, _ in entries})
     if not weeks:
         return {}
     catalog = variety.catalog_rows(conn)
@@ -233,6 +246,29 @@ def month_item_totals(gen_str, gen_map, year, month):
         return totals, None
     except ValueError:
         return {}, "Item totals are unavailable because a planned meal or its price is missing."
+
+
+def shown_week(requested, gen_str, year, month, today):
+    """
+    The week the Almanac style shows with a calendar month
+
+    Args:
+        requested (date | None): A day in the week asked for
+        gen_str (str): The plan (User.generated_menu)
+        year (int), month (int): The calendar month shown
+        today (date): Today
+    Returns:
+        date: The Monday of the week asked for; else this week, when the month is this
+            month; else the first week planned in the month, or its first week.
+    """
+    if requested:
+        day = requested
+    elif (year, month) == (today.year, today.month):
+        day = today
+    else:
+        planned = planned_weeks(gen_str, year, month)
+        day = date.fromisoformat(planned[0]) if planned else date(year, month, 1)
+    return day - timedelta(days=day.weekday())
 
 
 def month_nav(year, month):
