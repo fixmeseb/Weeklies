@@ -4,9 +4,17 @@ const scrolls = ($el) => $el[0].scrollHeight > $el[0].clientHeight + 1;
 const shouldScroll = (selector) =>
   cy.get(selector).should(($el) => expect(scrolls($el), `${selector} scrolls`).to.eq(true));
 
+// For tomorrow's dinner: an order for now is refused when the restaurant is closed, so the
+// tests would pass or fail with the time of day.
 function placeOrders(count) {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  const date = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
   for (let i = 0; i < count; i++) {
-    cy.request("POST", "/order", { restaurant_id: 1, delivery_type: "pickup", items: [{ itm_id: 1, qty: 1 }] });
+    cy.request("POST", "/order", {
+      restaurant_id: 1, delivery_type: "pickup", date, meal: 3, items: [{ itm_id: 1, qty: 1 }],
+    });
   }
 }
 
