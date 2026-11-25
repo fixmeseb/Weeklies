@@ -10,7 +10,7 @@
 ### 🪟 Windows (PowerShell)
 ```powershell
 # 1️⃣ Clone the repository
-git clone https://github.com/rdpatel2/Weeklies.git
+git clone https://github.com/fixmeseb/Weeklies.git
 cd Weeklies
 
 # 2️⃣ Create and activate a virtual environment
@@ -27,7 +27,7 @@ pip install -r proj2/requirements.txt
 ### 🐧 MacOS / Linux (Bash/Zsh)
 ```bash
 # 1️⃣ Clone the repository
-git clone https://github.com/rdpatel2/Weeklies.git
+git clone https://github.com/fixmeseb/Weeklies.git
 cd Weeklies
 
 # 2️⃣ Create & activate a venv

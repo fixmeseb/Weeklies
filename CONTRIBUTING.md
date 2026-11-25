@@ -15,7 +15,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 ## Getting Started
 
 ### 1. Fork & Clone
-1. Fork the repository on GitHub: [`https://github.com/rdpatel2/Weeklies`](https://github.com/rdpatel2/Weeklies)
+1. Fork the repository on GitHub: [`https://github.com/fixmeseb/Weeklies`](https://github.com/fixmeseb/Weeklies)
 2. Clone your fork locally:
    ```bash
    git clone https://github.com/<your-username>/Weeklies.git
@@ -23,7 +23,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
    ```
 3. Set the upstream remote:
    ```bash
-   git remote add upstream https://github.com/rdpatel2/Weeklies.git
+   git remote add upstream https://github.com/fixmeseb/Weeklies.git
    ```
 
 ### 2. Environment Setup
@@ -120,7 +120,7 @@ We enforce strict formatting and linting rules:
    ```bash
    git push origin feature/your-feature-name
    ```
-2. Open a Pull Request targeting the `main` branch of `rdpatel2/Weeklies`.
+2. Open a Pull Request targeting the `main` branch of `fixmeseb/Weeklies`.
 3. Fill out the PR template or description:
    - Describe the purpose and changes introduced by the PR.
    - Reference any related issue numbers (e.g., `Fixes #12`).
