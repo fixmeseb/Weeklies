@@ -132,4 +132,13 @@ We enforce strict formatting and linting rules:
 
 ## Questions and Support
 
-Feel free to open an issue or reach out via our project discussions on GitHub. Thank you for helping make Weeklies better!
+- **Quick questions, design arguments, review nudges** — the team's Discord server:
+  [https://discord.gg/raSqAj6R8](https://discord.gg/raSqAj6R8). This is where day-to-day coordination happens and the fastest way to
+  reach a maintainer.
+- **Anything that should outlive the conversation** — open a
+  [GitHub issue](https://github.com/fixmeseb/Weeklies/issues/new). Bugs, feature requests and
+  design decisions belong here even when they were settled on Discord, so the reasoning sits
+  next to the commit that acts on it. Link the issue from your pull request with
+  `Fixes #<n>`.
+
+Thank you for helping make Weeklies better!

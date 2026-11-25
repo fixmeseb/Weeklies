@@ -41,9 +41,9 @@ work — except where a figure is explicitly for the whole repository history.
 | **Issues are being closed** | [Closed issues](https://github.com/fixmeseb/Weeklies/issues?q=is%3Aissue+is%3Aclosed) | **0** | Nothing to close. |
 | **Issues are discussed before they are closed** | [Issues](https://github.com/fixmeseb/Weeklies/issues?q=is%3Aissue) | **0** | No issue threads exist. Of 25 pull requests, **1 carries any comment and 0 have a review**, so the discussion is not recorded on pull requests either. |
 | **A large share of issues relate to handling failing cases** | [Merged pull requests](https://github.com/fixmeseb/Weeklies/pulls?q=is%3Apr+is%3Amerged) | **0** | The underlying work exists and is substantial — the variety score treating absent tags as evidence of difference, restaurant hours stored in a format the planner silently cannot read, refunds lost on wallet changes, a Cypress spec that depended on the time of day — but it is recorded only in commit messages, not in issues. |
-| **Chat channel / discussion forum exists and is active** | — | **1** | **GitHub Discussions is not enabled** on this repository (`/discussions` returns 404). The team coordinates on Discord; that is off-platform and cannot be linked as repository evidence. |
+| **Chat channel / discussion forum exists and is active** | [Team Discord](https://discord.gg/raSqAj6R8), [`README.md`](./README.md#-contributing), [`CONTRIBUTING.md`](./CONTRIBUTING.md#questions-and-support) | **3** | The team's Discord server is where design arguments, review questions and day-to-day coordination happen throughout Project 3. The invite is now linked from the README and from CONTRIBUTING's support section, so it is reachable from the repository rather than only from the poster. GitHub Discussions is not enabled, so a grader cannot read the history without joining — worth turning on for an on-platform record. |
 
-**Issues & Discussion: 1 / 15** — see [Gaps to close](#-gaps-to-close-before-submission). This is the
+**Issues & Discussion: 3 / 15** — see [Gaps to close](#-gaps-to-close-before-submission). This is the
 single largest recoverable loss on the rubric.
 
 ---
@@ -100,11 +100,11 @@ single largest recoverable loss on the rubric.
 | Category | Maximum | Self-Assessed | Recoverable |
 |---|:---:|:---:|:---:|
 | **Teamwork** (7 items) | 21 | **20** | +1 |
-| **Issues & Discussion** (5 items) | 15 | **1** | +14 |
+| **Issues & Discussion** (5 items) | 15 | **3** | +12 |
 | **Tests** (4 items) | 12 | **12** | — |
 | **Documentation** (6 items) | 18 | **13** | +5 |
 | **Standard Files & Bling** (10 items) | 30 | **26** | +4 |
-| **Total** | **96** | **72 / 96 (75%)** | **+24** |
+| **Total** | **96** | **74 / 96 (77%)** | **+22** |
 
 Every point currently missing is recoverable, and most of it in an afternoon. The work is
 done; what is missing is the record of it.
@@ -123,8 +123,10 @@ Ordered by points per hour of effort.
    reference the pull request that closed each one.
 2. **Review each other's pull requests — part of the same +12.** Zero of 25 have a review and
    one has a comment. From here on, no merge without one approving review.
-3. **Enable GitHub Discussions — +2.** Settings → General → Features → Discussions. Then move one
-   real design argument out of Discord and into a thread.
+3. **Enable GitHub Discussions — optional, 0 points now.** The chat-channel item is satisfied by
+   the Discord server, which is linked from the README and CONTRIBUTING. Turning Discussions on
+   (Settings → General → Features) and moving one real design argument into a thread would put
+   that record on-platform, where a grader can read it without joining the server.
 4. **Enable GitHub Pages — +2 (one item here, one under Documentation).** Settings → Pages →
    source `gh-pages`. The branch is already built and current; only the switch is off. This also
    un-breaks the Docs badge link.

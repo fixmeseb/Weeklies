@@ -309,6 +309,11 @@ public domain (CC0 1.0). Dependency licences and the full third-party inventory 
 We welcome contributions from everyone.  
 Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE-OF-CONDUCT.md) before submitting pull requests.
 
+💬 **Talk to us:** the team coordinates day to day on Discord — [join the Weeklies server](https://discord.gg/raSqAj6R8).
+Design arguments, review questions and "is this a bug?" all start there. Anything that ends in
+a code change should also get a GitHub issue, so the reasoning is on the record next to the
+commit that acts on it.
+
 ---
 
 ## 📜 License
