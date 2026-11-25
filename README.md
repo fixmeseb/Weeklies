@@ -18,7 +18,7 @@
 [![Contributors](https://img.shields.io/github/contributors/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/graphs/contributors)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/pulse)
 [![Repo size](https://img.shields.io/github/repo-size/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies)
-[![DOI](https://zenodo.org/badge/1351756287.svg)](https://doi.org/10.5281/zenodo.23535676)
+<!-- DOI badge: add it here once the first release is archived. The previous badge pointed at 10.5281/zenodo.23535676, which is rdpatel2/Weeklies' Project 2 archive and lists none of this team. See CITATION.cff for the steps. -->
 
 > 🎬 **Teaser Video (30s)**: [Quick Feature Teaser Video](https://youtu.be/mHaZZrCgCAQ) · **Full Demo (3m)**: [Feature Walk-Through Video](https://youtu.be/7xUXqdqDwcs)
 
@@ -155,6 +155,8 @@ Weeklies/
     ├── THIRD_PARTY_LIBRARIES.md       # Dependency licenses
     ├── AI_DISCLOSURE.md               # AI use & verification disclosure
     ├── RUBRIC.md                      # Self-assessed repository rubric
+    ├── CITATION.cff                   # How to cite this software
+    ├── .zenodo.json                   # Archive metadata for the Zenodo DOI
     └── LICENSE.md                     # MIT License
 ```
 

@@ -80,14 +80,14 @@ single largest recoverable loss on the rubric.
 
 | Item | Evidence Link | Score (0–3) | Justification |
 |---|---|:---:|---|
-| **README.md: all badges working when clicked** | [`README.md`](./README.md) | **2** | 18 badges, all now pointing at `fixmeseb/Weeklies` and all returning 200 — CI and Docs both report *passing*. One target is still broken: the Docs badge links to the GitHub Pages site, which 404s because Pages is off. |
+| **README.md: all badges working when clicked** | [`README.md`](./README.md) | **2** | 17 badges, all pointing at `fixmeseb/Weeklies` and all returning 200 — CI and Docs both report *passing*. One target is still broken: the Docs badge links to the GitHub Pages site, which 404s because Pages is off. A DOI badge will make 18 once the first release is archived. |
 | **.gitignore: lists what must not enter the repo** | [`.gitignore`](./.gitignore) | **3** | Excludes virtual environments, SQLite databases, caches, `node_modules`, and Cypress screenshots and videos. |
 | **INSTALL.md: how to install** | [`INSTALL.md`](./INSTALL.md) | **3** | Windows and macOS/Linux paths, each ending in a verified run, plus the documentation build. |
 | **LICENSE.md: rules of use** | [`LICENSE.md`](./LICENSE.md) | **3** | MIT, in the standard location. |
 | **CODE-OF-CONDUCT.md: rules of behavior** | [`CODE-OF-CONDUCT.md`](./CODE-OF-CONDUCT.md) | **3** | Contributor Covenant with a named contact. |
 | **CONTRIBUTING.md: coding standards & tips to extend** | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | **3** | Branch conventions, how to run both suites, formatting rules, and the pull request workflow. It tells contributors to fill out a pull request template, which this repository does not yet have. |
 | **Style checker, formatter, syntax checker config + badges** | [`pyproject.toml`](./pyproject.toml), [`scripts/check-changed.sh`](./scripts/check-changed.sh) | **3** | Black and Ruff are configured in `pyproject.toml`, badged in the README, and — unusually — actually **enforced**: `check-changed.sh` fails CI on any Python file the branch touched that is unformatted or unclean. |
-| **DOI badge from Zenodo** | [`README.md`](./README.md) | **0** | The badge resolves, but to **`rdpatel2/Weeklies: v1.1.0 – Project 2 Release`** — the upstream repository's archive. Its nine listed authors are the Project 1 and Project 2 teams; **no member of this team is on the record**. This repository has no DOI of its own. |
+| **DOI badge from Zenodo** | [`CITATION.cff`](./CITATION.cff), [`.zenodo.json`](./.zenodo.json) | **0** | The old badge resolved to **`rdpatel2/Weeklies: v1.1.0 – Project 2 Release`**, the upstream archive, whose nine listed authors are the Project 1 and Project 2 teams; **no member of this team is on it**. It has been removed rather than left to mislead. Archive metadata is staged in `.zenodo.json` and `CITATION.cff`, so this becomes a 3 the moment the `v3.0.0` release is archived — see step 6 below. |
 | **THIRD_PARTY_LIBRARIES.md: every dependency with license** | [`THIRD_PARTY_LIBRARIES.md`](./THIRD_PARTY_LIBRARIES.md) | **3** | Every Python, development and Node dependency with its version and licence, plus the USDA FoodData Central dataset and its CC0 1.0 terms. |
 | **AI use is visible and disclosed** | [`AI_DISCLOSURE.md`](./AI_DISCLOSURE.md), [`.coderabbit.yaml`](./.coderabbit.yaml) | **3** | Tools, applications and the human verification process are documented. One correction is needed: the disclosure presents CodeRabbit as an active review bot, but the configuration file is present without the GitHub App installed, and **no pull request in this repository has a bot review**. |
 
@@ -131,8 +131,15 @@ Ordered by points per hour of effort.
 5. **Record a Project 3 teaser and walk-through — +4.** The linked videos are the previous team's.
    Thirty seconds and three minutes covering restaurant sign-up, nutrition targets and the
    Almanac themes would close both items.
-6. **Mint this repository's own Zenodo DOI — +3.** Tag a release, link the repository in Zenodo,
-   and replace the badge. The current one credits nine people, none of whom are on this team.
+6. **Mint this repository's own Zenodo DOI — +3.** The metadata is written; what remains is
+   three steps in a browser, and **the order matters** — Zenodo only archives releases
+   published *after* the repository is switched on there:
+   1. Sign in at [zenodo.org](https://zenodo.org/) with GitHub and authorize it.
+   2. Under *GitHub*, flip `fixmeseb/Weeklies` **on**. Only an account with admin on the
+      repository sees it in that list.
+   3. Publish a GitHub release tagged `v3.0.0`. Zenodo archives it and mints two DOIs; take the
+      **concept DOI** (the one that always resolves to the latest version), put it in
+      `CITATION.cff`, and add its badge to `README.md`.
 7. **Even out the fourth member's contribution — +1.** One member is at 5 commits against 33, 33
    and 24.
 8. **Add a pull request template.** No points on its own, but `CONTRIBUTING.md` already promises
