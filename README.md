@@ -259,8 +259,8 @@ against the solver's integer-scaled objective.
 |---------|----------------|-------------------|
 | **Sebastian Polge** | [@fixmeseb](https://github.com/fixmeseb) | Blueprint split behind `create_app()`, ordering rules and delivery details, Insights tab, Almanac theme system, schema versioning |
 | **Karthik Panicker** | [@KarthikPanicker2000](https://github.com/KarthikPanicker2000) | Restaurant sign-up and menu management (UI + JSON API), variety-score correction, planner restarts and optimality evals, Cypress specs |
-| **Carlos** | [@ccast44](https://github.com/ccast44) | Daily calorie/protein/carb/fat/sodium targets from USDA FoodData Central, allergen label rules, wallet and dish-refusal fixes |
-| **Cameron** | [@Tacho2](https://github.com/Tacho2) | Local-search strategy comparison in the planner demo, diet settings unified with plan optimization |
+| **Carlos Castilla Virelles** | [@ccast44](https://github.com/ccast44) | Daily calorie/protein/carb/fat/sodium targets from USDA FoodData Central, allergen label rules, wallet and dish-refusal fixes |
+| **Cameron Egbert** | [@Tacho2](https://github.com/Tacho2) | Local-search strategy comparison in the planner demo, diet settings unified with plan optimization |
 
 ### Project 2 — Fall 2026 (Upstream Team)
 
