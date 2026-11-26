@@ -66,15 +66,23 @@ The project demonstrates **modular backend design**, **frontend interaction**, *
 
 ---
 
-## 🎯 Milestones & Project 3 Roadmap
+## 🎯 Project 3 Milestones
 
-Weeklies delivers **5 completed milestones** for Project 2 and an architectural roadmap for Project 3:
-- **[M0: Risk-Killer Eval](./docs/m0.md)** — Runnable hypothesis evaluation instrument with synthetic simulation and CI reporting.
-- **[M1: Dynamic Single-Meal Swaps](./docs/milestones.md#milestone-1-m1-dynamic-single-meal-swaps-uc29)** — Calendar slot replacement with allergen and operating-hours checks.
-- **[M2: Budget-Aware Plan Generation](./docs/milestones.md#milestone-2-m2-budget-constrained-meal-plan-generation)** — Exact-cents budget caps, candidate ranking, and weekly totals.
-- **[M3: Order Progress Stepper](./docs/milestones.md#milestone-3-m3-order-lifecycle--visual-progress-stepper-uc13)** — 5-stage visual lifecycle tracker on `/profile`.
-- **[M4: Cypress E2E UI Test Harness](./docs/milestones.md#milestone-4-m4-comprehensive-cypress-e2e-ui-test-harness)** — Automated browser E2E test suite running 19 specs in CI.
-- ➡️ **[See Full Milestones & Project 3 Roadmap →](./docs/milestones.md)**
+This repository is a **Project 3** fork of
+[rdpatel2/Weeklies](https://github.com/rdpatel2/Weeklies). The fork point is `b951f60`
+(2026-10-21): everything before it is the Project 2 team's, everything after is ours.
+Five milestones delivered since:
+
+- **[M1: Restaurant self-registration](./docs/milestones.md#m1--restaurant-self-registration-with-hours-the-planner-can-read)** — restaurants join themselves, with opening hours stored so the planner can actually read them.
+- **[M2: Restaurant menu management](./docs/milestones.md#m2--restaurant-menu-management-over-a-ui-and-a-json-api)** — owners manage their own dishes over a UI and a JSON API whose field contract is generated from the validator.
+- **[M3: Daily nutrition targets](./docs/milestones.md#m3--daily-nutrition-targets-from-usda-fooddata-central)** — calorie, protein, carb, fat and sodium ranges per day, estimated from USDA FoodData Central.
+- **[M4: Blueprint split behind `create_app()`](./docs/milestones.md#m4--a-blueprint-split-behind-an-application-factory)** — `Flask_app.py` from 2,793 lines to 76, across four blueprints.
+- **[M5: Insights, themes and schema migrations](./docs/milestones.md#m5--insights-themes-and-a-schema-that-can-move)** — an Insights tab, the Almanac theme system, and ten numbered migrations with a startup version check.
+
+Since the fork: **122 files added, 735 new test functions, 19 Cypress specs**, and every
+inherited test still passing.
+
+- ➡️ **[What we inherited, what we added, what could come next →](./docs/milestones.md)**
 
 ---
 
@@ -154,7 +162,6 @@ Weeklies/
     ├── CODE-OF-CONDUCT.md             # Community standards
     ├── THIRD_PARTY_LIBRARIES.md       # Dependency licenses
     ├── AI_DISCLOSURE.md               # AI use & verification disclosure
-    ├── RUBRIC.md                      # Self-assessed repository rubric
     ├── CITATION.cff                   # How to cite this software
     ├── .zenodo.json                   # Archive metadata for the Zenodo DOI
     └── LICENSE.md                     # MIT License
@@ -169,8 +176,13 @@ Every push to any branch, and every pull request into `main` or `dev-branch`, ru
 
 1. **Static analysis** — `black` and `ruff` over the Python files the branch changed
    (scoped rather than whole-tree, so new code is gated without a repo-wide reformat)
-2. **M0 evaluation** — the hypothesis instrument is verified and the synthetic sample
-   reproduced, with the verdict written to the run summary
+2. **M0 evaluation** — the inherited hypothesis instrument is verified and its synthetic
+   sample reproduced, with the verdict written to the run summary. It currently reports
+   **FAIL**: a 24.7% median time reduction against the Project 2 team's 30% target, with
+   their budget checks passing (90% of Weeklies sessions within budget against 70%
+   manual). We report the number rather than move their threshold — see
+   [M0](./docs/m0.md) for their claim and
+   [our own M0 claim](./docs/m0-variety.md) for the Project 3 delta
 3. **Unit, integration and e2e tests** — `pytest` with `coverage`, uploaded to Codecov
 4. **Cypress** — 19 browser specs against a live Flask server on a seeded database
 

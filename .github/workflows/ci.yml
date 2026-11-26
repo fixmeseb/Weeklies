@@ -92,6 +92,53 @@ jobs:
             evals/m0/sensitivity.json
           if-no-files-found: error
 
+  m0-variety:
+    # Project 3's own M0 claim: how much variety the planner leaves on the table,
+    # measured against a CP-SAT optimum over the planner's own candidate sets.
+    # See docs/m0-variety.md for the hypothesis, baseline and thresholds.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r proj2/requirements.txt
+          # OR-Tools is needed by the harness only; the application does not use it.
+          pip install ortools==9.15.6755
+      - name: Measure the planner against a proven optimum
+        id: variety
+        shell: bash
+        env:
+          PYTHONPATH: .
+        run: |
+          status=0
+          python scripts/eval_optimality.py \
+            --days 3 --seconds 90 --max-gap 0.08 \
+            --json artifacts/m0-variety.json | tee artifacts-m0-variety.log || status=$?
+          {
+            echo "## M0 (Project 3): variety against a proven optimum"
+            echo
+            echo '```'
+            sed -n '/Optimality of the variety planner/,$p' artifacts-m0-variety.log
+            echo '```'
+            echo
+            echo "Claim and thresholds: docs/m0-variety.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Upload M0 variety result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m0-variety
+          path: |
+            artifacts/m0-variety.json
+            artifacts-m0-variety.log
+          if-no-files-found: warn
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 25
