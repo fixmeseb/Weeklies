@@ -90,6 +90,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--copies", type=int, nargs="+", default=[0, 2, 20])
     parser.add_argument("--restarts", type=int, nargs="+", default=[12, 4, 1])
+    parser.add_argument(
+        "--max-seconds",
+        type=float,
+        default=None,
+        help="exit non-zero if any run takes longer than this (the M0 threshold is 5)",
+    )
+    parser.add_argument(
+        "--no-variety-loss",
+        action="store_true",
+        help="exit non-zero if a restart count scores below the fewest restarts measured",
+    )
     args = parser.parse_args()
 
     original = menu_generation.RESTART_OPENINGS
@@ -97,6 +108,9 @@ def main() -> int:
     header = f"  {'catalog':>10}" + "".join(f"{f'{r} restarts':>16}" for r in args.restarts)
     print(header)
     print("  " + "-" * (len(header) - 2))
+    slowest = 0.0
+    regressions = []
+    baseline_restarts = min(args.restarts)
     try:
         for copies in args.copies:
             with tempfile.TemporaryDirectory() as directory:
@@ -104,15 +118,37 @@ def main() -> int:
                 seed.seed_database(path)
                 items = grow(path, copies) if copies else _count(path)
                 cells = []
+                scores = {}
                 for restarts in args.restarts:
                     seconds, score = time_week(path, restarts)
+                    slowest = max(slowest, seconds)
+                    scores[restarts] = score
                     flag = " " if seconds <= 5 else "!"
                     cells.append(f"{seconds:.2f} s{flag} / {score:.4f}")
                 print(f"  {items:>7} items" + "".join(f"{c:>16}" for c in cells))
+                baseline = scores[baseline_restarts]
+                for restarts, score in scores.items():
+                    # Restarts try the planner's own opening first, so more restarts can
+                    # only match or beat fewer. A drop here means that broke.
+                    if restarts > baseline_restarts and score < baseline - 1e-9:
+                        regressions.append((items, restarts, score, baseline))
     finally:
         menu_generation.RESTART_OPENINGS = original
-    print("\n  ! over the 5 s target\n")
-    return 0
+    print("\n  ! over the 5 s target")
+
+    ok = True
+    if args.no_variety_loss and regressions:
+        ok = False
+        print("\n  FAIL: more restarts scored below the one-restart baseline:")
+        for items, restarts, score, baseline in regressions:
+            print(f"    {items} items, {restarts} restarts: {score:.4f} < {baseline:.4f}")
+    if args.max_seconds is not None and slowest > args.max_seconds:
+        ok = False
+        print(f"\n  FAIL: slowest plan {slowest:.2f} s exceeds the {args.max_seconds:.2f} s target")
+    if (args.max_seconds is not None or args.no_variety_loss) and ok:
+        print(f"\n  PASS: slowest plan {slowest:.2f} s, no variety lost to restarts")
+    print()
+    return 0 if ok else 1
 
 
 def _count(path: str) -> int:
