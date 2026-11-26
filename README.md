@@ -182,7 +182,7 @@ Every push to any branch, and every pull request into `main` or `dev-branch`, ru
    their budget checks passing (90% of Weeklies sessions within budget against 70%
    manual). We report the number rather than move their threshold — see
    [M0](./docs/m0.md) for their claim and
-   [our own M0 claim](./docs/m0-variety.md) for the Project 3 delta
+   [our own M0 claim](./docs/m0-project3.md) for the Project 3 delta
 3. **Unit, integration and e2e tests** — `pytest` with `coverage`, uploaded to Codecov
 4. **Cypress** — 19 browser specs against a live Flask server on a seeded database
 

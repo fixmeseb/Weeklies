@@ -112,10 +112,13 @@ spiral review, which is what the instrument is for.
 
 ### The new claim for our delta
 
-[`docs/m0-variety.md`](m0-variety.md) states it in full: **how much variety the planner
-leaves on the table, measured against a proven optimum**, with
-[`scripts/eval_optimality.py`](../scripts/eval_optimality.py) as the instrument and a CI job
-that fails when the gap grows.
+[`docs/m0-project3.md`](m0-project3.md) states it in full, and it is the claim on the
+Project 3 poster: **a full week — 21 meals — planned in under 5 seconds on a 1,743-item
+catalog, with the restart search matching or beating the variety of the planner it
+replaced.** The instrument is [`scripts/bench_planner.py`](../scripts/bench_planner.py),
+with [`scripts/eval_optimality.py`](../scripts/eval_optimality.py) as supporting evidence
+that the extra search is worth its cost. Both run in CI and both fail the build when the
+claim breaks.
 
 ---
 
