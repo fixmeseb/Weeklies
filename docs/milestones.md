@@ -1,105 +1,157 @@
-# 🎯 Project 2 Milestones & Project 3 Roadmap
+# 🎯 Project 3 Milestones
 
-This document outlines the **five major milestones** completed for **Project 2 (Build)**, as well as the architectural framework and **four proposed milestones for Project 3**.
+**Project 3 is the maintenance project**: take another team's Project 2 and make it do new
+things without breaking the old things. This page is the before and the after.
 
----
+- **Upstream:** [rdpatel2/Weeklies](https://github.com/rdpatel2/Weeklies) — Projects 1 and 2.
+- **This fork:** [fixmeseb/Weeklies](https://github.com/fixmeseb/Weeklies) — Project 3.
+- **Fork point:** `b951f60` (2026-10-21). Everything before it is theirs; everything after
+  `064241c` (2026-11-02) is ours.
 
-## 🏆 Project 2 Completed Milestones
-
-Weeklies delivered five major milestones spanning user-facing features, AI optimization, and testing infrastructure:
-
-```
-[M0: Risk-Killer Eval] ──► [M1: Single-Meal Swaps] ──► [M2: Budget Generation]
-                                                              │
-[M4: Cypress E2E Test Harness] ◄── [M3: Visual Order Progress] ◄┘
-```
-
----
-
-### Milestone 0 (M0): Risk-Killer Evaluation Instrument (Required Milestone)
-* **Goal**: Test the core hypothesis of Weeklies before large-scale user rollout: *Does intelligent meal planning save users time and keep them strictly within budget?*
-* **Hypothesis Claim**:
-  - **Metric 1 (Time Reduction)**: Weeklies reduces weekly meal planning time by at least **30%** (paired median reduction).
-  - **Metric 2 (Budget Success)**: Weeklies produces completed 7-day dinner plans within budget for at least **80%** of participants.
-  - **Metric 3 (Budget Lift)**: Weeklies improves on the manual baseline budget success rate by at least **20 percentage points**.
-* **Deliverables**:
-  - Runnable evaluation CLI: [`scripts/eval_m0.py`](../scripts/eval_m0.py).
-  - Seeded synthetic user simulator: [`scripts/simulate_m0.py`](../scripts/simulate_m0.py) modeling user pacing, review carefulness, rejection probability, and budget repair behavior.
-  - Verified evaluation datasets and sensitivity sweeps across 5 seeds: [`evals/m0/`](../evals/m0/).
-  - Fully wired GitHub Actions CI job in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) publishing markdown summaries directly to GitHub Step Summaries.
-  - Comprehensive documentation and review writeup: [`docs/m0.md`](./m0.md).
+For the Project 2 team's own milestones, and the roadmap they proposed for whoever
+inherited their code, see
+[their repository](https://github.com/rdpatel2/Weeklies/blob/main/docs/milestones.md). We
+took one item from that roadmap (nutrition) and went our own way on the rest.
 
 ---
 
-### Milestone 1 (M1): Dynamic Single-Meal Swaps (UC29)
-* **Goal**: Allow users to fine-tune an AI-generated weekly plan by swapping individual date/meal slots without regenerating or disrupting the rest of their schedule.
-* **Key Capabilities**:
-  - `GET /menu/swap/options`: Queries eligible replacement items dynamically filtered by the user's saved allergen profile and restaurant operating hours for that specific day of the week.
-  - `POST /menu/swap`: Atomically replaces a single meal in the database, verifying restaurant availability, stock, and allergen safety server-side.
-  - Responsive Calendar UI: Inline "Swap" button with modal selection and status feedback alerts.
-* **Engineering Evidence**:
-  - Backed by dedicated unit and integration test suites: `proj2/tests/integration/test_meal_swap_routes.py` and `proj2/tests/unit/test_meal_swap.py`.
-  - Documented in use case specification: [`use-cases.md`](../use-cases.md) (UC29).
+## 📦 What we inherited
+
+A working Flask meal planner: accounts, restaurants and menus, a weekly calendar, budget
+caps, single-meal swaps, an order lifecycle with a progress stepper, reviews, a restaurant
+dashboard, a Cypress suite of 15 specs, and an M0 evaluation instrument.
+
+What it could not do, and what shaped our four milestones:
+
+- **Restaurants could not join.** The catalog was a seed script. There was no sign-up, and
+  nothing to record opening hours in a form the planner could read.
+- **Restaurants could not manage a menu.** Dishes were seed data. No owner-facing editing,
+  no API.
+- **Plans knew prices, not nutrition.** Budget caps existed; calories and macros did not.
+- **Everything lived in one file.** `proj2/Flask_app.py` was 2,793 lines at the fork point
+  and still growing.
 
 ---
 
-### Milestone 2 (M2): Budget-Constrained Meal Plan Generation
-* **Goal**: Guarantee that AI-generated weekly meal recommendations strictly conform to a user's target weekly budget cap.
-* **Key Capabilities**:
-  - Exact weekly budget parsing in integer cents to eliminate floating-point precision loss.
-  - Candidate pre-filtering: Prioritizes and ranks affordable meals matching dietary preferences, rejecting infeasible combinations before invoking expensive model pipelines.
-  - Calendar weekly item totals: Calculates and displays running price sums per calendar row, properly accounting for neighboring-month calendar boundaries.
-* **Engineering Evidence**:
-  - Backend integration in `proj2/menu_generation.py` and `proj2/Flask_app.py`.
-  - Comprehensive unit and integration test coverage: `proj2/tests/unit/test_menu_generation.py`.
+## 🏆 The milestones we delivered
+
+### M1 — Restaurant self-registration, with hours the planner can read
+
+Restaurants sign themselves up and record opening hours as structured JSON rather than
+prose, so `is_restaurant_open` can answer for a given weekday and time instead of
+rendering a string nobody can parse.
+
+New: `proj2/restaurant_signup.py`, `proj2/hours.py`,
+`proj2/templates/restaurant_register.html`. Pull request
+[#16](https://github.com/fixmeseb/Weeklies/pull/16).
+
+The hazard this closed is on the record: the column's contract (`format_hours` renders
+prose, `is_restaurant_open` refuses it) had already cost a real database two restaurants
+that displayed perfectly and could never be planned — see
+[#34](https://github.com/fixmeseb/Weeklies/issues/34).
+
+### M2 — Restaurant menu management, over a UI and a JSON API
+
+Owners add, edit and delete their own dishes, with diet and descriptive tags. The JSON
+API's field contract is generated from the validator, so the documentation cannot drift
+from what the code accepts.
+
+New: `proj2/food/owner_menu.py`, `proj2/menu_items.py`, `proj2/menu_tags_io.py`,
+`proj2/templates/restaurant_menu.html`. Pull request
+[#13](https://github.com/fixmeseb/Weeklies/pull/13).
+
+### M3 — Daily nutrition targets from USDA FoodData Central
+
+A day can be aimed at calorie, protein, carb, fat and sodium ranges. Per-dish nutrients are
+estimated from the USDA FNDDS 2024-10-31 release, public domain. Soft targets rank meals by
+how far they leave the day from its ranges; when targets conflict, an exact search decides.
+
+New: `proj2/nutrition.py`, `proj2/fndds_foods.py`, `proj2/demo_nutrition.py`,
+`scripts/build_fndds_snapshot.py`, migrations `005` and `006`. Pull request
+[#15](https://github.com/fixmeseb/Weeklies/pull/15), integrated by `002241d`.
+
+### M4 — A blueprint split behind an application factory
+
+`proj2/Flask_app.py` went from **2,793 lines to 76**. Routes now live in four blueprints —
+`auth`, `account`, `planner`, `food` — built by `create_app()`. `auth`, `account` and
+`planner` do not import `food`; what they share lives outside the blueprints.
+
+New: `proj2/__init__.py` (the factory), `proj2/auth/`, `proj2/account/`, `proj2/planner/`,
+`proj2/food/`. Pull request [#23](https://github.com/fixmeseb/Weeklies/pull/23).
+
+This is a systems milestone: no user sees it. It is what made M1, M2 and M5 possible
+without three teams editing the same file.
+
+### M5 — Insights, themes, and a schema that can move
+
+An Insights tab, the Almanac theme system, and ten numbered migrations (`001`–`010`) with a
+startup check that compares `PRAGMA user_version` against the latest migration and names
+the command that fixes a mismatch — instead of failing later with `no such table`.
+
+New: `proj2/templates/insights.html`, `proj2/almanac.py`, `proj2/migrations/`,
+`proj2/db.py`. Pull requests [#6](https://github.com/fixmeseb/Weeklies/pull/6) and
+[#20](https://github.com/fixmeseb/Weeklies/pull/20), plus `590c24a`.
 
 ---
 
-### Milestone 3 (M3): Order Lifecycle & Visual Progress Stepper (UC13)
-* **Goal**: Let customers see at a glance how far each order has progressed from placement to delivery, and what stages remain, instead of a single status word.
-* **Key Capabilities**:
-  - 5-stage order lifecycle: `Ordered` ➔ `Accepted` ➔ `Preparing` ➔ `Ready` ➔ `Delivered`, with `Cancelled` as a side-exit from `Ordered`/`Accepted`/`Preparing`. Transitions are enforced by the restaurant-side accept/prepare/ready/deliver/reject routes; the customer view maps the stored status onto these stages.
-  - Visual Stepper Component: a five-dot progress bar on the customer's `/profile` page. Completed stages are filled green, the current stage is highlighted, and later stages are hollow. Cancelled orders show the whole bar faded, without claiming which stages were reached.
-  - Distinct status badges for all six statuses. Previously `Accepted` and `Ready` rendered as unstyled text; unknown or missing statuses now show a neutral badge instead of breaking the row.
-  - Status mapping helper [`proj2/order_progress.py`](../proj2/order_progress.py) (pure function, no database access), called from the `/profile` route in `proj2/Flask_app.py` and rendered by `proj2/templates/profile.html`.
-* **Engineering Evidence**:
-  - 48 unit tests in [`proj2/sef26tests/test_uc13_order_progress.py`](../proj2/sef26tests/test_uc13_order_progress.py) and 31 page-rendering tests in [`proj2/sef26tests/test_uc13_track_orders.py`](../proj2/sef26tests/test_uc13_track_orders.py). They cover every status plus failure cases: cancelled, unknown, NULL or blank, numeric, mixed-case, and HTML in the status value (rendered escaped). `order_progress.py` has 100% line and branch coverage.
-  - Documented under UC13 in [`use-cases.md`](../use-cases.md).
-* **Known limitations**:
-  - No status history: the `Order` table stores only the current status, so the page cannot show *when* each stage was reached, or how far a cancelled order got. Recording this needs a status-history table written by the restaurant routes.
-  - No live updates: customers see a status change after reloading `/profile`.
+## 📐 M0: the evaluation instruments
+
+### The inherited eval still runs
+
+The Project 2 team's time-and-budget instrument
+([`docs/m0.md`](m0.md), [`scripts/eval_m0.py`](../scripts/eval_m0.py)) is untouched and runs
+in CI on every push, as the `m0-evaluation` job.
+
+Its current verdict is **FAIL**: a median time reduction of **24.7%** against their stated
+**30%** target. The budget checks pass — 90% of Weeklies sessions finish within budget
+against 70% for the manual baseline, clearing their 20-point lift. Only the time threshold
+misses.
+
+We did not move their threshold to make it pass. A failing eval honestly reported is a
+spiral review, which is what the instrument is for.
+
+### The new claim for our delta
+
+[`docs/m0-variety.md`](m0-variety.md) states it in full: **how much variety the planner
+leaves on the table, measured against a proven optimum**, with
+[`scripts/eval_optimality.py`](../scripts/eval_optimality.py) as the instrument and a CI job
+that fails when the gap grows.
 
 ---
 
-### Milestone 4 (M4): Comprehensive Cypress E2E UI Test Harness
-* **Goal**: Establish a regression testing harness simulating authentic user browser interactions across all major application workflows.
-* **Key Capabilities**:
-  - Complete Cypress 16 integration configured via `proj2/cypress.config.js`.
-  - Deterministic database seeder [`scripts/cypress_seed.py`](../scripts/cypress_seed.py) setting up pristine test states for users, restaurants, menus, and orders.
-  - 17 modular Cypress test specs covering authentication, profile management, calendar interactions, restaurant dashboards, and review submissions.
-  - Automated CI integration in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) running against a live Flask server instance with screenshot capture on failure.
-* **Engineering Evidence**:
-  - `proj2/cypress/e2e/` test specs and fixture files.
+## 🔬 The delta, in numbers
+
+Measured from the fork point `b951f60` to `main`:
+
+- **122 files added, 89 modified, 22 deleted** — +30,236 / −12,315 lines.
+- **39 new test files, 735 new test functions.** The course asks for 50, and calls 100
+  better.
+- **Cypress specs: 15 → 19.**
+- **2,311 tests passing at 98% line coverage**, on every push.
+- **`proj2/Flask_app.py`: 2,793 lines → 76.**
+- Every inherited test still passes.
 
 ---
 
-## 🚀 Project 3 Roadmap: The Next Four Milestones
+## 🔭 What could come next
 
-Weeklies was engineered specifically to be modular, testable, and straightforward for the next team to inherit and extend. We propose the following four major milestones for **Project 3**:
+Real gaps we found and did not close. Each is recorded where it was found, so a fourth team
+does not have to rediscover it.
 
-| Milestone | Title | Description | Foundation in Weeklies |
-|---|---|---|---|
-| **P3-M1** | **Multi-User Household Calendars & Split Billing** | Allow family members or roommates to link accounts, merge dietary restrictions into a single calendar, and split order costs automatically via Stripe or simulated balance. | Leverages current user profiles, calendar persistence, and allergen filtering. |
-| **P3-M2** | **Live Driver Tracking & Real-Time WebSockets** | Upgrade the simulated order progress stepper (M3) into a live dispatch system with real-time driver coordinates on a Leaflet/Mapbox map and WebSocket notifications. | Builds upon the 5-stage order lifecycle in `proj2/order_progress.py` and the restaurant status-transition routes in `proj2/Flask_app.py`; a status-history table (see M3 known limitations) is the natural first step. |
-| **P3-M3** | **Nutritional & Macro Optimization Engine** | Extend budget-constrained meal generation (M2) to optimize for calories, protein, carbs, and sodium targets using the USDA FoodData Central API. | Fits directly into the existing candidate ranking and selection pipeline in `proj2/menu_generation.py`. |
-| **P3-M4** | **Hybrid Prepared Meal + Grocery Basket Dispatch** | Allow users to swap a prepared restaurant dinner for a raw ingredient grocery basket with automated recipe cards and delivery dispatch. | Integrates with single-meal swap architecture (M1) and PDF receipt generation (`proj2/pdf_receipt.py`). |
+| Next | Why it matters | Where to start |
+|---|---|---|
+| **Nutrition targets cost variety** | Turning targets on drops a week's variety score from 0.84 to 0.57. The planner satisfies the ranges by narrowing the menu. | `proj2/nutrition.py` ranking, against `scripts/eval_optimality.py` |
+| **Nutrient estimates are rough** | Macros are scaled to each dish's stated calories, so `4p + 4c + 9f` does not reconstruct them. Fine for ranking, wrong for anyone counting. | `nutrition.estimate_macros` |
+| **The optimality harness measures an old catalog** | Its numbers were taken on the 76-dish catalog; the seed is now 83 dishes plus restaurant-added ones. | `evals/optimality/` |
+| **Two scenarios never prove optimal** | "5 days" and "all meals" hit the solver limit, so their gaps are upper bounds, not measurements. | `scripts/eval_optimality.py` |
+| **The planner is single-objective at heart** | Variety is maximised; cost and nutrition are constraints. A real multi-objective search would expose the trade-off instead of hiding it. | `proj2/hill_climbing.py` — six strategies already live there |
 
 ---
 
-## 🛠️ Inheriting This Codebase
+## 🛠️ Inheriting this codebase
 
-For instructions on setting up the environment, running the full test suite, and building documentation, refer to:
-- [Installation & Quickstart Guide](../INSTALL.md)
-- [Contribution Guidelines](../CONTRIBUTING.md)
+- [Installation & Quickstart](../INSTALL.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Architecture](../proj2/docs/architecture.md)
 - [Code of Conduct](../CODE-OF-CONDUCT.md)
-- [Third-Party Licenses](../THIRD_PARTY_LIBRARIES.md)
+- [Third-party licenses](../THIRD_PARTY_LIBRARIES.md)
