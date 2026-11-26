@@ -1,7 +1,7 @@
 MIT License
 Copyright (c) 2025 Taylor Brown
 Copyright (c) 2026 Rohan Patel, Srikar Desemsetti, Alex Tanton, Kushal Upreti
-Copyright (c) 2026 Sebastian Polge, Karthik Panicker, Carlos FIXME-SURNAME, Cameron FIXME-SURNAME
+Copyright (c) 2026 Sebastian Polge, Karthik Panicker, Carlos Castilla Virelles, Cameron Egbert
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
