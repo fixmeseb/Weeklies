@@ -20,7 +20,7 @@
 [![Repo size](https://img.shields.io/github/repo-size/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies)
 <!-- DOI badge: add it here once the first release is archived. The previous badge pointed at 10.5281/zenodo.23535676, which is rdpatel2/Weeklies' Project 2 archive and lists none of this team. See CITATION.cff for the steps. -->
 
-> 🎬 **Teaser Video (30s)**: [Quick Feature Teaser Video](https://youtu.be/mHaZZrCgCAQ) · **Full Demo (3m)**: [Feature Walk-Through Video](https://youtu.be/7xUXqdqDwcs)
+> 🎬 **Project 3 videos** — [Teaser](https://drive.google.com/file/d/1XasLGLjjncoXMDLWJ_P6k2x5bvojpNE3/view?usp=drive_link) · [Feature walk-through](https://drive.google.com/file/d/10ITcMl-MdByPu8lPa5-JHT4FHdOK5q2v/view?usp=drive_link) (both need an NC State account)
 
 ---
 
@@ -244,10 +244,19 @@ against the solver's integer-scaled objective.
 
 ## 📹 Project Demonstration Videos
 
-- ⚡ **Teaser Video (30s)**: High-level visual tour of intelligent meal planning, allergen filters, and calendar interactions.  
-  ➡️ **[Watch Teaser Video](https://youtu.be/mHaZZrCgCAQ)**
-- 🔍 **Feature Walk-Through Video (3m)**: Detailed demonstration covering single-meal swaps (UC29), budget caps, order lifecycle tracking (UC13), and Cypress E2E test execution.  
-  ➡️ **[Watch Feature Walk-Through](https://youtu.be/7xUXqdqDwcs)**
+These are the **Project 3** videos. The walk-through is the one linked from the project poster.
+
+- ⚡ **Teaser**: a short tour of the application.  
+  ➡️ **[Watch the teaser](https://drive.google.com/file/d/1XasLGLjjncoXMDLWJ_P6k2x5bvojpNE3/view?usp=drive_link)**
+- 🔍 **Feature walk-through**: a longer demonstration of the Project 3 work.  
+  ➡️ **[Watch the walk-through](https://drive.google.com/file/d/10ITcMl-MdByPu8lPa5-JHT4FHdOK5q2v/view?usp=drive_link)**
+
+Both are hosted on Google Drive and open for anyone signed in with an NC State account; a
+personal Google account is refused.
+
+The Project 1 and Project 2 videos are not listed here. They belong to the
+[upstream repository](https://github.com/rdpatel2/Weeklies) and were still linked from this
+README, which read as though they showed this team's work.
 
 ---
 
