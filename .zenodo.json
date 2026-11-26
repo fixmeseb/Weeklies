@@ -1,0 +1,49 @@
+{
+  "title": "Weeklies: variety-driven, budget- and nutrition-aware meal planning",
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "language": "eng",
+  "description": "<p>Weeklies is a Flask web application that plans a week of meals. A plan must satisfy every hard rule &mdash; allergies, dietary requirements, restaurant opening hours, stock, and an exact-cents weekly budget cap &mdash; and among the plans that do, the planner picks the one with the most variety across cuisine, protein, carb base and cooking method. Days can additionally be aimed at calorie, protein, carb, fat and sodium ranges, estimated from USDA FoodData Central's Survey (FNDDS) 2024-10-31 release.</p><p>Built for CSC 510 Software Engineering (Fall 2026) at North Carolina State University. This release covers the Project 3 work: restaurant self-registration with planner-readable opening hours, restaurant menu management over a UI and a JSON API whose field contract is generated from the validator, single-meal swaps, daily nutrition targets, a blueprint split behind an application factory, and an Insights tab. 2,311 tests and 19 Cypress browser specs run in CI at 98% line coverage.</p><p><strong>Prior work.</strong> This repository is a fork and continuation of <a href=\"https://github.com/rdpatel2/Weeklies\">rdpatel2/Weeklies</a>, archived as <a href=\"https://doi.org/10.5281/zenodo.23535676\">10.5281/zenodo.23535676</a>, which carries the Project 1 and Project 2 work by Taylor Brown, Kunal Jindal, Ashritha Bugada, Daniel Dong, Jawad Saeed, Omkar Joshi, Mason Cormany, Kushal Upreti, Rohan Patel, Srikar Desemsetti and Alex Tanton. The authors listed on this record are the Project 3 team only; the earlier teams are credited on the record above.</p><p><strong>Data.</strong> Nutrient values are derived from U.S. Department of Agriculture, Agricultural Research Service, Beltsville Human Nutrition Research Center, FoodData Central (https://fdc.nal.usda.gov/), Survey (FNDDS) 2024-10-31, public domain (CC0 1.0).</p>",
+  "creators": [
+    {
+      "name": "Polge, Sebastian",
+      "affiliation": "North Carolina State University"
+    },
+    {
+      "name": "Panicker, Karthik",
+      "affiliation": "North Carolina State University"
+    },
+    {
+      "name": "FIXME-SURNAME, Carlos",
+      "affiliation": "North Carolina State University"
+    },
+    {
+      "name": "FIXME-SURNAME, Cameron",
+      "affiliation": "North Carolina State University"
+    }
+  ],
+  "keywords": [
+    "meal planning",
+    "combinatorial optimization",
+    "local search",
+    "constraint satisfaction",
+    "nutrition",
+    "Flask",
+    "software engineering education"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.23535676",
+      "relation": "isDerivedFrom",
+      "resource_type": "software",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://github.com/fixmeseb/Weeklies",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ]
+}

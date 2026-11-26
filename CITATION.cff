@@ -1,0 +1,76 @@
+# Citation metadata for this repository.
+#
+# GitHub reads this file and shows a "Cite this repository" button in the sidebar.
+# Zenodo reads .zenodo.json instead, so the two must be kept in step: if you change an
+# author, a title or the version here, change it there too.
+#
+# After the first release is archived, fill in the two fields marked TODO with the
+# concept DOI Zenodo mints (the one that always resolves to the latest version, not the
+# version-specific DOI), and add the same DOI badge to README.md.
+
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Weeklies: variety-driven, budget- and nutrition-aware meal planning"
+abstract: >-
+  A Flask web application that plans a week of meals. A plan must satisfy every hard
+  rule -- allergies, dietary requirements, restaurant opening hours, stock, and an
+  exact-cents weekly budget cap -- and among the plans that do, the planner picks the
+  one with the most variety across cuisine, protein, carb base and cooking method. Days
+  can additionally be aimed at calorie, protein, carb, fat and sodium ranges, estimated
+  from USDA FoodData Central's Survey (FNDDS) 2024-10-31 release.
+type: software
+license: MIT
+version: 3.0.0
+date-released: "2026-11-25"
+repository-code: "https://github.com/fixmeseb/Weeklies"
+url: "https://fixmeseb.github.io/Weeklies/"
+# doi: 10.5281/zenodo.XXXXXXX   # TODO: concept DOI, after the first release is archived
+keywords:
+  - meal planning
+  - combinatorial optimization
+  - local search
+  - constraint satisfaction
+  - nutrition
+  - Flask
+  - software engineering education
+
+authors:
+  - family-names: Polge
+    given-names: Sebastian
+    affiliation: North Carolina State University
+    alias: fixmeseb
+  - family-names: Panicker
+    given-names: Karthik
+    affiliation: North Carolina State University
+    alias: KarthikPanicker2000
+  - family-names: FIXME-SURNAME
+    given-names: Carlos
+    affiliation: North Carolina State University
+    alias: ccast44
+  - family-names: FIXME-SURNAME
+    given-names: Cameron
+    affiliation: North Carolina State University
+    alias: Tacho2
+
+references:
+  - type: software
+    title: "Weeklies (Projects 1 and 2)"
+    doi: 10.5281/zenodo.23535676
+    repository-code: "https://github.com/rdpatel2/Weeklies"
+    notes: >-
+      The work this repository forks and continues. Its record carries the Project 1
+      and Project 2 teams; the authors listed above are the Project 3 team only.
+    authors:
+      - name: "The Weeklies Project 1 and Project 2 teams"
+  - type: database
+    title: FoodData Central
+    notes: >-
+      U.S. Department of Agriculture, Agricultural Research Service, Beltsville Human
+      Nutrition Research Center. Survey (FNDDS) 2024-10-31 release, public domain
+      (CC0 1.0). Source of the per-100 g nutrient values in proj2/fndds_foods.py.
+    url: "https://fdc.nal.usda.gov/"
+    year: 2024
+    authors:
+      - name: >-
+          U.S. Department of Agriculture, Agricultural Research Service, Beltsville
+          Human Nutrition Research Center

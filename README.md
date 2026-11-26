@@ -1,22 +1,24 @@
 
 # 🍽️ WEEKLIES — Intelligent Meal Planning and Delivery System
 
-[![CI](https://github.com/rdpatel2/Weeklies/actions/workflows/ci.yml/badge.svg)](https://github.com/rdpatel2/Weeklies/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-466%20passing-brightgreen.svg)](https://github.com/rdpatel2/Weeklies/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen.svg)](https://github.com/rdpatel2/Weeklies/actions/workflows/ci.yml)
-[![Docs](https://github.com/rdpatel2/Weeklies/actions/workflows/docs.yml/badge.svg)](https://rdpatel2.github.io/Weeklies/)
+[![CI](https://github.com/fixmeseb/Weeklies/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fixmeseb/Weeklies/actions/workflows/ci.yml)
+[![Docs](https://github.com/fixmeseb/Weeklies/actions/workflows/docs.yml/badge.svg?branch=main)](https://fixmeseb.github.io/Weeklies/)
+[![Tests](https://img.shields.io/badge/tests-2311%20passing-brightgreen.svg)](https://github.com/fixmeseb/Weeklies/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-98%25-brightgreen.svg)](https://github.com/fixmeseb/Weeklies/actions/workflows/ci.yml)
+[![Cypress specs](https://img.shields.io/badge/cypress-19%20specs-brightgreen?logo=cypress&logoColor=white)](proj2/cypress/e2e)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](INSTALL.md)
-[![Flask](https://img.shields.io/badge/Flask-2.x-lightgrey?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![Cypress](https://img.shields.io/badge/cypress-tested-brightgreen?logo=cypress&logoColor=white)](https://www.cypress.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+[![Flask](https://img.shields.io/badge/Flask-2.3.3-lightgrey?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](pyproject.toml)
 [![Lint: ruff](https://img.shields.io/badge/lint-ruff-46a2f1?logo=ruff&logoColor=white)](pyproject.toml)
-[![Syntax: ruff](https://img.shields.io/badge/syntax-ruff-46a2f1?logo=ruff&logoColor=white)](pyproject.toml)
-[![GitHub last commit](https://img.shields.io/github/last-commit/rdpatel2/Weeklies.svg)](https://github.com/rdpatel2/Weeklies/commits)
-[![GitHub issues](https://img.shields.io/github/issues/rdpatel2/Weeklies.svg)](https://github.com/rdpatel2/Weeklies/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/rdpatel2/Weeklies.svg)](https://github.com/rdpatel2/Weeklies/pulls)
-[![Contributors](https://img.shields.io/github/contributors/rdpatel2/Weeklies.svg)](https://github.com/rdpatel2/Weeklies/graphs/contributors)
-[![DOI](https://zenodo.org/badge/1351756287.svg)](https://doi.org/10.5281/zenodo.23535676)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+[![Last commit](https://img.shields.io/github/last-commit/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/commits/main)
+[![Open issues](https://img.shields.io/github/issues/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/issues)
+[![Open pull requests](https://img.shields.io/github/issues-pr/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/pulls)
+[![Closed pull requests](https://img.shields.io/github/issues-pr-closed/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/pulls?q=is%3Apr+is%3Aclosed)
+[![Contributors](https://img.shields.io/github/contributors/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/graphs/contributors)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies/pulse)
+[![Repo size](https://img.shields.io/github/repo-size/fixmeseb/Weeklies.svg)](https://github.com/fixmeseb/Weeklies)
+<!-- DOI badge: add it here once the first release is archived. The previous badge pointed at 10.5281/zenodo.23535676, which is rdpatel2/Weeklies' Project 2 archive and lists none of this team. See CITATION.cff for the steps. -->
 
 > 🎬 **Teaser Video (30s)**: [Quick Feature Teaser Video](https://youtu.be/mHaZZrCgCAQ) · **Full Demo (3m)**: [Feature Walk-Through Video](https://youtu.be/7xUXqdqDwcs)
 
@@ -71,7 +73,7 @@ Weeklies delivers **5 completed milestones** for Project 2 and an architectural 
 - **[M1: Dynamic Single-Meal Swaps](./docs/milestones.md#milestone-1-m1-dynamic-single-meal-swaps-uc29)** — Calendar slot replacement with allergen and operating-hours checks.
 - **[M2: Budget-Aware Plan Generation](./docs/milestones.md#milestone-2-m2-budget-constrained-meal-plan-generation)** — Exact-cents budget caps, candidate ranking, and weekly totals.
 - **[M3: Order Progress Stepper](./docs/milestones.md#milestone-3-m3-order-lifecycle--visual-progress-stepper-uc13)** — 5-stage visual lifecycle tracker on `/profile`.
-- **[M4: Cypress E2E UI Test Harness](./docs/milestones.md#milestone-4-m4-comprehensive-cypress-e2e-ui-test-harness)** — Automated browser E2E test suite running 17 specs in CI.
+- **[M4: Cypress E2E UI Test Harness](./docs/milestones.md#milestone-4-m4-comprehensive-cypress-e2e-ui-test-harness)** — Automated browser E2E test suite running 19 specs in CI.
 - ➡️ **[See Full Milestones & Project 3 Roadmap →](./docs/milestones.md)**
 
 ---
@@ -90,6 +92,10 @@ Weeklies/
 │   ├── 📁 food/                       # Restaurants, orders, plan changes, owner pages, /db
 │   ├── 🥗 menu_generation.py          # Meal planner (rules + variety)
 │   ├── 🎲 variety.py                  # Variety score between meals and plans
+│   ├── 🧮 nutrition.py                # Daily calorie/protein/carb/fat/sodium targets
+│   ├── 📊 fndds_foods.py              # USDA FoodData Central snapshot (generated)
+│   ├── 🏪 restaurant_signup.py        # Restaurant self-registration rules
+│   ├── 🕒 hours.py                    # Opening hours: render and parse
 │   ├── 📄 pdf_receipt.py              # PDF generation service
 │   ├── 💾 sqlQueries.py               # Database helper functions
 │   │
@@ -149,6 +155,8 @@ Weeklies/
     ├── THIRD_PARTY_LIBRARIES.md       # Dependency licenses
     ├── AI_DISCLOSURE.md               # AI use & verification disclosure
     ├── RUBRIC.md                      # Self-assessed repository rubric
+    ├── CITATION.cff                   # How to cite this software
+    ├── .zenodo.json                   # Archive metadata for the Zenodo DOI
     └── LICENSE.md                     # MIT License
 ```
 
@@ -156,11 +164,20 @@ Weeklies/
 
 ## 🧪 Continuous Integration
 
-Every push or pull request to the `main` branch triggers:
-1. **CI tests** via `pytest` and `coverage`  
-2. **Cypress E2E tests** against a live Flask server
-3. **Documentation build & deployment** to GitHub Pages (`gh-pages` branch)  
-4. **Static analysis** via `ruff` and `black` 
+Every push to any branch, and every pull request into `main` or `dev-branch`, runs
+[`ci.yml`](./.github/workflows/ci.yml):
+
+1. **Static analysis** — `black` and `ruff` over the Python files the branch changed
+   (scoped rather than whole-tree, so new code is gated without a repo-wide reformat)
+2. **M0 evaluation** — the hypothesis instrument is verified and the synthetic sample
+   reproduced, with the verdict written to the run summary
+3. **Unit, integration and e2e tests** — `pytest` with `coverage`, uploaded to Codecov
+4. **Cypress** — 19 browser specs against a live Flask server on a seeded database
+
+[`docs.yml`](./.github/workflows/docs.yml) runs when a push or a pull request into `main`
+touches `proj2/`, `scripts/`, `pdoc.toml` or the workflow itself. It builds the pdoc site and
+attaches it as an artifact on pull requests, and publishes it to the `gh-pages` branch when
+`main` moves.
 
 You can view live status from the badges above.
 
@@ -171,7 +188,7 @@ You can view live status from the badges above.
 Auto-generated API documentation is available through **pdoc** and deployed automatically.  
 You can view it online (via GitHub Pages) or build it locally:
 
-🔗 **Live Docs:** [Weeklies Documentation](https://rdpatel2.github.io/Weeklies/)  
+🔗 **Live Docs:** [Weeklies Documentation](https://fixmeseb.github.io/Weeklies/)  
 🧰 **Local Build:** See [INSTALL.md](./INSTALL.md#documentation)
 
 ---
@@ -236,7 +253,16 @@ against the solver's integer-scaled objective.
 
 ## 👥 Team & Contributors
 
-### Project 2 — Fall 2026 (Current Team)
+### Project 3 — Fall 2026 (Current Team)
+
+| Member | GitHub Handle | Key Contributions |
+|---------|----------------|-------------------|
+| **Sebastian Polge** | [@fixmeseb](https://github.com/fixmeseb) | Blueprint split behind `create_app()`, ordering rules and delivery details, Insights tab, Almanac theme system, schema versioning |
+| **Karthik Panicker** | [@KarthikPanicker2000](https://github.com/KarthikPanicker2000) | Restaurant sign-up and menu management (UI + JSON API), variety-score correction, planner restarts and optimality evals, Cypress specs |
+| **Carlos** | [@ccast44](https://github.com/ccast44) | Daily calorie/protein/carb/fat/sodium targets from USDA FoodData Central, allergen label rules, wallet and dish-refusal fixes |
+| **Cameron** | [@Tacho2](https://github.com/Tacho2) | Local-search strategy comparison in the planner demo, diet settings unified with plan optimization |
+
+### Project 2 — Fall 2026 (Upstream Team)
 
 | Member | GitHub Handle | Key Contributions |
 |---------|----------------|-------------------|
@@ -259,9 +285,34 @@ against the solver's integer-scaled objective.
 
 ---
 
+## 🗂️ Data Sources & Citations
+
+The nutrition figures behind the planner's calorie, protein, carb, fat and sodium targets are
+not invented. Every demo dish is matched to one or more USDA foods and scaled to its listed
+calories; the foods used are snapshotted into `proj2/fndds_foods.py` by
+`scripts/build_fndds_snapshot.py`, so seeding and the tests need neither the network nor an
+API key.
+
+1. U.S. Department of Agriculture, Agricultural Research Service, Beltsville Human Nutrition
+   Research Center. *FoodData Central.* [Internet]. [cited 2026-11-24]. Available from
+   <https://fdc.nal.usda.gov/>.
+
+[USDA FoodData Central](https://fdc.nal.usda.gov/) produces thorough resources for navigating
+and understanding nutritional info to support dietary choices and nutritional analysis. The
+snapshot in this repository comes from the Survey (FNDDS) 2024-10-31 release, which is in the
+public domain (CC0 1.0). Dependency licences and the full third-party inventory are listed in
+[THIRD_PARTY_LIBRARIES.md](./THIRD_PARTY_LIBRARIES.md).
+
+---
+
 ## 🤝 Contributing
 We welcome contributions from everyone.  
 Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE-OF-CONDUCT.md) before submitting pull requests.
+
+💬 **Talk to us:** the team coordinates day to day on Discord — [join the Weeklies server](https://discord.gg/raSqAj6R8).
+Design arguments, review questions and "is this a bug?" all start there. Anything that ends in
+a code change should also get a GitHub issue, so the reasoning is on the record next to the
+commit that acts on it.
 
 ---
 

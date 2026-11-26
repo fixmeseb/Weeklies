@@ -88,3 +88,6 @@ proj2/package-lock.json
 .worktrees/
 .claude/
 pallettes/
+
+# Working file: issue drafts, deleted once filed
+ISSUES-TO-FILE.md
